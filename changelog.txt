@@ -1,4 +1,16 @@
 
+[7.3.1] - 2026-02-14
+HOTFIX: Authentication dialog closing immediately
+- FIXED: NameError crash - max_attempts was defined inside poll_thread() but referenced
+  in start_polling() outer scope, causing exception that triggered error-close handler
+- FIXED: Separated API error handling from polling launch in start_auth_flow() so a bug
+  in display/polling code doesn't cascade into the "Error: close dialog" path
+- FIXED: Default expires_in now 900s (matches actual SIMKL API response) not 300s
+- IMPROVED: Polling wait uses 500ms sleep chunks instead of one big sleep, so cancel
+  button responds within 500ms instead of waiting the full 5-second poll interval
+- IMPROVED: Time remaining display now shows minutes:seconds format (e.g. "14:55")
+- Dialog now stays open for full SIMKL-provided expiry time (typically 15 minutes)
+
 [7.3.0] - 2026-02-14
 BUG FIXES: Authentication & Settings
 - FIXED: QR code now generated via web API (qrserver.com) - removed broken pyqrcode dependency

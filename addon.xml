@@ -1,10 +1,16 @@
 ﻿<?xml version="1.0" encoding="UTF-8"?>
 <!--
 SIMKL Scrobbler for Kodi
-Version: 7.3.0
+Version: 7.3.1
 Last Modified: 2026-02-14
 
 CHANGELOG:
+7.3.1 - HOTFIX: Auth dialog closing immediately
+        - FIXED: NameError crash (max_attempts referenced outside thread scope)
+        - FIXED: Dialog now stays open up to 15 minutes for PIN/QR auth
+        - FIXED: Separated API error handler from polling to prevent cascade close
+        - IMPROVED: Cancel responds within 500ms instead of waiting full poll interval
+        - IMPROVED: Time remaining shows minutes:seconds format
 7.3.0 - BUG FIXES: Authentication & Settings
         - FIXED: QR code now generated via API (removed broken pyqrcode dependency)
         - FIXED: PIN authentication polling with improved response handling
@@ -34,7 +40,7 @@ CHANGELOG:
 -->
 <addon id="script.simkl" 
        name="SIMKL Scrobbler" 
-       version="7.3.0" 
+       version="7.3.1" 
        provider-name="Claude.ai with assistance from Michael Beck">
     
     <requires>

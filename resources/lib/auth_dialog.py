@@ -1,13 +1,17 @@
 # -*- coding: utf-8 -*-
 """
 SIMKL Scrobbler - Authentication Dialog Handler  
-Version: 7.3.0
+Version: 7.3.1
 Last Modified: 2026-02-14
 
 BUG FIXES:
+- FIXED: Dialog closing after ~3 seconds (NameError: max_attempts not in scope)
+- FIXED: Separated API error handling from polling launch to prevent cascading close
+- FIXED: Polling wait uses 500ms chunks for responsive cancel detection
+- FIXED: Default expires_in now 900s (matches SIMKL API) not 300s
+- IMPROVED: Time remaining display shows minutes:seconds format
 - QR code generation via web API (removed broken pyqrcode dependency)
 - Improved PIN polling with detailed response logging
-- Better error handling and diagnostics
 
 Professional code - suitable for public distribution
 Attribution: Claude.ai with assistance from Michael Beck
@@ -23,7 +27,7 @@ import time
 import os
 
 # Module version
-__version__ = '7.3.0'
+__version__ = '7.3.1'
 
 # Log module initialization
 xbmc.log(f'[SIMKL Scrobbler] auth_dialog.py v{__version__} - Auth dialog module loading', level=xbmc.LOGINFO)
@@ -94,7 +98,7 @@ class SIMKLAuthDialog(xbmcgui.WindowXMLDialog):
         self.user_code = None
         self.device_code = None
         self.interval = 5
-        self.expires_in = 300
+        self.expires_in = 900
         self.polling = False
         self.success = False
         self.closed = False
@@ -132,7 +136,7 @@ class SIMKLAuthDialog(xbmcgui.WindowXMLDialog):
         self.close()
 
     def start_auth_flow(self):
-        """Request device code from SIMKL"""
+        """Request device code from SIMKL and start polling"""
         xbmc.log(f"[SIMKL Scrobbler] Auth: start_auth_flow() START", xbmc.LOGINFO)
         
         status_control = self.getControl(STATUS_LABEL)
@@ -155,27 +159,29 @@ class SIMKLAuthDialog(xbmcgui.WindowXMLDialog):
             self.user_code = data.get('user_code')
             self.device_code = data.get('device_code')
             self.interval = data.get('interval', 5)
-            self.expires_in = data.get('expires_in', 300)
+            self.expires_in = data.get('expires_in', 900)
             verification_url = data.get('verification_url', 'https://simkl.com/pin/')
             
             xbmc.log(f"[SIMKL Scrobbler] Auth: user_code={self.user_code}, device_code={'YES' if self.device_code else 'NO'}", xbmc.LOGINFO)
             xbmc.log(f"[SIMKL Scrobbler] Auth: interval={self.interval}s, expires={self.expires_in}s, verify_url={verification_url}", xbmc.LOGINFO)
             
-            if self.user_code and self.device_code:
-                self.display_auth_info()
-                self.start_polling()
-            else:
-                xbmc.log(f"[SIMKL Scrobbler] Auth: ERROR: Missing user_code or device_code in response", xbmc.LOGERROR)
-                xbmc.log(f"[SIMKL Scrobbler] Auth: Full response data: {data}", xbmc.LOGERROR)
-                status_control.setLabel("Error: Invalid response from SIMKL")
-                xbmc.sleep(3000)
-                self.close()
-                
         except Exception as e:
             xbmc.log(f"[SIMKL Scrobbler] Auth: EXCEPTION in start_auth_flow: {e}", xbmc.LOGERROR)
             import traceback
             xbmc.log(f"[SIMKL Scrobbler] Auth: {traceback.format_exc()}", xbmc.LOGERROR)
             status_control.setLabel(f"Error: {str(e)}")
+            xbmc.sleep(3000)
+            self.close()
+            return
+        
+        # Display auth info and start polling (outside the API try/except
+        # so a bug here doesn't trigger the error-close handler)
+        if self.user_code and self.device_code:
+            self.display_auth_info()
+            self.start_polling()
+        else:
+            xbmc.log(f"[SIMKL Scrobbler] Auth: ERROR: Missing user_code or device_code in response", xbmc.LOGERROR)
+            status_control.setLabel("Error: Invalid response from SIMKL")
             xbmc.sleep(3000)
             self.close()
 
@@ -214,20 +220,22 @@ class SIMKLAuthDialog(xbmcgui.WindowXMLDialog):
         xbmc.log(f"[SIMKL Scrobbler] Auth: start_polling() START", xbmc.LOGINFO)
         
         self.polling = True
+        self.max_attempts = self.expires_in // self.interval
         status_control = self.getControl(STATUS_LABEL)
         status_control.setLabel("Waiting for authorization...")
         
         def poll_thread():
             xbmc.log(f"[SIMKL Scrobbler] Auth: Polling thread started", xbmc.LOGINFO)
             attempts = 0
-            max_attempts = self.expires_in // self.interval
             
-            while self.polling and not self.closed and attempts < max_attempts:
+            while self.polling and not self.closed and attempts < self.max_attempts:
                 attempts += 1
                 
-                time_remaining = (max_attempts - attempts) * self.interval
+                time_remaining = (self.max_attempts - attempts) * self.interval
+                minutes = time_remaining // 60
+                seconds = time_remaining % 60
                 try:
-                    status_control.setLabel(f"Waiting... ({time_remaining}s remaining)")
+                    status_control.setLabel(f"Waiting... ({minutes}:{seconds:02d} remaining)")
                 except Exception:
                     pass  # Dialog might be closed
                 
@@ -270,8 +278,12 @@ class SIMKLAuthDialog(xbmcgui.WindowXMLDialog):
                     self.close()
                     return
                 
-                # 'pending' - continue polling
-                xbmc.sleep(self.interval * 1000)
+                # 'pending' - wait before next poll
+                # Use short sleeps so we can respond to cancel quickly
+                for _ in range(self.interval * 2):
+                    if not self.polling or self.closed:
+                        return
+                    xbmc.sleep(500)
                 
             if not self.success and not self.closed:
                 xbmc.log(f"[SIMKL Scrobbler] Auth: TIMEOUT after {attempts} attempts ({attempts * self.interval}s)", xbmc.LOGWARNING)
@@ -285,7 +297,7 @@ class SIMKLAuthDialog(xbmcgui.WindowXMLDialog):
         thread = threading.Thread(target=poll_thread)
         thread.daemon = True
         thread.start()
-        xbmc.log(f"[SIMKL Scrobbler] Auth: Polling thread launched (max {max_attempts} attempts, {self.interval}s interval)", xbmc.LOGINFO)
+        xbmc.log(f"[SIMKL Scrobbler] Auth: Polling thread launched (max {self.max_attempts} attempts, {self.interval}s interval)", xbmc.LOGINFO)
 
     def check_authorization(self):
         """
