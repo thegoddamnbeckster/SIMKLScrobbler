@@ -1,4 +1,18 @@
 
+[7.3.2] - 2026-02-14
+HOTFIX: Username not retrieved after authentication
+- ROOT CAUSE: Kodi's setSetting() from background threads is asynchronous. The polling
+  thread saved the token, but fetch_username() immediately re-read it via getSetting()
+  which returned empty because the write hadn't flushed yet. Same issue caused
+  update_auth_status() to see is_authenticated()=False right after successful auth.
+- FIXED: Token passed in-memory from check_authorization() to fetch_username() instead
+  of re-reading from settings
+- FIXED: show_auth_dialog() now returns (success, username) tuple
+- FIXED: auth.authenticate() passes username back to default.py
+- FIXED: handle_auth_action() sets auth_status directly from dialog return values
+  instead of calling update_auth_status() which re-reads stale settings
+- IMPROVED: Dialog shows "Authenticated as <username>!" on success
+
 [7.3.1] - 2026-02-14
 HOTFIX: Authentication dialog closing immediately
 - FIXED: NameError crash - max_attempts was defined inside poll_thread() but referenced

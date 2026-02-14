@@ -125,12 +125,21 @@ def handle_auth_action():
     
     # Trigger authentication
     log(f"[default.py v{VERSION}] Calling auth.authenticate()...")
-    success = auth.authenticate()
-    log(f"[default.py v{VERSION}] auth.authenticate() returned: {success}")
+    success, username = auth.authenticate()
+    log(f"[default.py v{VERSION}] auth.authenticate() returned: success={success}, username='{username}'")
     
-    # Update status field after authentication completes
-    log(f"[default.py v{VERSION}] Updating auth status after auth completion...")
-    update_auth_status()
+    # Update status field directly using values from the dialog
+    # (don't re-read settings - Kodi's async settings writes from background
+    # threads may not be visible to a new Addon() instance yet)
+    if success and username:
+        status = f"Authenticated as {username}"
+    elif success:
+        status = "Authenticated"
+    else:
+        status = "Not currently signed in"
+    
+    log(f"[default.py v{VERSION}] Setting auth_status directly: '{status}'")
+    addon.setSetting('auth_status', status)
     
     log(f"[default.py v{VERSION}] Authentication completed: success={success}")
     log(f"[default.py v{VERSION}] ========== handle_auth_action() END ==========")

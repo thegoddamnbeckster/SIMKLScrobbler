@@ -1,10 +1,16 @@
 ﻿<?xml version="1.0" encoding="UTF-8"?>
 <!--
 SIMKL Scrobbler for Kodi
-Version: 7.3.1
+Version: 7.3.2
 Last Modified: 2026-02-14
 
 CHANGELOG:
+7.3.2 - HOTFIX: Username not retrieved after authentication
+        - FIXED: fetch_username() couldn't read token from settings due to Kodi async write timing
+        - FIXED: Token now passed in-memory to fetch_username() instead of re-reading settings
+        - FIXED: Username and success status returned directly from dialog to default.py
+        - FIXED: auth_status now set from dialog return values, not stale settings re-read
+        - Dialog shows "Authenticated as <username>!" on success
 7.3.1 - HOTFIX: Auth dialog closing immediately
         - FIXED: NameError crash (max_attempts referenced outside thread scope)
         - FIXED: Dialog now stays open up to 15 minutes for PIN/QR auth
@@ -40,7 +46,7 @@ CHANGELOG:
 -->
 <addon id="script.simkl" 
        name="SIMKL Scrobbler" 
-       version="7.3.1" 
+       version="7.3.2" 
        provider-name="Claude.ai with assistance from Michael Beck">
     
     <requires>

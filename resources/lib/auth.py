@@ -35,17 +35,17 @@ class SimklAuth:
         Perform OAuth PIN authentication flow using dialog
         
         Returns:
-            True if authentication successful, False otherwise
+            tuple: (success: bool, username: str or None)
         """
         log(f"[auth.py v{__version__}] ========== authenticate() START ==========")
         log(f"[auth.py v{__version__}] Calling show_auth_dialog()...")
         
-        success = show_auth_dialog()
+        success, username = show_auth_dialog()
         
-        log(f"[auth.py v{__version__}] show_auth_dialog() returned: {success}")
+        log(f"[auth.py v{__version__}] show_auth_dialog() returned: success={success}, username='{username}'")
         log(f"[auth.py v{__version__}] ========== authenticate() END ==========")
         
-        return success
+        return success, username
     
     def is_authenticated(self):
         """

@@ -102,6 +102,8 @@ class SIMKLAuthDialog(xbmcgui.WindowXMLDialog):
         self.polling = False
         self.success = False
         self.closed = False
+        self.fetched_username = None
+        self._last_saved_token = None
         
         xbmc.log(f"[SIMKL Scrobbler] Auth: Dialog initialized", xbmc.LOGINFO)
         
@@ -246,21 +248,32 @@ class SIMKLAuthDialog(xbmcgui.WindowXMLDialog):
                     self.success = True
                     self.polling = False
                     
-                    # Fetch username
+                    # Fetch username using the token we already have in memory
+                    # (don't re-read from settings - Kodi's async writes may not be flushed yet)
+                    access_token = self.addon.getSetting('access_token')
+                    if not access_token:
+                        # Fallback: read directly from what we just saved
+                        xbmc.log(f"[SIMKL Scrobbler] Auth: getSetting returned empty - using token from memory", xbmc.LOGWARNING)
+                        access_token = self._last_saved_token
+                    
                     xbmc.log(f"[SIMKL Scrobbler] Auth: Fetching username...", xbmc.LOGINFO)
-                    username = self.fetch_username()
+                    username = self.fetch_username(access_token)
                     
                     if username:
                         xbmc.log(f"[SIMKL Scrobbler] Auth: Username: {username}", xbmc.LOGINFO)
                         self.addon.setSetting('simkl_user', username)
                         self.addon.setSetting('username', username)
+                        self.fetched_username = username
                     else:
                         xbmc.log(f"[SIMKL Scrobbler] Auth: WARNING: No username retrieved", xbmc.LOGWARNING)
                         self.addon.setSetting('simkl_user', "")
                         self.addon.setSetting('username', "")
                     
                     try:
-                        status_control.setLabel("Authentication successful!")
+                        if username:
+                            status_control.setLabel(f"Authenticated as {username}!")
+                        else:
+                            status_control.setLabel("Authentication successful!")
                     except Exception:
                         pass
                     xbmc.sleep(2000)
@@ -329,6 +342,7 @@ class SIMKLAuthDialog(xbmcgui.WindowXMLDialog):
                 
                 if result_status == 'OK' and access_token:
                     xbmc.log(f"[SIMKL Scrobbler] Auth: Token received (len={len(access_token)})", xbmc.LOGINFO)
+                    self._last_saved_token = access_token
                     # Save to both setting IDs for compatibility
                     self.addon.setSetting('access_token', access_token)
                     self.addon.setSetting('simkl_token', access_token)
@@ -337,6 +351,7 @@ class SIMKLAuthDialog(xbmcgui.WindowXMLDialog):
                 elif access_token:
                     # Has token but result is not 'OK' - save anyway and log
                     xbmc.log(f"[SIMKL Scrobbler] Auth: Token received with unexpected result='{result_status}' - saving anyway", xbmc.LOGWARNING)
+                    self._last_saved_token = access_token
                     self.addon.setSetting('access_token', access_token)
                     self.addon.setSetting('simkl_token', access_token)
                     return 'success'
@@ -367,12 +382,19 @@ class SIMKLAuthDialog(xbmcgui.WindowXMLDialog):
             xbmc.log(f"[SIMKL Scrobbler] Auth: Poll exception: {e}", xbmc.LOGERROR)
             return 'pending'
 
-    def fetch_username(self):
-        """Fetch username from SIMKL after successful auth"""
+    def fetch_username(self, access_token=None):
+        """
+        Fetch username from SIMKL after successful auth.
+        
+        Args:
+            access_token: Token to use. If None, reads from settings (may fail
+                          due to Kodi async settings flush timing).
+        """
         xbmc.log(f"[SIMKL Scrobbler] Auth: fetch_username() START", xbmc.LOGDEBUG)
         
         try:
-            access_token = self.addon.getSetting('access_token')
+            if not access_token:
+                access_token = self.addon.getSetting('access_token')
             
             if not access_token:
                 xbmc.log(f"[SIMKL Scrobbler] Auth: ERROR: No token for username fetch!", xbmc.LOGERROR)
@@ -411,7 +433,12 @@ class SIMKLAuthDialog(xbmcgui.WindowXMLDialog):
 
 
 def show_auth_dialog():
-    """Show authentication dialog"""
+    """
+    Show authentication dialog.
+    
+    Returns:
+        tuple: (success: bool, username: str or None)
+    """
     xbmc.log(f"[SIMKL Scrobbler] show_auth_dialog() called", xbmc.LOGINFO)
     
     addon = xbmcaddon.Addon('script.simkl')
@@ -421,7 +448,8 @@ def show_auth_dialog():
     dialog.doModal()
     
     success = dialog.success
-    xbmc.log(f"[SIMKL Scrobbler] Auth dialog closed: success={success}", xbmc.LOGINFO)
+    username = dialog.fetched_username
+    xbmc.log(f"[SIMKL Scrobbler] Auth dialog closed: success={success}, username='{username}'", xbmc.LOGINFO)
     
     del dialog
-    return success
+    return success, username
