@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 SIMKL Scrobbler - Localization Helper
-Version: 7.2.0
+Version: 7.3.0
 Last Modified: 2026-02-13
 
 Provides easy access to localized strings throughout the addon.
@@ -15,7 +15,7 @@ import xbmc
 import xbmcaddon
 
 # Module version
-__version__ = '7.2.0'
+__version__ = '7.3.0'
 
 # Log module initialization
 xbmc.log(f'[SIMKL Scrobbler] strings.py v{__version__} - Localization helper loading', level=xbmc.LOGINFO)

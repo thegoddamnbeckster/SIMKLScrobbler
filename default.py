@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """
 SIMKL Scrobbler - Script Entry Point
-Version: 7.2.0
-Last Modified: 2026-02-05
+Version: 7.3.0
+Last Modified: 2026-02-14
 
 This file handles script calls from settings buttons and normal addon launches.
 Professional code - Project 4 standards
@@ -17,7 +17,7 @@ from resources.lib.auth import SimklAuth
 from resources.lib.utils import log, log_error
 
 # Version constant
-VERSION = "7.2.0"
+VERSION = "7.3.0"
 
 # Get addon instance
 addon = xbmcaddon.Addon()

@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 SIMKL API Client
-Version: 7.2.0
+Version: 7.3.0
 Last Modified: 2026-02-04
 
 PHASE 9: Advanced Features & Polish
@@ -32,7 +32,7 @@ import xbmcaddon
 from resources.lib.utils import log, log_error, log_debug, log_warning, log_module_init, get_setting
 
 # Module version
-__version__ = '7.2.0'
+__version__ = '7.3.0'
 
 # Log module initialization
 log_module_init('api.py', __version__)

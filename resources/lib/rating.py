@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 SIMKL Scrobbler Rating Service
-Version: 7.2.0
+Version: 7.3.0
 Last Modified: 2026-02-04
 
 PHASE 9: Advanced Features & Polish
@@ -46,7 +46,7 @@ from resources.lib.strings import (
 )
 
 # Module version
-__version__ = '7.2.0'
+__version__ = '7.3.0'
 
 # Log module initialization
 xbmc.log(f'[SIMKL Scrobbler] rating.py v{__version__} - Rating service module loading', level=xbmc.LOGINFO)
@@ -219,16 +219,19 @@ class RatingService:
             bool: True if rating prompt is enabled for this media type
             
         Note:
-            Episode rating prompts are disabled (setting not in settings.xml)
-            until SIMKL adds support for rating individual episodes.
+            For episodes, SIMKL rates the whole show (not individual episodes).
+            The 'rating_prompt_shows' setting controls whether to prompt after
+            watching an episode.
         """
         if media_type == 'movie':
             return self.addon.getSettingBool('rating_prompt_movies')
         elif media_type == 'episode':
-            # Episode rating setting intentionally omitted from settings.xml
-            # SIMKL doesn't support rating individual episodes yet
-            # Return False (disabled) until SIMKL adds this feature
-            return False
+            # SIMKL rates shows, not individual episodes
+            # This prompts to rate the show after watching an episode
+            try:
+                return self.addon.getSettingBool('rating_prompt_shows')
+            except Exception:
+                return False
         return False
     
     def get_current_rating(self, media_type, simkl_id):

@@ -1,8 +1,8 @@
 ﻿# -*- coding: utf-8 -*-
 """
 SIMKL OAuth Authentication
-Version: 7.2.0
-Last Modified: 2026-02-04
+Version: 7.3.0
+Last Modified: 2026-02-14
 
 PHASE 9: Advanced Features & Polish
 
@@ -17,7 +17,7 @@ from resources.lib.utils import log, log_module_init, set_setting, get_setting
 from resources.lib.auth_dialog import show_auth_dialog
 
 # Module version
-__version__ = '7.2.0'
+__version__ = '7.3.0'
 
 # Log module initialization
 log_module_init('auth.py', __version__)

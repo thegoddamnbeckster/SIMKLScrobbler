@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 SIMKL Sync Module
-Version: 7.2.0
+Version: 7.3.0
 Last Modified: 2026-02-05
 
 PHASE 9: Advanced Features & Polish
@@ -31,7 +31,7 @@ from resources.lib.utils import (
 from resources.lib.api import SimklAPI
 
 # Module version
-__version__ = '7.2.0'
+__version__ = '7.3.0'
 
 # Log module initialization
 xbmc.log(f'[SIMKL Scrobbler] sync.py v{__version__} - Sync manager module loading', level=xbmc.LOGINFO)

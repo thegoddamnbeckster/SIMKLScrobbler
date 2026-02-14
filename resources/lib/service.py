@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 SIMKL Service - The Main Event Loop
-Version: 7.2.0
+Version: 7.3.0
 Last Modified: 2026-02-06
 
 This is the background service that makes scrobbling actually work.
@@ -45,7 +45,7 @@ from resources.lib.strings import (
 )
 
 # Module version
-__version__ = '7.2.0'
+__version__ = '7.3.0'
 
 # Log module initialization
 xbmc.log(f'[SIMKL Scrobbler] service.py v{__version__} - Main service module loading', level=xbmc.LOGINFO)

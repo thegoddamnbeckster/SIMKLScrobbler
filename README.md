@@ -4,7 +4,7 @@ Automatically track your Kodi watching activity to your [SIMKL](https://simkl.co
 
 This addon aims to provide the same quality of experience that the popular Trakt addon offers, but for SIMKL users.
 
-**Current Version:** 7.2.0
+**Current Version:** 7.3.0
 
 ## Features
 
@@ -55,7 +55,6 @@ Control what gets scrobbled with granular exclusion settings:
 - **Kodi 19 (Matrix)** or later (Python 3)
 - A free [SIMKL account](https://simkl.com)
 - `script.module.requests` (bundled with Kodi)
-- `script.module.pyqrcode` (for QR code display during authentication)
 
 ## Installation
 
@@ -87,7 +86,7 @@ Control what gets scrobbled with granular exclusion settings:
 | **Notifications** | Toggle scrobble notifications, duration, debug logging |
 | **Exclusions** | Live TV, HTTP, plugin, script, and custom path exclusions |
 | **Sync** | Startup sync, library update sync, scheduled interval, direction toggles |
-| **Rating** | Toggle movie rating prompts after watching |
+| **Rating** | Toggle movie/show rating prompts, minimum view time, allow re-rating |
 
 ## Architecture
 
@@ -135,8 +134,8 @@ The background service uses a dispatch queue pattern: `SimklPlayer` detects play
 
 ## Known Limitations
 
-- Episode rating prompts are disabled because SIMKL's API does not yet support individual episode ratings
-- The QR code in the authentication dialog requires the `pyqrcode` module; if unavailable, only the PIN is shown
+- Show rating prompts are available but rated as shows (not individual episodes) because SIMKL's API does not support individual episode ratings
+- The QR code in the authentication dialog is generated via a web API (qrserver.com); if the network request fails, only the PIN is shown
 - The `auto_sync_interval` setting uses a `<select>` type which returns option values as strings rather than integers
 
 ## Contributing

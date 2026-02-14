@@ -113,9 +113,11 @@
     <!-- ============================================================================ -->
     <category label="32800">
         <setting id="rating_info" type="lsep" label="32801"/>
-        <setting id="rating_prompt_movies" type="bool" label="32810" default="true"/>
-        <!-- Episode rating setting intentionally omitted - SIMKL doesn't support rating individual episodes yet -->
-        <!-- When SIMKL adds support, uncomment: -->
-        <!-- <setting id="rating_prompt_episodes" type="bool" label="32811" default="true"/> -->
+        <setting id="rating_prompt_movies" type="bool" label="32802" default="true"/>
+        <setting id="rating_prompt_shows" type="bool" label="32803" default="false"/>
+        <setting id="rating_min_view" type="slider" label="32804" default="75" range="50,5,95" option="int"/>
+        <setting id="rating_allow_rerating" type="bool" label="32805" default="false"/>
+        <!-- Note: rating_prompt_shows is default OFF because SIMKL rates shows not episodes -->
+        <!-- When enabled, user will be prompted to rate the show after finishing an episode -->
     </category>
 </settings>

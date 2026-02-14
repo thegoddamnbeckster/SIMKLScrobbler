@@ -1,10 +1,16 @@
 ﻿<?xml version="1.0" encoding="UTF-8"?>
 <!--
 SIMKL Scrobbler for Kodi
-Version: 7.2.0
-Last Modified: 2026-02-05
+Version: 7.3.0
+Last Modified: 2026-02-14
 
 CHANGELOG:
+7.3.0 - BUG FIXES: Authentication & Settings
+        - FIXED: QR code now generated via API (removed broken pyqrcode dependency)
+        - FIXED: PIN authentication polling with improved response handling
+        - FIXED: Missing rating settings (Rate TV Shows, Minimum View Time, Re-rating)
+        - REMOVED: script.module.pyqrcode dependency (never existed in Kodi repo)
+        - Added detailed auth response logging for diagnostics
 7.2.0 - PHASE 9: Advanced Features & Polish
         - ACTIVATED: All exclusion settings now functional
         - NEW: Exclude Live TV (pvr://) sources
@@ -28,13 +34,12 @@ CHANGELOG:
 -->
 <addon id="script.simkl" 
        name="SIMKL Scrobbler" 
-       version="7.2.0" 
+       version="7.3.0" 
        provider-name="Claude.ai with assistance from Michael Beck">
     
     <requires>
         <import addon="xbmc.python" version="3.0.0"/>
         <import addon="script.module.requests" version="2.31.0"/>
-        <import addon="script.module.pyqrcode" version="1.2.1"/>
     </requires>
     
     <!-- Script extension: Opens settings when addon is clicked -->

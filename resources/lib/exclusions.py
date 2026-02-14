@@ -1,7 +1,7 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 """
 SIMKL Scrobbler - Exclusions Module
-Version: 7.2.0
+Version: 7.3.0
 Last Modified: 2026-02-04
 
 PHASE 9: Advanced Features & Polish
@@ -29,7 +29,7 @@ import xbmcgui
 from resources.lib.utils import log, log_debug, log_module_init, get_setting, get_setting_bool
 
 # Module version
-__version__ = '7.2.0'
+__version__ = '7.3.0'
 
 # Log module initialization
 log_module_init('exclusions.py', __version__)

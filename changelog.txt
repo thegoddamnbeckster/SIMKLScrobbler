@@ -1,4 +1,14 @@
 
+[7.3.0] - 2026-02-14
+BUG FIXES: Authentication & Settings
+- FIXED: QR code now generated via web API (qrserver.com) - removed broken pyqrcode dependency
+- FIXED: PIN authentication - changed initial request from POST to GET per SIMKL API spec
+- FIXED: Improved auth polling with detailed response logging for diagnostics
+- FIXED: Missing rating settings restored (Rate TV Shows, Minimum View Time, Allow Re-rating)
+- REMOVED: script.module.pyqrcode dependency (module never existed in Kodi repo)
+- IMPROVED: Auth error handling with three-state returns (success/pending/error)
+- IMPROVED: QR code image cache-busting to prevent stale images
+
 [7.2.0] - 2026-02-13
 CODE REVIEW: 16 issues fixed from comprehensive code review
 CRITICAL FIXES:
