@@ -1,0 +1,533 @@
+# Kodi Media Center language file
+# Addon Name: SIMKL Scrobbler
+# Addon id: script.simkl
+msgid ""
+msgstr ""
+"Project-Id-Version: XBMC Addons\n"
+"Report-Msgid-Bugs-To: translations@kodi.tv\n"
+"POT-Creation-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: Kodi Translation Team\n"
+"Language-Team: English (United Kingdom) (http://www.transifex.com/projects/p/xbmc-addons/language/en_GB/)\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: en_gb\n"
+
+# ============================================================================
+# Authentication Category (32100-32199)
+# ============================================================================
+
+msgctxt "#32100"
+msgid "Authentication"
+msgstr "Authentication"
+
+msgctxt "#32101"
+msgid "Status"
+msgstr "Status"
+
+msgctxt "#32102"
+msgid "User Code"
+msgstr "User Code"
+
+msgctxt "#32103"
+msgid "Access Token"
+msgstr "Access Token"
+
+msgctxt "#32104"
+msgid "Username"
+msgstr "Username"
+
+msgctxt "#32105"
+msgid "Authenticate with SIMKL"
+msgstr "Authenticate with SIMKL"
+
+msgctxt "#32106"
+msgid "Sign Out"
+msgstr "Sign Out"
+
+msgctxt "#32107"
+msgid "Authentication Status"
+msgstr "Authentication Status"
+
+# ============================================================================
+# Scrobbling Settings Category (32200-32299)
+# ============================================================================
+
+msgctxt "#32200"
+msgid "Scrobbling"
+msgstr "Scrobbling"
+
+msgctxt "#32201"
+msgid "Scrobbling Settings"
+msgstr "Scrobbling Settings"
+
+msgctxt "#32202"
+msgid "Scrobble movies"
+msgstr "Scrobble movies"
+
+msgctxt "#32203"
+msgid "Scrobble TV episodes"
+msgstr "Scrobble TV episodes"
+
+msgctxt "#32204"
+msgid "Watched threshold (%)"
+msgstr "Watched threshold (%)"
+
+# ============================================================================
+# Notifications Category (32300-32399)
+# ============================================================================
+
+msgctxt "#32300"
+msgid "Notifications"
+msgstr "Notifications"
+
+msgctxt "#32301"
+msgid "Show notifications"
+msgstr "Show notifications"
+
+msgctxt "#32302"
+msgid "Notification duration"
+msgstr "Notification duration"
+
+msgctxt "#32310"
+msgid "Show notifications when scrobbling"
+msgstr "Show notifications when scrobbling"
+
+msgctxt "#32311"
+msgid "Duration to display notifications (milliseconds)"
+msgstr "Duration to display notifications (milliseconds)"
+
+msgctxt "#32312"
+msgid "Enable debug logging"
+msgstr "Enable debug logging"
+
+msgctxt "#32320"
+msgid "{0:d} ms"
+msgstr "{0:d} ms"
+
+# ============================================================================
+# Advanced Settings Category (32400-32499)
+# ============================================================================
+
+msgctxt "#32400"
+msgid "Advanced"
+msgstr "Advanced"
+
+msgctxt "#32401"
+msgid "Sync Settings"
+msgstr "Sync Settings"
+
+msgctxt "#32402"
+msgid "Sync on startup"
+msgstr "Sync on startup"
+
+msgctxt "#32403"
+msgid "Sync on library update"
+msgstr "Sync on library update"
+
+msgctxt "#32404"
+msgid "Show library sync notifications"
+msgstr "Show library sync notifications"
+
+msgctxt "#32405"
+msgid "Auto-sync interval"
+msgstr "Auto-sync interval"
+
+msgctxt "#32410"
+msgid "Off"
+msgstr "Off"
+
+msgctxt "#32411"
+msgid "Every 1 hour"
+msgstr "Every 1 hour"
+
+msgctxt "#32412"
+msgid "Every 6 hours"
+msgstr "Every 6 hours"
+
+msgctxt "#32413"
+msgid "Every 12 hours"
+msgstr "Every 12 hours"
+
+msgctxt "#32414"
+msgid "Every 24 hours"
+msgstr "Every 24 hours"
+
+msgctxt "#32418"
+msgid "Dangerous Options"
+msgstr "Dangerous Options"
+
+msgctxt "#32420"
+msgid "Unmark items not on SIMKL (dangerous!)"
+msgstr "Unmark items not on SIMKL (dangerous!)"
+
+msgctxt "#32654"
+msgid "Sync movies to Kodi"
+msgstr "Sync movies to Kodi"
+
+msgctxt "#32655"
+msgid "Sync movies from Kodi"
+msgstr "Sync movies from Kodi"
+
+msgctxt "#32673"
+msgid "Sync TV shows to Kodi"
+msgstr "Sync TV shows to Kodi"
+
+msgctxt "#32674"
+msgid "Sync TV shows from Kodi"
+msgstr "Sync TV shows from Kodi"
+
+# ============================================================================
+# Exclusions Category (32500-32599)
+# Settings for excluding content from scrobbling
+# ============================================================================
+
+msgctxt "#32500"
+msgid "Exclusions"
+msgstr "Exclusions"
+
+msgctxt "#32501"
+msgid "Exclusion Settings"
+msgstr "Exclusion Settings"
+
+msgctxt "#32502"
+msgid "Exclude Live TV"
+msgstr "Exclude Live TV"
+
+msgctxt "#32503"
+msgid "Exclude HTTP sources"
+msgstr "Exclude HTTP sources"
+
+msgctxt "#32504"
+msgid "Exclude plugin sources"
+msgstr "Exclude plugin sources"
+
+msgctxt "#32505"
+msgid "Exclude script playback"
+msgstr "Exclude script playback"
+
+# Path exclusion labels
+msgctxt "#32510"
+msgid "Custom Path Exclusions"
+msgstr "Custom Path Exclusions"
+
+msgctxt "#32511"
+msgid "Exclude custom path 1"
+msgstr "Exclude custom path 1"
+
+msgctxt "#32512"
+msgid "Path"
+msgstr "Path"
+
+msgctxt "#32513"
+msgid "Exclude custom path 2"
+msgstr "Exclude custom path 2"
+
+msgctxt "#32514"
+msgid "Exclude custom path 3"
+msgstr "Exclude custom path 3"
+
+msgctxt "#32515"
+msgid "Exclude custom path 4"
+msgstr "Exclude custom path 4"
+
+msgctxt "#32516"
+msgid "Exclude custom path 5"
+msgstr "Exclude custom path 5"
+
+# Exclusion notification messages
+msgctxt "#32520"
+msgid "Excluded: Live TV"
+msgstr "Excluded: Live TV"
+
+msgctxt "#32521"
+msgid "Excluded: HTTP source"
+msgstr "Excluded: HTTP source"
+
+msgctxt "#32522"
+msgid "Excluded: Plugin source"
+msgstr "Excluded: Plugin source"
+
+msgctxt "#32523"
+msgid "Excluded: Script playback"
+msgstr "Excluded: Script playback"
+
+msgctxt "#32524"
+msgid "Excluded: Custom path"
+msgstr "Excluded: Custom path"
+
+# ============================================================================
+# Sync Category (32600-32699)
+# ============================================================================
+
+msgctxt "#32600"
+msgid "Sync"
+msgstr "Sync"
+
+msgctxt "#32601"
+msgid "Sync Settings"
+msgstr "Sync Settings"
+
+msgctxt "#32650"
+msgid "Sync"
+msgstr "Sync"
+
+msgctxt "#32651"
+msgid "Export to SIMKL"
+msgstr "Export to SIMKL"
+
+msgctxt "#32652"
+msgid "Sync to SIMKL Now"
+msgstr "Sync to SIMKL Now"
+
+msgctxt "#32653"
+msgid "Sync movies"
+msgstr "Sync movies"
+
+msgctxt "#32660"
+msgid "Export your Kodi watch history to SIMKL"
+msgstr "Export your Kodi watch history to SIMKL"
+
+msgctxt "#32661"
+msgid "Include movies when syncing to SIMKL"
+msgstr "Include movies when syncing to SIMKL"
+
+msgctxt "#32662"
+msgid "Include TV shows when syncing to SIMKL"
+msgstr "Include TV shows when syncing to SIMKL"
+
+# Import from SIMKL (32670-32682)
+msgctxt "#32670"
+msgid "Import from SIMKL"
+msgstr "Import from SIMKL"
+
+msgctxt "#32671"
+msgid "Import from SIMKL Now"
+msgstr "Import from SIMKL Now"
+
+msgctxt "#32672"
+msgid "Import movies"
+msgstr "Import movies"
+
+msgctxt "#32680"
+msgid "Mark items as watched in Kodi based on your SIMKL history"
+msgstr "Mark items as watched in Kodi based on your SIMKL history"
+
+msgctxt "#32681"
+msgid "Include movies when importing from SIMKL"
+msgstr "Include movies when importing from SIMKL"
+
+msgctxt "#32682"
+msgid "Include TV shows when importing from SIMKL"
+msgstr "Include TV shows when importing from SIMKL"
+
+# ============================================================================
+# Notification Messages (32700-32799)
+# Runtime notifications displayed to the user
+# ============================================================================
+
+msgctxt "#32700"
+msgid "Authentication Required"
+msgstr "Authentication Required"
+
+msgctxt "#32701"
+msgid "Connection Failed"
+msgstr "Connection Failed"
+
+msgctxt "#32702"
+msgid "API Error"
+msgstr "API Error"
+
+msgctxt "#32703"
+msgid "Content Not Found"
+msgstr "Content Not Found"
+
+msgctxt "#32710"
+msgid "Now Scrobbling"
+msgstr "Now Scrobbling"
+
+msgctxt "#32711"
+msgid "Marked as Watched"
+msgstr "Marked as Watched"
+
+msgctxt "#32712"
+msgid "Scrobble Failed"
+msgstr "Scrobble Failed"
+
+msgctxt "#32713"
+msgid "Excluded"
+msgstr "Excluded"
+
+# Runtime notification messages
+msgctxt "#32720"
+msgid "Ready to scrobble as {0}"
+msgstr "Ready to scrobble as {0}"
+
+msgctxt "#32721"
+msgid "Not authenticated - Configure in addon settings"
+msgstr "Not authenticated - Configure in addon settings"
+
+msgctxt "#32722"
+msgid "Starting sync after library update..."
+msgstr "Starting sync after library update..."
+
+msgctxt "#32723"
+msgid "Starting scheduled sync..."
+msgstr "Starting scheduled sync..."
+
+msgctxt "#32724"
+msgid "Synced: {0} exported, {1} imported"
+msgstr "Synced: {0} exported, {1} imported"
+
+msgctxt "#32725"
+msgid "Library sync completed (already in sync)"
+msgstr "Library sync completed (already in sync)"
+
+msgctxt "#32726"
+msgid "Sync failed: {0}"
+msgstr "Sync failed: {0}"
+
+msgctxt "#32727"
+msgid "SIMKL Scrobbler"
+msgstr "SIMKL Scrobbler"
+
+msgctxt "#32728"
+msgid "SIMKL"
+msgstr "SIMKL"
+
+# ============================================================================
+# Rating Settings Category (32800-32899)
+# Rate content after watching
+# ============================================================================
+
+msgctxt "#32800"
+msgid "Rating"
+msgstr "Rating"
+
+msgctxt "#32801"
+msgid "Rating Settings"
+msgstr "Rating Settings"
+
+msgctxt "#32802"
+msgid "Rate movies"
+msgstr "Rate movies"
+
+msgctxt "#32803"
+msgid "Rate TV episodes"
+msgstr "Rate TV episodes"
+
+msgctxt "#32804"
+msgid "Minimum view time"
+msgstr "Minimum view time"
+
+msgctxt "#32805"
+msgid "Allow re-rating"
+msgstr "Allow re-rating"
+
+# Help text for rating settings
+msgctxt "#32810"
+msgid "Prompt to rate movies after watching"
+msgstr "Prompt to rate movies after watching"
+
+msgctxt "#32811"
+msgid "Prompt to rate TV episodes after watching"
+msgstr "Prompt to rate TV episodes after watching"
+
+msgctxt "#32812"
+msgid "Percentage of video to watch before rating prompt appears"
+msgstr "Percentage of video to watch before rating prompt appears"
+
+msgctxt "#32813"
+msgid "Allow changing ratings for previously rated content"
+msgstr "Allow changing ratings for previously rated content"
+
+# Rating dialog strings
+msgctxt "#32820"
+msgid "Rate this {0}"
+msgstr "Rate this {0}"
+
+msgctxt "#32821"
+msgid "How would you rate {0}?"
+msgstr "How would you rate {0}?"
+
+msgctxt "#32822"
+msgid "Submit Rating"
+msgstr "Submit Rating"
+
+msgctxt "#32823"
+msgid "Skip"
+msgstr "Skip"
+
+msgctxt "#32824"
+msgid "Rating submitted successfully"
+msgstr "Rating submitted successfully"
+
+msgctxt "#32825"
+msgid "Rate: {0}"
+msgstr "Rate: {0}"
+
+msgctxt "#32826"
+msgid "Current rating: {0} - {1}"
+msgstr "Current rating: {0} - {1}"
+
+msgctxt "#32827"
+msgid "Click a star to rate (1-10)"
+msgstr "Click a star to rate (1-10)"
+
+msgctxt "#32828"
+msgid "Please select a rating first"
+msgstr "Please select a rating first"
+
+msgctxt "#32829"
+msgid "Rated '{0}' as {1} - {2}"
+msgstr "Rated '{0}' as {1} - {2}"
+
+msgctxt "#32840"
+msgid "Failed to submit rating"
+msgstr "Failed to submit rating"
+
+msgctxt "#32841"
+msgid "{0} - {1}"
+msgstr "{0} - {1}"
+
+# Rating descriptions (32830-32839)
+msgctxt "#32830"
+msgid "Train Wreck"
+msgstr "Train Wreck"
+
+msgctxt "#32831"
+msgid "Terrible"
+msgstr "Terrible"
+
+msgctxt "#32832"
+msgid "Poor"
+msgstr "Poor"
+
+msgctxt "#32833"
+msgid "Below Average"
+msgstr "Below Average"
+
+msgctxt "#32834"
+msgid "Average"
+msgstr "Average"
+
+msgctxt "#32835"
+msgid "Decent"
+msgstr "Decent"
+
+msgctxt "#32836"
+msgid "Good"
+msgstr "Good"
+
+msgctxt "#32837"
+msgid "Great"
+msgstr "Great"
+
+msgctxt "#32838"
+msgid "Excellent"
+msgstr "Excellent"
+
+msgctxt "#32839"
+msgid "Legendary"
+msgstr "Legendary"

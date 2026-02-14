@@ -1,0 +1,25 @@
+v1.0.0 (2025-12-27)
+====================
+INITIAL RELEASE: Context Menu Toggle Watched Button
+
+NEW FEATURES:
+- Adds "Toggle watched on SIMKL" to context menu on media items
+- Visible on movies, TV shows, seasons, episodes
+- Delegates to script.simkl for watched state management
+- Checks current watched state from SIMKL
+- Toggles to opposite state (watched → unwatched, unwatched → watched)
+- Immediate sync to SIMKL
+- Shows success/error notifications
+
+ARCHITECTURE:
+- Standalone context addon (required by Kodi)
+- Minimal code - detection and delegation only
+- Requires script.simkl v6.7.1+
+- Follows Trakt addon pattern
+- Professional logging with version tracking
+- Comprehensive error handling
+
+TECHNICAL DETAILS:
+- Uses ListItem.DBTYPE for media detection (works in all views)
+- Calls script.simkl with action=togglewatched
+- Main addon handles API calls and state management

@@ -1,0 +1,156 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+SIMKL Authentication Dialog
+Base resolution: 720p (1280x720)
+Kodi automatically scales to actual display resolution
+-->
+<window id="9999">
+	<defaultcontrol always="true">9000</defaultcontrol>
+	<coordinates>
+		<posx>240</posx>
+		<posy>160</posy>
+	</coordinates>
+	<animation effect="fade" start="0" end="100" time="300">WindowOpen</animation>
+	<animation effect="fade" start="100" end="0" time="300">WindowClose</animation>
+	<controls>
+		<!-- Full-screen dimmer (covers entire screen) -->
+		<control type="image">
+			<description>Background Dimmer</description>
+			<posx>-240</posx>
+			<posy>-160</posy>
+			<width>1280</width>
+			<height>720</height>
+			<texture>white.png</texture>
+			<colordiffuse>C0000000</colordiffuse>
+		</control>
+		
+		<!-- Dialog background -->
+		<control type="image">
+			<description>Dialog Background</description>
+			<posx>0</posx>
+			<posy>0</posy>
+			<width>800</width>
+			<height>400</height>
+			<texture>white.png</texture>
+			<colordiffuse>FF2D2D2D</colordiffuse>
+		</control>
+		
+		<!-- Title (full width, centered text) -->
+		<control type="label">
+			<description>Title</description>
+			<posx>0</posx>
+			<posy>20</posy>
+			<width>800</width>
+			<height>30</height>
+			<label>SIMKL Authentication</label>
+			<align>center</align>
+			<aligny>center</aligny>
+			<font>font13</font>
+			<textcolor>FFFFFFFF</textcolor>
+		</control>
+		
+		<!-- Instructions -->
+		<control type="label">
+			<description>Instructions</description>
+			<posx>20</posx>
+			<posy>60</posy>
+			<width>370</width>
+			<height>25</height>
+			<label>Go to simkl.com/pin and enter:</label>
+			<align>left</align>
+			<aligny>center</aligny>
+			<font>font12</font>
+			<textcolor>FFCCCCCC</textcolor>
+		</control>
+		
+		<!-- PIN Code -->
+		<control type="label" id="204">
+			<description>PIN Code</description>
+			<posx>20</posx>
+			<posy>90</posy>
+			<width>370</width>
+			<height>40</height>
+			<label></label>
+			<align>left</align>
+			<aligny>center</aligny>
+			<font>font13</font>
+			<textcolor>FFFFFF00</textcolor>
+		</control>
+		
+		<!-- QR instruction -->
+		<control type="label">
+			<description>QR Instruction</description>
+			<posx>20</posx>
+			<posy>135</posy>
+			<width>370</width>
+			<height>20</height>
+			<label>Or scan QR code:</label>
+			<align>left</align>
+			<aligny>center</aligny>
+			<font>font12</font>
+			<textcolor>FF00CCFF</textcolor>
+		</control>
+		
+		<!-- QR Code -->
+		<control type="image" id="205">
+			<description>QR Code</description>
+			<posx>410</posx>
+			<posy>60</posy>
+			<width>370</width>
+			<height>280</height>
+			<texture></texture>
+			<aspectratio>keep</aspectratio>
+		</control>
+		
+		<!-- Status label -->
+		<control type="label" id="206">
+			<description>Status</description>
+			<posx>20</posx>
+			<posy>170</posy>
+			<width>370</width>
+			<height>25</height>
+			<label>Waiting...</label>
+			<align>left</align>
+			<aligny>center</aligny>
+			<font>font12</font>
+			<textcolor>FFCCCCCC</textcolor>
+		</control>
+		
+		<!-- Tiny visible control for navigation (gets default focus) -->
+		<control type="button" id="9000">
+			<description>Tiny Navigation Anchor</description>
+			<posx>400</posx>
+			<posy>200</posy>
+			<width>1</width>
+			<height>1</height>
+			<label></label>
+			<texturenofocus colordiffuse="FF2D2D2D">white.png</texturenofocus>
+			<texturefocus colordiffuse="FF2D2D2D">white.png</texturefocus>
+			<onup>3001</onup>
+			<ondown>3001</ondown>
+			<onleft>3001</onleft>
+			<onright>3001</onright>
+		</control>
+		
+		<!-- Cancel button with proper focus textures -->
+		<control type="button" id="3001">
+			<description>Cancel Button</description>
+			<posx>100</posx>
+			<posy>350</posy>
+			<width>150</width>
+			<height>40</height>
+			<label>Cancel</label>
+			<align>center</align>
+			<aligny>center</aligny>
+			<font>font12</font>
+			<textcolor>FFFFFFFF</textcolor>
+			<focusedcolor>FFFFFFFF</focusedcolor>
+			<texturenofocus colordiffuse="FF555555">white.png</texturenofocus>
+			<texturefocus>white.png</texturefocus>
+			<onup>9000</onup>
+			<ondown>9000</ondown>
+			<onleft>9000</onleft>
+			<onright>9000</onright>
+		</control>
+	</controls>
+</window>

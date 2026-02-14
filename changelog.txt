@@ -1,0 +1,814 @@
+
+[7.2.0] - 2026-02-13
+CODE REVIEW: 16 issues fixed from comprehensive code review
+CRITICAL FIXES:
+- FIXED: Episode scrobbles sent wrong field name ("episode" -> "number") - all TV scrobbling was broken
+- FIXED: Auth token read used legacy 'simkl_token' key instead of 'access_token'
+- FIXED: Threshold mismatch - items watched 70-79% now properly marked via history API fallback
+- FIXED: Show ratings sent as movie type to wrong SIMKL endpoint
+- FIXED: auto_sync_interval returned select index (0-4) instead of hour values (0,1,6,12,24)
+HIGH PRIORITY FIXES:
+- NEW: Debug logging setting (Settings > Notifications > Enable debug logging)
+- FIXED: SyncManager leaked socket connections - now properly closed after sync
+- FIXED: Double sync notifications - SyncManager silenced during service-triggered syncs
+- FIXED: Context menu addons moved traceback import to top-level
+IMPROVEMENTS:
+- FIXED: Rating dialog race condition with autoplay - state copied before modal shown
+- NEW: Multi-episode transition detection - binge-watching now scrobbles all episodes
+- FIXED: Title-only movie fallback now sends filename for SIMKL's file-based matching
+- FIXED: watched_at timestamps now properly converted from local time to UTC
+- NEW: Periodic progress updates sent to SIMKL every 15 minutes during long playback
+- FIXED: onPlayBackSeek signature compatible with all Kodi versions (19+)
+- FIXED: strings.py docstring version mismatch
+- Verified fanart.jpg is correct 1920x1080 dimensions
+
+[7.1.0] - 2026-02-05
+PHASE 9 COMPLETE: Advanced Features & Polish
+- ACTIVATED: All exclusion settings now functional
+- NEW: Exclude Live TV (pvr://) sources
+- NEW: Exclude HTTP/HTTPS streaming sources
+- NEW: Exclude plugin sources (plugin://)
+- NEW: Exclude script-controlled playback
+- NEW: Up to 5 custom path exclusions with cascading UI
+- RESTORED: Notifications category in settings
+- FIXED: auth.py used undefined VERSION variable
+- Version consistency: All 14 modules now at 7.1.0
+- Settings reorganized with proper category structure
+
+[7.0.0] - 2026-02-04
+PHASE 8 COMPLETE: Localization Framework
+- NEW: Centralized localization helper (strings.py)
+- NEW: Complete English localization framework
+- All user-facing strings now use getLocalizedString()
+- Framework ready for future language additions
+- No functional changes - pure localization
+- Notifications: Localized all runtime messages
+- Rating Dialog: Localized all UI strings
+- Service: Localized sync and auth notifications
+
+[6.13.0] - 2026-01-10 21:00:00
+PHASE 7 STEP 6 COMPLETE: Smart Delta Sync
+- NEW: Delta sync detection - only syncs changed items
+- Tracks sync state for movies and episodes
+- Compares current state vs last sync state
+- Only exports items with changed playcount
+- Dramatically reduces API calls on subsequent syncs
+- First sync processes everything, future syncs only changes
+- Comprehensive logging shows delta detection results
+- Phase 7 Step 6 complete!
+
+[6.12.0] - 2026-01-10 20:30:00
+PHASE 7 STEP 5 COMPLETE: Conflict Resolution
+- NEW SETTING: "Unmark items not on SIMKL (dangerous!)"
+- When enabled: Unmarks movies/episodes watched in Kodi but not on SIMKL
+- When disabled (default): Only marks items as watched, never unmarks
+- Gives users control over conflict resolution behavior
+- Comprehensive logging of unmarked items
+- Phase 7 Step 5 complete!
+
+[6.11.0] - 2026-01-10 19:50:00
+PHASE 7 STEPS 3 & 4 COMPLETE: Scheduled Sync + Background Service
+- NEW FEATURE: Auto-sync interval setting (Off, 1hr, 6hrs, 12hrs, 24hrs)
+- Sync automatically runs at configured intervals in background
+- Last sync timestamp persists across Kodi restarts
+- Scheduled syncs won't overlap (prevents multiple simultaneous syncs)
+- Checked every ~1 minute for efficient scheduling
+- VERIFIED: All syncs run in daemon threads (non-blocking)
+- VERIFIED: Sync operations never interrupt playback
+- Phase 7 Steps 3 & 4 complete!
+
+[6.10.6] - 2026-01-10 19:25:00
+CRITICAL BUGFIX: Scrobbling now works!
+- FIXED: Removed check for non-existent "scrobbling_enabled" setting
+- FIXED: Changed scrobble_movies to scrobble_movie (correct setting name)
+- FIXED: Changed scrobble_tv to scrobble_episode (correct setting name)
+- Scrobbling was completely broken since these setting names were wrong!
+- This explains why scrobbling never worked - it was always disabled
+
+[6.10.5] - 2026-01-10 18:15:00
+PHASE 7 STEP 2 COMPLETE: Library Update Sync Enhancement
+- IMPROVED: Sync completion notifications now show item counts
+- Shows "Synced: X exported, Y imported" with actual numbers
+- Shows "already in sync" when no changes needed
+- IMPROVED: Better error handling with full traceback logging
+- IMPROVED: More detailed logging of sync results
+- Phase 7 Step 2 complete!
+
+[6.10.4] - 2026-01-10 17:55:00
+NEW FEATURE: Library sync notification control
+- NEW: "Show library sync notifications" setting (default: ON)
+- Allows disabling "Starting sync..." and "Sync completed" toasts
+- Separate from regular scrobbling notifications
+- Located in: Settings → Sync Settings
+- Phase 7 Step 1 complete and working perfectly
+
+[6.10.2] - 2026-01-10 17:40:55
+BUGFIX: Fixed XML declaration version
+- Fixed: XML declaration back to version="1.0" (was accidentally 6.10.1)
+- This caused installation failure "requires xbmc.python version 6.10.1"
+- Improved update_version.ps1 to avoid XML declaration changes
+- Phase 7 Step 1 now installs correctly
+
+[6.10.1] - 2026-01-10 17:29:21
+BUGFIX: Fixed sync method calls
+- Fixed: Changed sync_all() to sync_to_simkl() and sync_from_simkl()
+- Fixed: SyncManager now called correctly (was SyncService)
+- Phase 7 Step 1 now working: Auto-sync on library update
+
+v6.3.0 (2024-12-24)
+====================
+CRITICAL FIX: Status Updates Working + Enhanced Logging
+
+ROOT CAUSE IDENTIFIED IN v6.2.9:
+- default.py was calling update_auth_status() AFTER auth completed
+- This OVERWROTE the status that auth_dialog had just set correctly
+- Result: Status showed "Not currently signed in" even after successful auth
+
+FIXES IN v6.3.0:
+
+1. STATUS UPDATE FIX:
+   - Removed update_auth_status() call from default.py after auth
+   - auth_dialog.py ALONE handles all status updates now
+   - No more conflicting status writes
+   
+2. ENHANCED LOGGING IN fetch_username():
+   - Logs when function starts
+   - Logs token presence/length
+   - Logs API request and response
+   - Logs parsed username data
+   - Full traceback on errors
+   - Makes debugging 100x easier
+
+3. VERSION LOGGING IN SERVICE:
+   - Service now logs addon ID, version, and path on startup
+   - Easy to verify which version is running
+
+WHAT NOW WORKS:
+- ✅ Auth dialog sets status to "Authenticated as <username>"
+- ✅ default.py doesn't overwrite it
+- ✅ Status stays correct after auth completes
+- ✅ Full debug logging for username fetch
+- ✅ Version visible in logs immediately
+
+WHY v6.2.9 FAILED:
+```
+22:20:10 [auth_dialog] Status updated: Authenticated
+22:20:12 [default.py] Auth status updated: Not currently signed in  ← BUG!
+```
+
+WHY v6.3.0 WORKS:
+```
+22:20:10 [auth_dialog] Status updated: Authenticated as Michael Beck
+(no overwrite from default.py)
+```
+
+====================
+
+v6.2.9 (2024-12-24)
+====================
+AUTH FIXES: Re-Auth Prompt + Status Updates + Timeout
+
+CRITICAL FIXES:
+
+1. RE-AUTH CONFIRMATION NOW WORKS:
+   - default.py now properly checks if user is authenticated
+   - Shows "Do you want to re-authenticate?" dialog before auth window
+   - Only shows auth dialog if user confirms or is not logged in
+   - Auth dialog no longer does its own duplicate re-auth check
+
+2. STATUS UPDATES AFTER AUTH:
+   - Status field updates immediately after successful auth
+   - Shows "Authenticated as <username>" on success
+   - Shows "Not currently signed in" only if user wasn't already authenticated
+   - default.py calls update_auth_status() after auth completes
+
+3. TIMEOUT FIXED TO 5 MINUTES:
+   - Was 15 minutes (180 attempts) - NOW 5 minutes (60 attempts)
+   - Status shows time remaining: "Waiting... (250s remaining)"
+   - Clearer timeout message: "Authorization timed out (5 minutes)"
+
+4. PIN REQUEST USES POST:
+   - Changed GET to POST for /oauth/pin request
+   - More reliable PIN generation
+   - Better error handling and logging
+
+5. IMPROVED ERROR HANDLING:
+   - Dialog auto-closes after 3 seconds on error
+   - Better error messages in status label
+   - More detailed logging for debugging
+
+WHAT'S FIXED:
+- ✅ Re-auth confirmation dialog appears when already logged in
+- ✅ Status updates to "Authenticated as <username>" after success
+- ✅ Timeout is 5 minutes (not 15!)
+- ✅ Better error handling throughout auth flow
+
+====================
+
+v6.2.8 (2024-12-24)
+====================
+AUTH DIALOG WITH QR CODE RESTORED
+
+CRITICAL FIX:
+- Restored full WindowXMLDialog authentication (was broken in v6.2.7)
+- Auth dialog now shows QR code again
+- Keyboard/remote navigation fully functional
+- 1x1 pixel control (id 9000) starts with focus
+- Cancel button properly unfocused by default
+
+WHAT WAS WRONG IN v6.2.7:
+- auth.py was using simple dialog.ok() without QR code
+- No keyboard navigation support
+- Missing WindowXMLDialog integration
+
+WHAT'S FIXED IN v6.2.8:
+- auth.py now uses show_auth_dialog() from auth_dialog.py
+- Full WindowXMLDialog with QR code display
+- Keyboard navigation with arrow keys
+- Auto-polling closes dialog on success
+- 5 minute timeout (30 attempts × 10 seconds)
+- Proper focus management
+
+SETTINGS:
+- Removed redundant "Username" field
+- Only "Authentication Status" shows current state
+
+FILES UPDATED:
+- auth.py: Simplified to use auth_dialog
+- auth_dialog.py: Uses simkl_token/simkl_user settings
+- settings.xml: Removed redundant username field
+
+====================
+
+v6.2.7 (2024-12-24)
+====================
+AUTHENTICATION SYSTEM FULLY FUNCTIONAL
+
+COMPLETE REBUILD OF AUTH SYSTEM:
+- Updated auth.py to use simkl_token/simkl_user (not access_token)
+- Added username fetching from SIMKL /users/settings endpoint
+- Stores username immediately after authentication
+- Dynamic auth status display in settings
+
+SETTINGS FEATURES:
+- Auth Status field shows: "Authenticated as username" or "Not currently signed in"
+- Status updates automatically when opening settings
+- Username field displays current user
+- Both buttons always enabled (logic in code, not XML)
+
+DEFAULT.PY INTELLIGENCE:
+- Updates auth status before opening settings
+- Auth button: Prompts re-auth confirmation if logged in
+- Sign Out button: Checks auth state, shows "not signed in" if clicked when logged out
+- Both buttons show proper confirmation dialogs
+- Status field updates after auth/sign-out actions
+
+AUTH.PY IMPROVEMENTS:
+- Fetches username from SIMKL after token received
+- Uses /users/settings endpoint with Bearer token
+- Stores username in simkl_user setting
+- Clear authentication removes all three fields (token, user, usercode)
+
+STRINGS ADDED:
+- #32107: "Authentication Status" (label for status field)
+
+RESULT:
+- Shows current auth state clearly
+- Re-authentication works with confirmation
+- Sign out works with confirmation
+- Status always accurate and up-to-date
+- No confusing hidden/disabled states
+
+====================
+
+v6.2.6 (2024-12-24)
+====================
+AUTHENTICATION TAB COMPLETE
+
+CRITICAL MISSING FILE:
+- Created default.py (script entry point)
+- Handles action parameters from settings buttons
+- RunScript(script.simkl,action=auth) now works
+- RunScript(script.simkl,action=signout) now works
+
+AUTHENTICATION FEATURES:
+- Re-auth confirmation dialog if already logged in
+- "Do you want to re-authenticate?" prompt
+- Sign out confirmation dialog
+- Clears token/username on sign out
+- Success/failure notifications
+- Proper error handling
+
+SETTINGS.XML FIXES:
+- simkl_user now VISIBLE (disabled, read-only)
+- Shows current username or empty if not authenticated
+- Added Sign Out button (label #32106)
+- Hidden fields (token, usercode) kept for storage
+
+STRINGS ADDED:
+- #32106: "Sign Out"
+
+RESULT:
+- Authentication tab fully functional
+- Current status visible (username display)
+- Authenticate button works with confirmation
+- Sign Out button works with confirmation
+- All core authentication features complete
+
+====================
+
+v6.2.5 (2024-12-23)
+====================
+COMPLETE STRING MAPPING
+
+REBUILT STRINGS.PO FROM SCRATCH:
+- Mapped every single string ID to settings.xml requirements
+- Verified ALL required IDs present:
+  * 32100-32105: Authentication (category, status, fields, button)
+  * 32200-32204: Scrobbling (category, header, toggles, threshold)
+  * 32800-32839: Rating (category, settings, dialog, descriptions)
+  * 32400-32402, 32654-32655, 32673-32674: Advanced/Sync
+  * 32500-32503: Exclusions
+  * 32300-32320: Notifications
+  * 32600-32699: Sync actions
+  * 32700-32713: Error messages
+
+ALL LABELS NOW MATCH THEIR PURPOSE:
+- No more mismatched text
+- No more missing IDs
+- Every setting has correct label
+- All msgstr fields populated
+
+RESULT:
+- Authentication tab fully functional
+- All setting categories display properly
+- Buttons and labels correctly mapped
+
+====================
+
+v6.2.4 (2024-12-23)
+====================
+CORRECTED STRING IDS
+
+THE REAL FIX:
+- v6.2.3 was built BEFORE final string edits
+- String #32105 was missing (authorization button)
+- String IDs didn't match settings.xml requirements
+
+THIS VERSION:
+- String #32105 added: "Authenticate with SIMKL"
+- String #32102: "User Code" (for hidden field)
+- String #32103: "Access Token" (for hidden field)
+- String #32104: "Username" (for hidden field)
+- String #32202: "Scrobble movies" (was "Enable scrobbling")
+- String #32203: "Scrobble TV episodes" (was "Scrobble movies")
+- String #32204: "Watched threshold (%)" (was "Scrobble TV shows")
+- String #32654: "Sync movies to Kodi"
+- String #32655: "Sync movies from Kodi"
+- String #32673: "Sync TV shows to Kodi"
+- String #32674: "Sync TV shows from Kodi"
+
+RESULT:
+- Authorization button will now appear
+- All setting labels match their actual purpose
+- Settings dialog fully functional
+
+====================
+
+v6.2.3 (2024-12-23)
+====================
+COMPLETE STRING FIX
+
+ALL msgstr FIELDS NOW POPULATED:
+- v6.2.2 fixed the category label IDs (30xxx → 32xxx)
+- BUT msgstr fields were still empty for most categories
+- This version populates ALL msgstr fields with English text
+
+CATEGORIES FIXED:
+- Authentication (32100-32199) - all msgstr populated
+- Scrobbling (32200-32299) - all msgstr populated
+- Notifications (32300-32399) - all msgstr populated
+- Advanced (32400-32499) - all msgstr populated
+- Exclusions (32500-32599) - all msgstr populated
+- Sync (32600-32699) - all msgstr populated
+- Messages (32700-32799) - all msgstr populated
+- Rating (32800-32899) - already done in v6.2.1
+
+RESULT:
+- ALL setting labels now visible
+- Authentication tab shows "Status" header
+- All categories fully functional
+
+====================
+
+v6.2.2 (2024-12-23)
+====================
+CRITICAL BUG FIX
+
+THE ROOT CAUSE OF MISSING LABELS:
+- settings.xml referenced 30xxx string IDs (30100, 30200, 30400, 30500)
+- strings.po ONLY defines 32xxx string IDs (32100, 32200, 32400, 32500)
+- This 2000-number mismatch meant Kodi couldn't find ANY labels
+- Rating category worked because it was already using 32800
+
+FIX:
+- Changed ALL settings.xml labels to use correct 32xxx IDs
+- 30100 → 32100 (Authentication)
+- 30200 → 32200 (Scrobbling)
+- 30400 → 32400 (Sync)
+- 30500 → 32500 (Exclusions)
+- 32800 stays as-is (Rating)
+
+RESULT:
+- ALL setting categories and labels now visible
+- String loading works correctly
+- No more blank settings dialog
+
+====================
+
+v6.2.1 (2024-12-23)
+====================
+BUG FIXES
+
+CRITICAL FIXES:
+- Fixed missing labels in settings (strings.po msgstr fields now populated)
+- Integrated rating system into service.py (was not being called)
+- Rating dialog will now appear after watching movies to >=70% completion
+- Fixed "Invalid setting type" errors from string ID mismatches
+
+STRING FIXES:
+- All rating category strings (32800-32839) now have msgstr values
+- Rating dialog strings populated
+- Rating descriptions populated
+- Kodi can now display all labels correctly
+
+INTEGRATION:
+- Added RatingService import to service.py
+- Rating service initialized in main loop
+- _maybe_prompt_for_rating() method added
+- Rating prompt called after playback_ended() when movie marked watched
+- Rating runs in background thread to not block service
+
+====================
+
+v6.2.0 (2024-12-23)
+====================
+PHASE 4A: RATING SYSTEM (Episode prompts DISABLED)
+
+NEW FEATURES:
+- Rating system for movies (1-10 stars)
+- Rating prompt after watching movies to ≥70% completion
+- Professional rating descriptions with meanings:
+  1. Train Wreck: Disaster from start to finish
+  2. Dreadful: Actively unpleasant
+  3. Disappointing: Expected better
+  4. Lacking: Missing something important
+  5. Ordinary: Nothing special
+  6. Decent: Solidly okay
+  7. Impressive: Stands out positively
+  8. Remarkable: Genuinely memorable
+  9. Phenomenal: Near-perfect execution
+  10. Legendary: Instant classic status
+- Display current rating in dialog if previously rated
+- Submit ratings to SIMKL API (/sync/ratings)
+- Gold/outline star graphics (60x60 pixels)
+- Cancel and Submit buttons in dialog
+
+IMPORTANT LIMITATION:
+- Episode rating prompts DISABLED (not visible in settings)
+- SIMKL API does not support rating individual episodes
+- Only movies can be rated through the addon
+- Code ready for future when SIMKL adds episode support
+
+NEW FILES:
+- resources/lib/rating.py - RatingService and RatingDialog classes
+- resources/skins/default/720p/script-simkl-rate.xml - Rating dialog UI
+- resources/skins/default/media/rating-star-filled.png - Gold star asset
+- resources/skins/default/media/rating-star-empty.png - Outline star asset
+
+SETTINGS CHANGES:
+- Added Rating category (ID 32800)
+- "Prompt to rate movies" toggle (default: ON)
+- Episode rating setting intentionally omitted from UI
+
+STRING FIXES:
+- Fixed rating category string IDs (32800 series, was 30xxx)
+- Updated sync labels: "TV shows" instead of "TV episodes"
+- Sync TV shows, Import TV shows (more accurate terminology)
+
+API ADDITIONS:
+- get_ratings() - GET /sync/ratings/{type}
+- add_rating() - POST /sync/ratings
+- remove_rating() - POST /sync/ratings/remove
+
+FILES CHANGED:
+- resources/lib/rating.py - NEW
+- resources/skins/default/720p/script-simkl-rate.xml - NEW
+- resources/skins/default/media/ - NEW star graphics
+- resources/settings.xml - Added Rating category
+- resources/language/resource.language.en_gb/strings.po - Rating + sync strings
+
+NEXT STEPS:
+- Phase 4B: Context menu ratings
+- Phase 5: Automatic sync enhancements
+
+====================
+
+v6.4.0 (2025-12-19)
+====================
+PHASE 3B COMPLETE: BIDIRECTIONAL SYNC!
+
+NEW FEATURES:
+- Import from SIMKL: Pull your SIMKL watched history into Kodi!
+- New "Import from SIMKL" section in Sync settings
+- "Import from SIMKL Now" button marks Kodi items as watched
+- Toggle to include/exclude movies from import
+- Toggle to include/exclude TV episodes from import
+- Progress dialog shows import status
+- Notification shows results on completion
+
+IMPORT FUNCTIONALITY:
+- Fetches completed movies and shows from SIMKL API
+- Also fetches "watching" shows (they have watched episodes)
+- Matches SIMKL items to Kodi library by IMDb/TMDb/TVDB IDs
+- Updates Kodi playcount to mark items as watched
+- Skips items already watched in Kodi (no duplicates)
+- Detailed logging shows matches and misses
+
+SYNC IS NOW BIDIRECTIONAL:
+- Export: Kodi watched → SIMKL (existing)
+- Import: SIMKL watched → Kodi (NEW!)
+
+NEW METHODS IN sync.py:
+- import_movies_from_simkl() - Pull watched movies
+- import_episodes_from_simkl() - Pull watched episodes
+- sync_from_simkl() - Main import entry point
+- run_sync_from_simkl() - Standalone import trigger
+- _match_movie_to_kodi() - Find SIMKL movie in Kodi
+- _match_show_to_kodi() - Find SIMKL show in Kodi
+- _build_kodi_*_index() - Fast ID-based lookups
+- _set_*_playcount() - Update Kodi watched status
+
+NEW STRINGS ADDED:
+- 32670-32682: Import settings labels and help text
+
+DEFAULT ACTION (clicking addon):
+- Still triggers sync/export to SIMKL (like Trakt)
+- Import available via Settings > Sync > Import
+
+====================
+
+v6.3.0 (2025-12-19)
+====================
+PHASE 3B: SYNC FUNCTIONALITY - EXPORT TO SIMKL!
+
+NEW FEATURES:
+- New "Sync" category in addon settings
+- "Sync to SIMKL Now" button to export watched items
+- Toggle to include/exclude movies from sync
+- Toggle to include/exclude TV episodes from sync
+- Progress dialog shows sync status
+- Notification shows results on completion
+
+SYNC EXPORTS:
+- Reads Kodi library via JSON-RPC
+- Finds all watched movies (playcount > 0)
+- Finds all watched TV episodes (playcount > 0)
+- Extracts IDs (IMDb, TMDb, TVDB) from library metadata
+- Groups episodes by show for efficient API calls
+- Sends watched history to SIMKL /sync/history endpoint
+- Includes watched_at timestamps when available
+
+NEW FILES:
+- resources/lib/sync.py - SyncManager class handles all sync logic
+
+API ADDITIONS:
+- get_all_items() - Retrieve items from SIMKL (for future import)
+- get_last_activity() - Check sync timestamps
+- Enhanced add_to_history() with better logging
+
+STRINGS ADDED:
+- 32650-32662: Sync settings labels and help text
+
+FILES CHANGED:
+- default.py - Added sync_to_simkl action handler
+- resources/lib/api.py - Added sync endpoints
+- resources/lib/sync.py - NEW file
+- resources/settings.xml - Added Sync category
+- resources/language/resource.language.en_gb/strings.po - Sync strings
+
+NEXT STEPS:
+- Import FROM SIMKL to Kodi (mark Kodi items as watched)
+- Auto-sync on library update
+- Bidirectional sync with conflict resolution
+
+
+v6.1.0 (2025-12-19)
+====================
+PHASE 2 COMPLETE: ACTUAL SCROBBLING NOW WORKS!
+
+MAJOR CHANGES:
+- Completely rewrote service.py to actually use player monitoring!
+  (Previous version was just checking auth status and doing NOTHING)
+- Implemented dispatch queue pattern (same as Trakt addon)
+- Proper SIMKL scrobble API calls:
+  * /scrobble/start - When playback begins
+  * /scrobble/pause - When user pauses
+  * /scrobble/stop - When playback ends (marks watched if threshold met)
+- Fixed settings references to match actual settings.xml:
+  * scrobbling_enabled (not enable_scrobbling)
+  * scrobble_movies (not enable_movie_scrobbling)
+  * scrobble_tv (not enable_tv_scrobbling)
+  * watched_threshold (not min_percent_watched)
+
+NEW FEATURES:
+- Transition checks during playback (progress logging every 60s)
+- Media identification via SIMKL search API
+- Watched threshold tracking (default 70%, configurable)
+- Notifications for scrobble start and watched events
+- Proper TV episode identification with show/season/episode
+
+ARCHITECTURE:
+- SimklService: Main event loop, processes dispatch queue
+- SimklPlayer: Monitors playback events, sends to queue
+- SimklMonitor: Watches for settings changes
+- SimklScrobbler: Handles scrobbling logic and API calls
+- SimklAPI: All SIMKL API communication
+
+FILES CHANGED:
+- service.py (root) - Now imports from lib/service.py
+- resources/lib/service.py - Complete rewrite with dispatch queue
+- resources/lib/scrobbler.py - Complete rewrite with proper API calls
+- resources/lib/api.py - Complete rewrite with scrobble endpoints
+- resources/lib/utils.py - Added get_setting_int, improved helpers
+
+v6.0.9 (2025-12-18)
+====================
+- EXTENSIVE AUTH LOGGING: Logs every detail of API calls
+  * Request URL, user code, device code
+  * Response status code, headers, raw text
+  * Parsed JSON structure, keys, types
+  * Extracted values with their types
+  * Clear success/failure messages
+- Will help diagnose why authorization isn't being detected
+
+v6.0.8 (2025-12-18)
+====================
+- VISUAL FIX: 1px navigation control now dark gray (FF2D2D2D) to match dialog background
+- CRITICAL AUTH FIX: Now correctly checks for result='OK' from SIMKL API
+- SIMKL returns result='KO' when pending, result='OK' + access_token when authorized
+- Previous version only checked for access_token which was always null while pending
+
+v6.0.7 (2025-12-18)
+====================
+- NAVIGATION FIX: Changed to tiny VISIBLE 1px control (was invisible)
+- STATUS PRESERVATION: Keeps existing auth status when user cancels
+- If already authenticated and user says "No" to re-auth, keeps current status
+- If already authenticated and user says "Yes" but cancels dialog, keeps current status
+- Only shows "Not Authenticated" if user wasn't authenticated to begin with
+
+v6.0.6 (2025-12-18)
+====================
+- NAVIGATION FIX: Added invisible dummy control (ID 9000) for proper keyboard/remote navigation
+- Button starts unfocused (dummy control has default focus)
+- Press any direction key to focus Cancel button
+- Press any direction key again to unfocus Cancel button (returns to dummy control)
+- Perfect for remote control users!
+
+v6.0.5 (2025-12-18)
+====================
+- UX FIX: Re-auth dialog simplified to single question: "Do you want to re-authenticate?"
+- Auth status format changed to: "<username>, Authenticated" (cleaner display)
+- Success notification also uses new format
+- Development directory moved to W:\Scripts\SIMKL_Scrobbler
+- Authentication data stored in addon_data folder (deleted when addon data cleared)
+
+v6.0.4 (2025-12-18)
+====================
+- UX FIX: Button no longer auto-focused on dialog open (removed defaultcontrol)
+- Button now uses Kodi skin's default highlight color instead of hardcoded red
+- Better integration with user's chosen Kodi skin theme
+
+v6.0.3 (2025-12-18)
+====================
+- CRITICAL FIX: Using correct SIMKL API endpoint GET /oauth/pin/{user_code} instead of OAuth device flow
+- SIMKL uses simple PIN-based auth, not RFC 8628 device flow
+- Button now shows RED when focused (was gray) - clear visual feedback for remote/keyboard navigation
+- Authentication polling should now work correctly!
+
+v6.0.2 (2025-12-18)
+====================
+- Title properly centered (full width=800, posx=0)
+- Added extensive logging to auth polling to diagnose authentication issues
+- Logs API response status codes and content
+- Better error tracking with full tracebacks
+
+v6.0.1 (2025-12-18)
+====================
+- CRITICAL FIX: Media files moved to correct location (resources/skins/Default/media/)
+- Layout redesigned: Text/PIN/Status on left, QR code on right (like Trakt)
+- Button now has proper textures and is visible
+- Dialog background now renders properly
+- All controls now visible and positioned correctly
+
+v6.0.0 (2025-12-18)
+====================
+- COMPLETE REWRITE: Now uses WindowXMLDialog with XML skin file (proper Kodi method!)
+- Follows Trakt's design pattern - XML file in resources/skins/Default/720p/
+- Kodi automatically scales all coordinates from 720p base to any resolution
+- NO MORE SIZING ISSUES - Kodi handles everything!
+- Much cleaner code that follows Kodi best practices
+- Dialog is 800x400 at 720p base, scales perfectly to 1080p, 4K, etc.
+
+v5.9.9 (2025-12-17)
+====================
+- SIZING FIX: Reduced dialog to 50% width and 60% height (was 60%x75%)
+- Reduced QR code to 30% of dialog height (was 40%)
+- Better balance between visibility and screen space
+- Dialog now fits properly within window bounds
+
+v5.9.8 (2025-12-17)
+====================
+- CRITICAL FIX: Changed from Window to WindowDialog to prevent Kodi from killing the script after 5 seconds
+- Fixes the "script didn't stop in 5 seconds - let's kill it" error
+- Dialog now shows properly without being killed by Kodi
+- WindowDialog is non-blocking and won't timeout
+
+v5.9.7 (2025-12-17)
+====================
+- CRITICAL FIX: Use xbmc.getInfoLabel() to detect ACTUAL Kodi screen resolution instead of Window size
+- Fixes auth dialog appearing tiny on 4K displays when Kodi GUI was scaled down
+- Extensive logging of screen dimensions for troubleshooting
+- Graceful fallback to Window dimensions if InfoLabel returns empty values
+
+v5.9.6 (2025-12-17)
+====================
+- MAJOR IMPROVEMENTS: Much larger dialog (60% width, 75% height)
+- HUGE QR code (40% of dialog height) for easy mobile scanning
+- Visual polling feedback showing attempt counts
+- Settings window stays open during authentication
+
+v5.9.5 (2025-12-17)
+====================
+- CRITICAL FIX: Button click detection now works (compare IDs, not objects)
+- Added pyqrcode dependency to addon.xml
+- Sign Out button properly disables when not authenticated
+- Cancel button now functional with keyboard, mouse, and remote
+
+v5.9.4 (2025-12-17)
+====================
+- QR code generation using pyqrcode module
+- Improved authentication dialog layout
+- Better error handling
+
+v5.9.3 (2025-12-17)
+====================
+- Fixed script blocking issues
+- Added proper notifications
+- Improved authentication flow
+
+v4.0.0 (2025-12-09)
+====================
+- Complete rewrite for Python 3 compatibility
+- Modern, clean codebase with professional structure
+- Android/NVidia Shield support
+- Improved authentication flow
+- Better error handling and logging
+- Preparation for full feature parity with Trakt
+
+====================
+DEVELOPMENT PHASES:
+====================
+
+Phase 1: Foundation - COMPLETE ✓
+- Basic addon structure ✓
+- Service entry point ✓
+- Authentication system ✓
+- Logging and utilities ✓
+- Monitor and player stubs ✓
+
+Phase 2: Core Scrobbling - COMPLETE ✓ (v6.1.0)
+- API wrapper implementation ✓
+- Scrobbling engine ✓
+- Content identification ✓
+- Progress tracking ✓
+
+Phase 3: Exclusions & Settings - NEXT
+- Exclusion settings (PVR, HTTP, paths)
+- Startup delay option
+- Debug mode toggle
+
+Phase 4: Sync (PLANNED)
+- Library sync with SIMKL
+- Bidirectional sync option
+- Conflict resolution
+
+Phase 5: Rating System (PLANNED)
+- Rating dialog
+- Auto-prompt after watching
+- Rating threshold
+
+Phase 6: Polish & Release (PLANNED)
+- Localization
+- Context menus
+- Repository submission

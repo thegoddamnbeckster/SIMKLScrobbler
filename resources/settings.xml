@@ -1,0 +1,121 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<settings>
+    <!-- ============================================================================ -->
+    <!-- Authentication Settings (32100-32199) -->
+    <!-- ============================================================================ -->
+    <category label="32100">
+        <setting id="auth_info" type="lsep" label="32101"/>
+        <setting id="auth_status" type="text" label="32107" enable="false"/>
+        <setting id="authorization" type="action" label="32105" action="RunScript(script.simkl,action=auth)"/>
+        <setting id="sign_out" type="action" label="32106" action="RunScript(script.simkl,action=signout)"/>
+        <!-- Hidden storage fields -->
+        <setting id="simkl_usercode" type="text" label="32102" visible="false"/>
+        <setting id="simkl_token" type="text" label="32103" visible="false"/>
+        <setting id="simkl_user" type="text" label="32104" visible="false"/>
+        <setting id="access_token" type="text" visible="false"/>
+        <setting id="username" type="text" visible="false"/>
+    </category>
+
+    <!-- ============================================================================ -->
+    <!-- Scrobbling Settings (32200-32299) -->
+    <!-- ============================================================================ -->
+    <category label="32200">
+        <setting id="scrobble_info" type="lsep" label="32201"/>
+        <setting id="scrobble_movie" type="bool" label="32202" default="true"/>
+        <setting id="scrobble_episode" type="bool" label="32203" default="true"/>
+        <setting id="scrobble_threshold" type="slider" label="32204" default="70" range="50,5,90" option="int"/>
+    </category>
+
+    <!-- ============================================================================ -->
+    <!-- Notification Settings (32300-32399) -->
+    <!-- ============================================================================ -->
+    <category label="32300">
+        <setting id="notifications_info" type="lsep" label="32301"/>
+        <setting id="show_notifications" type="bool" label="32310" default="true"/>
+        <setting id="notification_duration" type="slider" label="32311" default="5000" range="1000,500,10000" option="int"/>
+        <setting id="debug_logging" type="bool" label="32312" default="false"/>
+    </category>
+
+    <!-- ============================================================================ -->
+    <!-- Exclusion Settings (32500-32599) -->
+    <!-- Allows users to exclude certain content from scrobbling -->
+    <!-- ============================================================================ -->
+    <category label="32500">
+        <setting id="exclusion_info" type="lsep" label="32501"/>
+        
+        <!-- Source type exclusions -->
+        <setting id="ExcludeLiveTV" type="bool" label="32502" default="true"/>
+        <setting id="ExcludeHTTP" type="bool" label="32503" default="false"/>
+        <setting id="ExcludePlugin" type="bool" label="32504" default="false"/>
+        <setting id="ExcludeScript" type="bool" label="32505" default="false"/>
+        
+        <!-- Custom path exclusions (up to 5, cascading visibility) -->
+        <!-- Visibility logic: Each path option visible when previous option is ENABLED -->
+        <!-- Enable logic: Each folder picker enabled when its own toggle is ENABLED -->
+        <setting id="path_exclusions_info" type="lsep" label="32510"/>
+        
+        <!-- Path 1 (always visible) -->
+        <setting id="ExcludePathOption" type="bool" label="32511" default="false"/>
+        <setting id="ExcludePath" type="folder" label="32512" default="" enable="eq(-1,true)"/>
+        
+        <!-- Path 2 (visible if path 1 ENABLED, folder enabled if path 2 toggle ENABLED) -->
+        <setting id="ExcludePathOption2" type="bool" label="32513" default="false" visible="eq(-2,true)"/>
+        <setting id="ExcludePath2" type="folder" label="32512" default="" enable="eq(-1,true)" visible="eq(-2,true)"/>
+        
+        <!-- Path 3 (visible if path 2 ENABLED, folder enabled if path 3 toggle ENABLED) -->
+        <setting id="ExcludePathOption3" type="bool" label="32514" default="false" visible="eq(-2,true)"/>
+        <setting id="ExcludePath3" type="folder" label="32512" default="" enable="eq(-1,true)" visible="eq(-2,true)"/>
+        
+        <!-- Path 4 (visible if path 3 ENABLED, folder enabled if path 4 toggle ENABLED) -->
+        <setting id="ExcludePathOption4" type="bool" label="32515" default="false" visible="eq(-2,true)"/>
+        <setting id="ExcludePath4" type="folder" label="32512" default="" enable="eq(-1,true)" visible="eq(-2,true)"/>
+        
+        <!-- Path 5 (visible if path 4 ENABLED, folder enabled if path 5 toggle ENABLED) -->
+        <setting id="ExcludePathOption5" type="bool" label="32516" default="false" visible="eq(-2,true)"/>
+        <setting id="ExcludePath5" type="folder" label="32512" default="" enable="eq(-1,true)" visible="eq(-2,true)"/>
+    </category>
+
+    <!-- ============================================================================ -->
+    <!-- Sync Settings (32400-32499 and 32600-32699) -->
+    <!-- ============================================================================ -->
+    <category label="32600">
+        <setting id="sync_info" type="lsep" label="32601"/>
+        
+        <!-- Automatic sync triggers -->
+        <setting id="sync_on_startup" type="bool" label="32402" default="true"/>
+        <setting id="sync_on_update" type="bool" label="32403" default="true"/>
+        <setting id="auto_sync_interval" type="select" label="32405" default="0">
+            <option label="32410">0</option>
+            <option label="32411">1</option>
+            <option label="32412">6</option>
+            <option label="32413">12</option>
+            <option label="32414">24</option>
+        </setting>
+        <setting id="show_library_sync_notifications" type="bool" label="32404" default="true"/>
+        
+        <!-- Sync direction settings -->
+        <setting id="sync_direction_info" type="lsep" label="32650"/>
+        <setting id="sync_movies_to_kodi" type="bool" label="32654" default="true"/>
+        <setting id="sync_movies_from_kodi" type="bool" label="32655" default="true"/>
+        <setting id="sync_episodes_to_kodi" type="bool" label="32673" default="true"/>
+        <setting id="sync_episodes_from_kodi" type="bool" label="32674" default="true"/>
+        
+        <!-- Dangerous options -->
+        <setting id="sync_dangerous_info" type="lsep" label="32418"/>
+        <setting id="unmark_not_on_simkl" type="bool" label="32420" default="false"/>
+        
+        <!-- Hidden sync state storage -->
+        <setting id="last_auto_sync_time" type="text" visible="false"/>
+    </category>
+
+    <!-- ============================================================================ -->
+    <!-- Rating Settings (32800-32899) -->
+    <!-- ============================================================================ -->
+    <category label="32800">
+        <setting id="rating_info" type="lsep" label="32801"/>
+        <setting id="rating_prompt_movies" type="bool" label="32810" default="true"/>
+        <!-- Episode rating setting intentionally omitted - SIMKL doesn't support rating individual episodes yet -->
+        <!-- When SIMKL adds support, uncomment: -->
+        <!-- <setting id="rating_prompt_episodes" type="bool" label="32811" default="true"/> -->
+    </category>
+</settings>

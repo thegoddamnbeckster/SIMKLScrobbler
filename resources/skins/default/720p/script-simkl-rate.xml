@@ -1,0 +1,250 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<window>
+    <defaultcontrol always="true">1000</defaultcontrol>
+    <coordinates>
+        <s>1</s>
+        <posx>0</posx>
+        <posy>0</posy>
+    </coordinates>
+
+    <controls>
+        <!-- Background overlay -->
+        <control type="group">
+            <posx>0</posx>
+            <posy>0</posy>
+            <width>1280</width>
+            <height>720</height>
+            
+            <!-- Semi-transparent background -->
+            <control type="image">
+                <posx>0</posx>
+                <posy>0</posy>
+                <width>1280</width>
+                <height>720</height>
+                <texture border="1" colordiffuse="C0000000">white.png</texture>
+            </control>
+
+            <!-- Dialog box -->
+            <control type="group">
+                <posx>240</posx>
+                <posy>200</posy>
+                <width>800</width>
+                <height>320</height>
+
+                <!-- Dialog background -->
+                <control type="image">
+                    <posx>0</posx>
+                    <posy>0</posy>
+                    <width>800</width>
+                    <height>320</height>
+                    <texture border="5" colordiffuse="FF1F1F1F">white.png</texture>
+                </control>
+
+                <!-- Title label -->
+                <control type="label" id="100">
+                    <posx>400</posx>
+                    <posy>20</posy>
+                    <width>760</width>
+                    <height>40</height>
+                    <align>center</align>
+                    <aligny>center</aligny>
+                    <font>font13_title</font>
+                    <textcolor>FFFFFFFF</textcolor>
+                </control>
+
+                <!-- Rating description label -->
+                <control type="label" id="101">
+                    <posx>400</posx>
+                    <posy>70</posy>
+                    <width>760</width>
+                    <height>30</height>
+                    <align>center</align>
+                    <aligny>center</aligny>
+                    <font>font12</font>
+                    <textcolor>FFC0C0C0</textcolor>
+                </control>
+
+                <!-- Star buttons (horizontal layout) -->
+                <control type="grouplist" id="1000">
+                    <posx>100</posx>
+                    <posy>120</posy>
+                    <width>600</width>
+                    <height>60</height>
+                    <itemgap>0</itemgap>
+                    <orientation>horizontal</orientation>
+                    <align>center</align>
+
+                    <!-- Star 1 -->
+                    <control type="button" id="1">
+                        <width>60</width>
+                        <height>60</height>
+                        <texturefocus colordiffuse="FFFFD700">rating-star-filled.png</texturefocus>
+                        <texturenofocus colordiffuse="FF808080">rating-star-empty.png</texturenofocus>
+                        <font>-</font>
+                        <onleft>9010</onleft>
+                        <onright>2</onright>
+                        <onup>1</onup>
+                        <ondown>9000</ondown>
+                    </control>
+
+                    <!-- Star 2 -->
+                    <control type="button" id="2">
+                        <width>60</width>
+                        <height>60</height>
+                        <texturefocus colordiffuse="FFFFD700">rating-star-filled.png</texturefocus>
+                        <texturenofocus colordiffuse="FF808080">rating-star-empty.png</texturenofocus>
+                        <font>-</font>
+                        <onleft>1</onleft>
+                        <onright>3</onright>
+                        <onup>2</onup>
+                        <ondown>9000</ondown>
+                    </control>
+
+                    <!-- Star 3 -->
+                    <control type="button" id="3">
+                        <width>60</width>
+                        <height>60</height>
+                        <texturefocus colordiffuse="FFFFD700">rating-star-filled.png</texturefocus>
+                        <texturenofocus colordiffuse="FF808080">rating-star-empty.png</texturenofocus>
+                        <font>-</font>
+                        <onleft>2</onleft>
+                        <onright>4</onright>
+                        <onup>3</onup>
+                        <ondown>9000</ondown>
+                    </control>
+
+                    <!-- Star 4 -->
+                    <control type="button" id="4">
+                        <width>60</width>
+                        <height>60</height>
+                        <texturefocus colordiffuse="FFFFD700">rating-star-filled.png</texturefocus>
+                        <texturenofocus colordiffuse="FF808080">rating-star-empty.png</texturenofocus>
+                        <font>-</font>
+                        <onleft>3</onleft>
+                        <onright>5</onright>
+                        <onup>4</onup>
+                        <ondown>9000</ondown>
+                    </control>
+
+                    <!-- Star 5 -->
+                    <control type="button" id="5">
+                        <width>60</width>
+                        <height>60</height>
+                        <texturefocus colordiffuse="FFFFD700">rating-star-filled.png</texturefocus>
+                        <texturenofocus colordiffuse="FF808080">rating-star-empty.png</texturenofocus>
+                        <font>-</font>
+                        <onleft>4</onleft>
+                        <onright>6</onright>
+                        <onup>5</onup>
+                        <ondown>9000</ondown>
+                    </control>
+
+                    <!-- Star 6 -->
+                    <control type="button" id="6">
+                        <width>60</width>
+                        <height>60</height>
+                        <texturefocus colordiffuse="FFFFD700">rating-star-filled.png</texturefocus>
+                        <texturenofocus colordiffuse="FF808080">rating-star-empty.png</texturenofocus>
+                        <font>-</font>
+                        <onleft>5</onleft>
+                        <onright>7</onright>
+                        <onup>6</onup>
+                        <ondown>9000</ondown>
+                    </control>
+
+                    <!-- Star 7 -->
+                    <control type="button" id="7">
+                        <width>60</width>
+                        <height>60</height>
+                        <texturefocus colordiffuse="FFFFD700">rating-star-filled.png</texturefocus>
+                        <texturenofocus colordiffuse="FF808080">rating-star-empty.png</texturenofocus>
+                        <font>-</font>
+                        <onleft>6</onleft>
+                        <onright>8</onright>
+                        <onup>7</onup>
+                        <ondown>9000</ondown>
+                    </control>
+
+                    <!-- Star 8 -->
+                    <control type="button" id="8">
+                        <width>60</width>
+                        <height>60</height>
+                        <texturefocus colordiffuse="FFFFD700">rating-star-filled.png</texturefocus>
+                        <texturenofocus colordiffuse="FF808080">rating-star-empty.png</texturenofocus>
+                        <font>-</font>
+                        <onleft>7</onleft>
+                        <onright>9</onright>
+                        <onup>8</onup>
+                        <ondown>9000</ondown>
+                    </control>
+
+                    <!-- Star 9 -->
+                    <control type="button" id="9">
+                        <width>60</width>
+                        <height>60</height>
+                        <texturefocus colordiffuse="FFFFD700">rating-star-filled.png</texturefocus>
+                        <texturenofocus colordiffuse="FF808080">rating-star-empty.png</texturenofocus>
+                        <font>-</font>
+                        <onleft>8</onleft>
+                        <onright>10</onright>
+                        <onup>9</onup>
+                        <ondown>9000</ondown>
+                    </control>
+
+                    <!-- Star 10 -->
+                    <control type="button" id="10">
+                        <width>60</width>
+                        <height>60</height>
+                        <texturefocus colordiffuse="FFFFD700">rating-star-filled.png</texturefocus>
+                        <texturenofocus colordiffuse="FF808080">rating-star-empty.png</texturenofocus>
+                        <font>-</font>
+                        <onleft>9</onleft>
+                        <onright>9010</onright>
+                        <onup>10</onup>
+                        <ondown>9000</ondown>
+                    </control>
+                </control>
+
+                <!-- Cancel button -->
+                <control type="button" id="9000">
+                    <posx>150</posx>
+                    <posy>240</posy>
+                    <width>200</width>
+                    <height>50</height>
+                    <label>Cancel</label>
+                    <font>font12</font>
+                    <textcolor>FFFFFFFF</textcolor>
+                    <focusedcolor>FFFFFFFF</focusedcolor>
+                    <align>center</align>
+                    <aligny>center</aligny>
+                    <texturefocus colordiffuse="FF0E4B75" border="5">white.png</texturefocus>
+                    <texturenofocus colordiffuse="FF2A2A2A" border="5">white.png</texturenofocus>
+                    <onleft>9010</onleft>
+                    <onright>9010</onright>
+                    <onup>5</onup>
+                    <ondown>9000</ondown>
+                </control>
+
+                <!-- Submit button -->
+                <control type="button" id="9010">
+                    <posx>450</posx>
+                    <posy>240</posy>
+                    <width>200</width>
+                    <height>50</height>
+                    <label>Rate</label>
+                    <font>font12</font>
+                    <textcolor>FFFFFFFF</textcolor>
+                    <focusedcolor>FFFFFFFF</focusedcolor>
+                    <align>center</align>
+                    <aligny>center</aligny>
+                    <texturefocus colordiffuse="FF0E4B75" border="5">white.png</texturefocus>
+                    <texturenofocus colordiffuse="FF2A2A2A" border="5">white.png</texturenofocus>
+                    <onleft>9000</onleft>
+                    <onright>9000</onright>
+                    <onup>5</onup>
+                    <ondown>9010</ondown>
+                </control>
+            </control>
+        </control>
+    </controls>
+</window>

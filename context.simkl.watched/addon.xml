@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<!--
+SIMKL Context Menu - Toggle Watched Button
+Version: 1.0.0
+Last Modified: 2025-12-27
+
+CHANGELOG:
+1.0.0 - Initial release
+        - Adds "Toggle watched on SIMKL" to context menu
+        - Works on movies, TV shows, seasons, episodes
+        - Delegates to script.simkl for watched state management
+        - Professional logging with version tracking
+        - Full error handling
+-->
+<addon id="context.simkl.watched" 
+       name="SIMKL - Toggle watched button" 
+       version="1.0.0" 
+       provider-name="Claude.ai with assistance from Michael Beck">
+    <requires>
+        <import addon="xbmc.python" version="3.0.0"/>
+        <import addon="script.simkl" version="6.7.1"/>
+    </requires>
+    <extension point="kodi.context.item">
+        <menu id="kodi.core.main">
+            <item library="addon.py">
+                <label>32000</label>
+                <visible>String.IsEqual(ListItem.dbtype,movie) | String.IsEqual(ListItem.dbtype,tvshow) | String.IsEqual(ListItem.dbtype,season) | String.IsEqual(ListItem.dbtype,episode)</visible>
+            </item>
+        </menu>
+    </extension>
+    <extension point="xbmc.addon.metadata">
+        <summary lang="en_GB">Add SIMKL toggle watched button to context menu in library</summary>
+        <description lang="en_GB">Add SIMKL toggle watched button to the context menu in your library. Mark items as watched or unwatched and sync immediately to SIMKL.</description>
+        <platform>all</platform>
+        <license>MIT</license>
+        <assets>
+            <icon>icon.png</icon>
+        </assets>
+    </extension>
+</addon>

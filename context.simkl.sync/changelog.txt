@@ -1,0 +1,7 @@
+v1.0.0 (2025-12-28)
+====================
+- Initial release
+- Adds "Sync to SIMKL now" to context menu
+- Works on movies and TV episodes
+- Triggers immediate sync for selected item
+- Delegates to script.simkl v6.9.0+ for sync management

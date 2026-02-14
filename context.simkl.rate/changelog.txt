@@ -1,0 +1,35 @@
+v1.0.1 (2025-12-27)
+====================
+CRITICAL FIX: Media Type Detection
+
+FIXED:
+- Changed from Container.Content() to ListItem.DBTYPE for media detection
+- NOW WORKS: In all views (library, in progress, recently added, filtered lists)
+- Container.Content() only works in main library views
+- ListItem.DBTYPE works everywhere a media item exists
+
+IMPROVED:
+- Added VERSION constant for version tracking
+- Added comprehensive logging with version prefix
+- Added error logging for debugging
+- Added try/except with full traceback on errors
+- Renamed __getMediaType() to get_media_type() (PEP8 compliant)
+- Added detailed docstrings
+- Added null checks for DBID and media_type
+- Professional code structure matching script.simkl standards
+
+v1.0.0 (2025-12-27)
+====================
+INITIAL RELEASE: Context Menu Rating Button
+
+NEW FEATURES:
+- Adds "Rate on SIMKL" to context menu on media items
+- Visible on movies, TV shows, seasons, episodes
+- Delegates to script.simkl for rating functionality
+- Proper addon structure (addon.xml, strings.po, icon, license)
+
+ARCHITECTURE:
+- Standalone context addon (required by Kodi)
+- Minimal code - detection and delegation only
+- Requires script.simkl v6.7.0+
+- Follows Trakt addon pattern

@@ -1,0 +1,60 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<!--
+SIMKL Scrobbler for Kodi
+Version: 7.2.0
+Last Modified: 2026-02-05
+
+CHANGELOG:
+7.2.0 - PHASE 9: Advanced Features & Polish
+        - ACTIVATED: All exclusion settings now functional
+        - NEW: Exclude Live TV (pvr://) sources
+        - NEW: Exclude HTTP/HTTPS streaming sources
+        - NEW: Exclude plugin sources (plugin://)
+        - NEW: Exclude script-controlled playback
+        - NEW: Up to 5 custom path exclusions with cascading UI
+        - RESTORED: Notifications category in settings
+        - Version consistency: All modules now at 7.2.0
+        - Fixed auth.py bug (VERSION -> __version__)
+7.0.0 - PHASE 8: Localization Framework
+        - NEW: Centralized localization helper (strings.py)
+        - NEW: Complete English localization framework
+        - All user-facing strings now use getLocalizedString()
+        - Framework ready for future language additions
+        - No functional changes - pure localization
+        - Notifications: Localized all runtime messages
+        - Rating Dialog: Localized all UI strings
+        - Service: Localized sync and auth notifications
+6.13.0 - Previous release
+-->
+<addon id="script.simkl" 
+       name="SIMKL Scrobbler" 
+       version="7.2.0" 
+       provider-name="Claude.ai with assistance from Michael Beck">
+    
+    <requires>
+        <import addon="xbmc.python" version="3.0.0"/>
+        <import addon="script.module.requests" version="2.31.0"/>
+        <import addon="script.module.pyqrcode" version="1.2.1"/>
+    </requires>
+    
+    <!-- Script extension: Opens settings when addon is clicked -->
+    <extension point="xbmc.python.script" library="default.py">
+        <provides>executable</provides>
+    </extension>
+    
+    <!-- Service extension: Background monitoring and scrobbling -->
+    <extension point="xbmc.service" library="service.py"/>
+    
+    <!-- Addon metadata -->
+    <extension point="xbmc.addon.metadata">
+        <summary lang="en_GB">Scrobble your Kodi library to SIMKL</summary>
+        <description lang="en_GB">Automatically track what you watch on Kodi to your SIMKL account. Supports movies and TV shows with real-time scrobbling. Mark content as watched when you hit your threshold (default 70%).</description>
+        <platform>all</platform>
+        <license>GPL-3.0-or-later</license>
+        <source>https://github.com/thegoddamnbeckster/SIMKLScrobbler</source>
+        <assets>
+            <icon>icon.png</icon>
+            <fanart>fanart.jpg</fanart>
+        </assets>
+    </extension>
+</addon>

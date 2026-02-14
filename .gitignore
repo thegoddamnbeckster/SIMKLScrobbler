@@ -1,0 +1,28 @@
+# Build artifacts
+build_temp/
+*.zip
+
+# Kodi addon data
+.kodi/
+
+# Python bytecode
+__pycache__/
+*.pyc
+*.pyo
+
+# IDE
+.vscode/
+.idea/
+
+# OS files
+Thumbs.db
+.DS_Store
+
+# Development documents (not needed in repo)
+simklscrobbler_projectplan.md
+simkl_code_review_v2.md
+SIMKL_Feature_Request_Progress_Tracking.md
+settings_minimal.xml
+
+# Test context menu (development only)
+context.simkl.test/

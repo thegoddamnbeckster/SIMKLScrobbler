@@ -1,0 +1,636 @@
+# -*- coding: utf-8 -*-
+"""
+SIMKL API Client
+Version: 7.2.0
+Last Modified: 2026-02-04
+
+PHASE 9: Advanced Features & Polish
+
+Handles all communication with the SIMKL API.
+This module manages all HTTP requests to SIMKL endpoints.
+
+API Documentation: https://simkl.docs.apiary.io/
+
+Key Endpoints Used:
+- /oauth/pin - Device authentication
+- /oauth/pin/{code} - Check auth status
+- /scrobble/start - Start watching
+- /scrobble/pause - Pause watching
+- /scrobble/stop - Stop watching (marks as watched if 80%+)
+- /search/movie - Search movies
+- /search/tv - Search TV shows
+- /sync/history - Add to watch history manually
+
+Professional code - suitable for public distribution
+Attribution: Claude.ai with assistance from Michael Beck
+"""
+
+import requests
+import json
+import xbmc
+import xbmcaddon
+from resources.lib.utils import log, log_error, log_debug, log_warning, log_module_init, get_setting
+
+# Module version
+__version__ = '7.2.0'
+
+# Log module initialization
+log_module_init('api.py', __version__)
+
+
+class SimklAPI:
+    """SIMKL API client - talks to the SIMKL servers so you don't have to."""
+    
+    BASE_URL = "https://api.simkl.com"
+    
+    # Our registered client ID (not secret, device auth doesn't need secrets)
+    CLIENT_ID = "ab02f10030b0d629ffada90e2bf6236c57f42256a9e94d243255392af7b391e7"
+    
+    def __init__(self):
+        """
+        Initialize API client.
+        
+        Sets up the session with required headers.
+        """
+        self.access_token = get_setting("access_token")
+        
+        # Create persistent session for connection reuse
+        self.session = requests.Session()
+        
+        # Set default headers
+        self.session.headers.update({
+            "Content-Type": "application/json",
+            "simkl-api-key": self.CLIENT_ID
+        })
+        
+        # Add auth header if we have a token
+        if self.access_token:
+            self.session.headers.update({
+                "Authorization": f"Bearer {self.access_token}"
+            })
+            log_debug("API initialized with access token")
+        else:
+            log_debug("API initialized without access token")
+    
+    def close(self):
+        """Close the requests session to free socket connections."""
+        if self.session:
+            self.session.close()
+            log_debug("API session closed")
+    
+    def _request(self, method, endpoint, data=None, params=None, timeout=30):
+        """
+        Make an HTTP request to the SIMKL API.
+        
+        Args:
+            method: HTTP method (GET, POST, DELETE)
+            endpoint: API endpoint (without base URL)
+            data: Dict to send as JSON body (for POST)
+            params: URL parameters (for GET)
+            timeout: Request timeout in seconds
+            
+        Returns:
+            Response JSON dict, or None on error
+        """
+        url = f"{self.BASE_URL}{endpoint}"
+        
+        try:
+            log_debug(f"API {method} {endpoint}")
+            
+            if data:
+                log_debug(f"Request body: {json.dumps(data)}")
+            
+            if method == "GET":
+                response = self.session.get(url, params=params, timeout=timeout)
+            elif method == "POST":
+                response = self.session.post(url, json=data, timeout=timeout)
+            elif method == "DELETE":
+                response = self.session.delete(url, timeout=timeout)
+            else:
+                log_error(f"Unsupported HTTP method: {method}")
+                return None
+            
+            log_debug(f"Response status: {response.status_code}")
+            
+            # Handle specific status codes
+            if response.status_code == 204:
+                # No content - success
+                return {"success": True}
+            
+            if response.status_code == 401:
+                log_error("401 Unauthorized - access token may be invalid")
+                return None
+            
+            if response.status_code == 404:
+                log_error("404 Not Found - content not found on SIMKL")
+                return None
+            
+            if response.status_code == 409:
+                # Conflict - already watched recently
+                log("409 Conflict - already scrobbled recently")
+                try:
+                    return response.json()
+                except:
+                    return {"conflict": True}
+            
+            if response.status_code == 429:
+                log_error("429 Rate Limited - slow down!")
+                return None
+            
+            response.raise_for_status()
+            
+            # Parse JSON response
+            try:
+                result = response.json()
+                log_debug(f"Response body: {json.dumps(result)}")
+                return result
+            except json.JSONDecodeError:
+                log_error("Failed to parse JSON response")
+                return None
+                
+        except requests.exceptions.Timeout:
+            log_error(f"Request timeout: {endpoint}")
+            return None
+        except requests.exceptions.ConnectionError:
+            log_error(f"Connection error: {endpoint}")
+            return None
+        except requests.exceptions.RequestException as e:
+            log_error(f"Request failed: {endpoint} - {e}")
+            return None
+    
+    # ========== Scrobbling Endpoints ==========
+    
+    def scrobble(self, action, movie=None, show=None, episode=None, anime=None, progress=0):
+        """
+        Send a scrobble action to SIMKL.
+        
+        Args:
+            action: "start", "pause", or "stop"
+            movie: Movie object (for movie scrobbles)
+            show: Show object (for TV scrobbles)
+            episode: Episode object (for TV scrobbles)
+            anime: Anime object (for anime scrobbles)
+            progress: Current watch progress (0-100)
+            
+        Returns:
+            Response dict or None
+        """
+        valid_actions = ["start", "pause", "stop"]
+        if action not in valid_actions:
+            log_error(f"Invalid scrobble action: {action}")
+            return None
+        
+        endpoint = f"/scrobble/{action}"
+        
+        # Build request body
+        data = {
+            "progress": progress
+        }
+        
+        # Add the appropriate media object
+        if movie:
+            data["movie"] = movie
+            log(f"Scrobble {action}: Movie - {movie.get('title', 'Unknown')}")
+        elif show and episode:
+            data["show"] = show
+            data["episode"] = episode
+            show_title = show.get("title", "Unknown")
+            season = episode.get("season", 0)
+            ep_num = episode.get("number", episode.get("episode", 0))
+            log(f"Scrobble {action}: {show_title} S{season:02d}E{ep_num:02d}")
+        elif anime and episode:
+            data["anime"] = anime
+            data["episode"] = episode
+            log(f"Scrobble {action}: Anime - {anime.get('title', 'Unknown')}")
+        else:
+            log_error("Scrobble requires movie, show+episode, or anime+episode")
+            return None
+        
+        return self._request("POST", endpoint, data=data)
+    
+    # ========== Search Endpoints ==========
+    
+    def search_movie(self, query, year=None):
+        """
+        Search for a movie on SIMKL.
+        
+        Args:
+            query: Search query (movie title)
+            year: Release year (optional but recommended)
+            
+        Returns:
+            List of matching movies or empty list
+        """
+        params = {"q": query}
+        if year:
+            params["year"] = year
+        
+        log(f"Searching movies: {query}" + (f" ({year})" if year else ""))
+        
+        response = self._request("GET", "/search/movie", params=params)
+        
+        if response and isinstance(response, list):
+            log(f"Found {len(response)} movie result(s)")
+            return response
+        
+        return []
+    
+    def search_tv(self, query, year=None):
+        """
+        Search for a TV show on SIMKL.
+        
+        Args:
+            query: Search query (show title)
+            year: First air year (optional)
+            
+        Returns:
+            List of matching shows or empty list
+        """
+        params = {"q": query}
+        if year:
+            params["year"] = year
+        
+        log(f"Searching TV shows: {query}" + (f" ({year})" if year else ""))
+        
+        response = self._request("GET", "/search/tv", params=params)
+        
+        if response and isinstance(response, list):
+            log(f"Found {len(response)} TV show result(s)")
+            return response
+        
+        return []
+    
+    def search_anime(self, query, year=None):
+        """
+        Search for anime on SIMKL.
+        
+        Args:
+            query: Search query (anime title)
+            year: Year (optional)
+            
+        Returns:
+            List of matching anime or empty list
+        """
+        params = {"q": query}
+        if year:
+            params["year"] = year
+        
+        log(f"Searching anime: {query}" + (f" ({year})" if year else ""))
+        
+        response = self._request("GET", "/search/anime", params=params)
+        
+        if response and isinstance(response, list):
+            log(f"Found {len(response)} anime result(s)")
+            return response
+        
+        return []
+    
+    # ========== Sync Endpoints ==========
+    
+    def add_to_history(self, movies=None, shows=None):
+        """
+        Add items directly to watch history.
+        
+        Used for manual marking without scrobble flow.
+        Watch history is stored permanently in SIMKL's cloud.
+        
+        Args:
+            movies: List of movie objects with format:
+                    {"title": "...", "year": 2020, "ids": {"imdb": "tt..."}}
+            shows: List of show objects with episodes:
+                   {"title": "...", "ids": {...}, "seasons": [{"number": 1, "episodes": [{"number": 1}]}]}
+            
+        Returns:
+            Response dict with 'added' counts or None on error
+        """
+        data = {}
+        if movies:
+            data["movies"] = movies
+        if shows:
+            data["shows"] = shows
+        
+        if not data:
+            log_error("No items provided to add to history")
+            return None
+        
+        movie_count = len(data.get('movies', []))
+        show_count = len(data.get('shows', []))
+        
+        log(f"Adding to history: {movie_count} movies, {show_count} shows")
+        log_debug(f"History payload: {json.dumps(data)[:500]}...")  # First 500 chars
+        
+        return self._request("POST", "/sync/history", data=data)
+    
+    def get_all_items(self, media_type="movies", status="completed", extended=False):
+        """
+        Get all items from user's SIMKL watchlist.
+        
+        Retrieves the user's watched items from SIMKL.
+        Used for importing watch history FROM SIMKL to Kodi.
+        
+        Args:
+            media_type: "movies", "shows", or "anime"
+            status: "completed", "watching", "plantowatch", "hold", "dropped"
+            extended: Include extended info (runtime, genres, etc.)
+            
+        Returns:
+            List of items or empty list on error
+        """
+        endpoint = f"/sync/all-items/{media_type}/{status}"
+        
+        params = {}
+        if extended:
+            params["extended"] = "full"
+        
+        log(f"Fetching {status} {media_type} from SIMKL...")
+        
+        response = self._request("GET", endpoint, params=params if params else None)
+        
+        if response and isinstance(response, list):
+            log(f"Retrieved {len(response)} {media_type} from SIMKL")
+            return response
+        elif response and isinstance(response, dict) and media_type in response:
+            # Some endpoints return {"movies": [...]} format
+            items = response[media_type]
+            log(f"Retrieved {len(items)} {media_type} from SIMKL")
+            return items
+        
+        log_warning(f"No {status} {media_type} found on SIMKL")
+        return []
+    
+    def get_last_activity(self):
+        """
+        Get timestamps of user's last activities.
+        
+        Useful for determining if a sync is needed.
+        
+        Returns:
+            Dict with activity timestamps or None
+        """
+        return self._request("GET", "/sync/activities")
+    
+    # ========== Rating Endpoints ==========
+    
+    def add_rating(self, media_type, media_info, rating):
+        """
+        Add a rating for a movie, show, or episode.
+        
+        SIMKL uses 1-10 rating scale.
+        Rating an item also adds it to watched history if not already there.
+        
+        Args:
+            media_type: "movie", "show", or "episode"
+            media_info: Dict with ids and metadata
+            rating: Integer 1-10
+            
+        Returns:
+            Response dict or None on error
+        """
+        if not 1 <= rating <= 10:
+            log_error(f"Invalid rating: {rating} (must be 1-10)")
+            return None
+        
+        data = {}
+        
+        if media_type == "movie":
+            movie_obj = {
+                "rating": rating,
+                "ids": media_info.get("ids", {}),
+            }
+            # Add optional fields
+            if "title" in media_info:
+                movie_obj["title"] = media_info["title"]
+            if "year" in media_info:
+                movie_obj["year"] = media_info["year"]
+            
+            data["movies"] = [movie_obj]
+            log(f"Rating movie: {media_info.get('title', 'Unknown')} - {rating}/10")
+            
+        elif media_type == "show":
+            # For shows, rate the show itself (not individual episodes)
+            show_obj = {
+                "rating": rating,
+                "ids": media_info.get("ids", {}),
+            }
+            if "title" in media_info:
+                show_obj["title"] = media_info["title"]
+            if "year" in media_info:
+                show_obj["year"] = media_info["year"]
+            
+            data["shows"] = [show_obj]
+            log(f"Rating show: {media_info.get('title', 'Unknown')} - {rating}/10")
+            
+        elif media_type == "episode":
+            # For episodes, we need to structure it as show -> season -> episode
+            show_obj = {
+                "ids": media_info.get("show_ids", media_info.get("ids", {})),
+                "seasons": [{
+                    "number": media_info.get("season", 1),
+                    "episodes": [{
+                        "number": media_info.get("episode", 1),
+                        "rating": rating
+                    }]
+                }]
+            }
+            if "show_title" in media_info:
+                show_obj["title"] = media_info["show_title"]
+            
+            data["shows"] = [show_obj]
+            log(f"Rating episode: {media_info.get('show_title', 'Unknown')} "
+                f"S{media_info.get('season', 0):02d}E{media_info.get('episode', 0):02d} - {rating}/10")
+        
+        else:
+            log_error(f"Unknown media type for rating: {media_type}")
+            return None
+        
+        log_debug(f"Rating payload: {json.dumps(data)}")
+        return self._request("POST", "/sync/ratings", data=data)
+    
+    def remove_rating(self, media_type, media_info):
+        """
+        Remove a rating from an item.
+        
+        Args:
+            media_type: "movie", "show", or "episode"
+            media_info: Dict with ids
+            
+        Returns:
+            Response dict or None on error
+        """
+        data = {}
+        
+        if media_type == "movie":
+            data["movies"] = [{
+                "ids": media_info.get("ids", {})
+            }]
+        elif media_type == "show":
+            data["shows"] = [{
+                "ids": media_info.get("ids", {})
+            }]
+        elif media_type == "episode":
+            data["shows"] = [{
+                "ids": media_info.get("show_ids", media_info.get("ids", {})),
+                "seasons": [{
+                    "number": media_info.get("season", 1),
+                    "episodes": [{
+                        "number": media_info.get("episode", 1)
+                    }]
+                }]
+            }]
+        else:
+            log_error(f"Unknown media type for unrating: {media_type}")
+            return None
+        
+        log(f"Removing rating for: {media_info.get('title', 'Unknown')}")
+        return self._request("POST", "/sync/ratings/remove", data=data)
+    
+    def get_user_ratings(self, media_type="movies"):
+        """
+        Get user's ratings from SIMKL.
+        
+        Args:
+            media_type: "movies", "shows", or "anime"
+            
+        Returns:
+            List of rated items or empty list
+        """
+        endpoint = f"/sync/ratings/{media_type}"
+        
+        log(f"Fetching user ratings for {media_type}...")
+        response = self._request("GET", endpoint)
+        
+        if response and isinstance(response, list):
+            log(f"Retrieved {len(response)} {media_type} ratings")
+            return response
+        
+        return []
+    
+    def get_ratings(self, media_type="movies"):
+        """
+        Alias for get_user_ratings() - used by rating.py
+        
+        Args:
+            media_type: "movies", "shows", or "anime"
+            
+        Returns:
+            List of rated items or empty list
+        """
+        return self.get_user_ratings(media_type)
+    
+    # ========== User Endpoints ==========
+    
+    def get_user_settings(self):
+        """
+        Get current user's settings.
+        
+        Useful for testing if auth is working.
+        
+        Returns:
+            User settings dict or None
+        """
+        return self._request("GET", "/users/settings")
+    
+    def get_user_info(self):
+        """
+        Get current user's info.
+        
+        Returns:
+            User info dict or None
+        """
+        return self._request("GET", "/users/me")
+    
+    # ========== Playback Endpoints ==========
+    
+    def get_playback(self, media_type="all"):
+        """
+        Get current playback sessions (paused items).
+        
+        Args:
+            media_type: "all", "movie", or "episode"
+            
+        Returns:
+            List of playback sessions or empty list
+        """
+        endpoint = "/sync/playback"
+        if media_type in ["movie", "episode"]:
+            endpoint = f"/sync/playback/{media_type}"
+        
+        response = self._request("GET", endpoint)
+        
+        if response and isinstance(response, list):
+            return response
+        
+        return []
+    
+    # ========== Auth Endpoints (used by auth_dialog.py) ==========
+    
+    def get_device_code(self):
+        """
+        Get device code for PIN-based authentication.
+        
+        Returns:
+            Dict with device_code, user_code, verification_url
+        """
+        params = {"client_id": self.CLIENT_ID}
+        return self._request("GET", "/oauth/pin", params=params)
+    
+    def check_device_auth(self, user_code):
+        """
+        Check if user has authorized the device code.
+        
+        Args:
+            user_code: The code user enters on SIMKL website
+            
+        Returns:
+            Dict with access_token if authorized, or status info
+        """
+        params = {"client_id": self.CLIENT_ID}
+        return self._request("GET", f"/oauth/pin/{user_code}", params=params)
+    
+    # ========== Utility Methods ==========
+    
+    def test_connection(self):
+        """
+        Test if we can connect to SIMKL API.
+        
+        Returns:
+            True if connection successful
+        """
+        log("Testing SIMKL API connection...")
+        
+        # Try to get user settings (requires auth)
+        if self.access_token:
+            result = self.get_user_settings()
+            if result:
+                log("API connection test successful (authenticated)")
+                return True
+            else:
+                log_error("API connection test failed (auth error?)")
+                return False
+        else:
+            # Try a simple search (no auth required)
+            result = self.search_movie("test", 2020)
+            if result is not None:  # Empty list is ok
+                log("API connection test successful (unauthenticated)")
+                return True
+            else:
+                log_error("API connection test failed")
+                return False
+    
+    def refresh_token(self):
+        """
+        Refresh the access token from addon settings.
+        
+        Call this if settings changed and token might be updated.
+        """
+        new_token = get_setting("access_token")
+        if new_token != self.access_token:
+            self.access_token = new_token
+            if self.access_token:
+                self.session.headers.update({
+                    "Authorization": f"Bearer {self.access_token}"
+                })
+                log("Access token refreshed")
+            else:
+                self.session.headers.pop("Authorization", None)
+                log("Access token cleared")
