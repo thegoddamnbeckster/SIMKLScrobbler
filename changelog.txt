@@ -1,4 +1,19 @@
 
+[7.3.3] - 2026-02-14
+FIX: Scrobbling 401 errors and IMDb ID format
+- ROOT CAUSE 1: The service's SimklAPI instance was created at startup before auth
+  completed. The API cached an empty access_token. All scrobble calls got 401.
+- FIX: API._request() now auto-refreshes token from settings on 401 and retries once
+- ROOT CAUSE 2: Kodi's getIMDBNumber() returns TMDb numeric IDs (e.g. "840326") when
+  media is scraped by TMDb scraper. Code sent this to SIMKL as IMDb ID (needs "tt" prefix).
+- FIX: service.py now uses getUniqueID("imdb") first, validates tt prefix, and correctly
+  identifies pure numeric getIMDBNumber() values as TMDb IDs
+- FIX: scrobbler.py adds tt prefix safety check when building IDs for API calls
+- ROOT CAUSE 3: playback_ended() claimed "SIMKL marked as watched" based purely on
+  percentage (>= 80%) without checking if the scrobble/stop API call actually succeeded
+- FIX: Now checks API response; falls back to /sync/history when /scrobble/stop fails
+- All IDs now cast to str() for consistency
+
 [7.3.2] - 2026-02-14
 HOTFIX: Username not retrieved after authentication
 - ROOT CAUSE: Kodi's setSetting() from background threads is asynchronous. The polling

@@ -231,9 +231,9 @@ class SimklScrobbler:
         threshold = get_setting_int("scrobble_threshold", 70)
         meets_user_threshold = watched_percent >= threshold
         
-        # SIMKL marks watched at 80%+ via /scrobble/stop
+        # SIMKL marks watched at 80%+ via /scrobble/stop, but ONLY if the API call succeeded
         SIMKL_WATCHED_THRESHOLD = 80
-        simkl_marked_watched = watched_percent >= SIMKL_WATCHED_THRESHOLD
+        simkl_marked_watched = (response is not None) and (watched_percent >= SIMKL_WATCHED_THRESHOLD)
         
         was_marked_watched = False
         
@@ -243,9 +243,12 @@ class SimklScrobbler:
                 was_marked_watched = True
                 log(f"SIMKL marked as watched via scrobble/stop ({watched_percent:.1f}% >= 80%)")
             else:
-                # User threshold met but SIMKL didn't mark it (progress < 80%)
+                # Either scrobble/stop failed, or progress < 80% but user threshold met
                 # Use history API as fallback to explicitly mark watched
-                log(f"Progress {watched_percent:.1f}% meets user threshold ({threshold}%) but below SIMKL's 80% - using history API fallback")
+                if response is None:
+                    log(f"Scrobble/stop failed - using history API fallback to mark watched")
+                else:
+                    log(f"Progress {watched_percent:.1f}% meets user threshold ({threshold}%) but below SIMKL's 80% - using history API fallback")
                 history_result = self._mark_watched_via_history()
                 if history_result:
                     was_marked_watched = True
@@ -454,9 +457,12 @@ class SimklScrobbler:
         # Build IDs dict if we have any
         ids = {}
         if imdb_id:
+            # Ensure tt prefix for SIMKL compatibility
+            if not imdb_id.startswith("tt") and imdb_id.isdigit():
+                imdb_id = f"tt{imdb_id}"
             ids["imdb"] = imdb_id
         if tmdb_id:
-            ids["tmdb"] = tmdb_id
+            ids["tmdb"] = str(tmdb_id)
         
         # If we have IDs, we can use them directly
         if ids:
@@ -518,11 +524,14 @@ class SimklScrobbler:
         # Build show IDs if we have any
         ids = {}
         if imdb_id:
+            # Ensure tt prefix for SIMKL compatibility
+            if not imdb_id.startswith("tt") and imdb_id.isdigit():
+                imdb_id = f"tt{imdb_id}"
             ids["imdb"] = imdb_id
         if tvdb_id:
-            ids["tvdb"] = tvdb_id
+            ids["tvdb"] = str(tvdb_id)
         if tmdb_id:
-            ids["tmdb"] = tmdb_id
+            ids["tmdb"] = str(tmdb_id)
         
         # Build show info
         show_info = {

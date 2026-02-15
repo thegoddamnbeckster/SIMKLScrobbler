@@ -637,7 +637,29 @@ class SimklPlayer(xbmc.Player):
             }
             
             # Get IDs - these are crucial for SIMKL matching
-            imdb_id = info_tag.getIMDBNumber()
+            # getIMDBNumber() can return TMDb numeric IDs when scraped by TMDb scraper
+            # so we need to validate the format before trusting it as an IMDb ID
+            imdb_id = None
+            raw_imdb = info_tag.getIMDBNumber()
+            
+            # First try the more reliable getUniqueID("imdb")
+            try:
+                unique_imdb = info_tag.getUniqueID("imdb")
+                if unique_imdb:
+                    # Ensure tt prefix
+                    if unique_imdb.startswith("tt"):
+                        imdb_id = unique_imdb
+                    elif unique_imdb.isdigit():
+                        imdb_id = f"tt{unique_imdb}"
+            except:
+                pass
+            
+            # Fall back to getIMDBNumber() only if it looks like a real IMDb ID
+            if not imdb_id and raw_imdb:
+                if raw_imdb.startswith("tt"):
+                    imdb_id = raw_imdb
+                # Pure numeric from getIMDBNumber could be TMDb ID - don't use as IMDb
+            
             if imdb_id:
                 video_data["imdb_id"] = imdb_id
             
@@ -652,9 +674,15 @@ class SimklPlayer(xbmc.Player):
             try:
                 tmdb_id = info_tag.getUniqueID("tmdb")
                 if tmdb_id:
-                    video_data["tmdb_id"] = tmdb_id
+                    video_data["tmdb_id"] = str(tmdb_id)
             except:
                 pass
+            
+            # If getIMDBNumber() returned a pure number (likely TMDb ID) and 
+            # we don't have a TMDb ID yet, use it as TMDb
+            if not video_data.get("tmdb_id") and raw_imdb and raw_imdb.isdigit():
+                video_data["tmdb_id"] = raw_imdb
+                log_debug(f"Using getIMDBNumber() value '{raw_imdb}' as TMDb ID (pure numeric, no tt prefix)")
             
             # TV-specific info
             if media_type == "episode":

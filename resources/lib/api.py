@@ -118,8 +118,26 @@ class SimklAPI:
                 return {"success": True}
             
             if response.status_code == 401:
-                log_error("401 Unauthorized - access token may be invalid")
-                return None
+                # Try refreshing token once before giving up
+                old_token = self.access_token
+                self.refresh_token()
+                if self.access_token and self.access_token != old_token:
+                    log("401 received - token refreshed from settings, retrying...")
+                    # Retry the request with new token
+                    if method == "GET":
+                        response = self.session.get(url, params=params, timeout=timeout)
+                    elif method == "POST":
+                        response = self.session.post(url, json=data, timeout=timeout)
+                    elif method == "DELETE":
+                        response = self.session.delete(url, timeout=timeout)
+                    
+                    if response.status_code == 401:
+                        log_error("401 Unauthorized after token refresh - token is invalid")
+                        return None
+                    # Fall through to normal response handling
+                else:
+                    log_error("401 Unauthorized - access token may be invalid")
+                    return None
             
             if response.status_code == 404:
                 log_error("404 Not Found - content not found on SIMKL")
