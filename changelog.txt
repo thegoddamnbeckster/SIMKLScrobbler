@@ -1,4 +1,17 @@
 
+[7.3.4] - 2026-02-14
+FIX: API token not visible to service after authentication
+- ROOT CAUSE: Auth runs in default.py (separate Python invocation from service.py).
+  The service's cached xbmcaddon.Addon() instance doesn't see settings changes made
+  by other processes. The 401 auto-retry called refresh_token() which used the same
+  stale cached Addon, so it read the same empty token and retry still failed.
+- FIX: refresh_token() now creates a fresh xbmcaddon.Addon('script.simkl') instance
+  to guarantee reading latest settings from disk
+- FIX: onSettingsChanged handler now calls refresh_token() on the scrobbler's API
+  instance, so the service picks up the new token as soon as auth completes
+- NOTE: After installing this version, RESTART KODI to ensure new code loads
+  (Python caches modules in memory; addon update alone doesn't reload them)
+
 [7.3.3] - 2026-02-14
 FIX: Scrobbling 401 errors and IMDb ID format
 - ROOT CAUSE 1: The service's SimklAPI instance was created at startup before auth

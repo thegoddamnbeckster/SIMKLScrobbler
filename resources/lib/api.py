@@ -639,16 +639,26 @@ class SimklAPI:
         """
         Refresh the access token from addon settings.
         
-        Call this if settings changed and token might be updated.
+        Creates a FRESH Addon() instance to bypass any settings cache.
+        This is critical because auth happens in a different Python process
+        (default.py) than the service, so the service's cached Addon()
+        may not see the newly saved token.
         """
-        new_token = get_setting("access_token")
+        try:
+            import xbmcaddon
+            fresh_addon = xbmcaddon.Addon('script.simkl')
+            new_token = fresh_addon.getSetting('access_token')
+        except Exception as e:
+            log_error(f"Error refreshing token: {e}")
+            new_token = get_setting("access_token")
+        
         if new_token != self.access_token:
             self.access_token = new_token
             if self.access_token:
                 self.session.headers.update({
                     "Authorization": f"Bearer {self.access_token}"
                 })
-                log("Access token refreshed")
+                log("Access token refreshed from settings")
             else:
                 self.session.headers.pop("Authorization", None)
                 log("Access token cleared")

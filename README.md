@@ -4,7 +4,7 @@ Automatically track your Kodi watching activity to your [SIMKL](https://simkl.co
 
 This addon aims to provide the same quality of experience that the popular Trakt addon offers, but for SIMKL users.
 
-**Current Version:** 7.3.3
+**Current Version:** 7.3.4
 
 ## Features
 

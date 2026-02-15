@@ -1,10 +1,15 @@
 ﻿<?xml version="1.0" encoding="UTF-8"?>
 <!--
 SIMKL Scrobbler for Kodi
-Version: 7.3.3
+Version: 7.3.4
 Last Modified: 2026-02-14
 
 CHANGELOG:
+7.3.4 - FIX: API token not visible to service after authentication
+        - FIXED: refresh_token() creates fresh Addon() instance to bypass settings cache
+        - FIXED: Settings change handler now triggers API token refresh in service
+        - Auth happens in default.py (separate process), service needs fresh read
+        - CRITICAL: Restart Kodi after installing this update
 7.3.3 - FIX: Scrobbling 401 errors and IMDb ID format
         - FIXED: API auto-retries on 401 by refreshing token from settings (handles post-auth timing)
         - FIXED: IMDb IDs now validated with tt prefix (Kodi TMDb scraper returns raw numbers)
@@ -52,7 +57,7 @@ CHANGELOG:
 -->
 <addon id="script.simkl" 
        name="SIMKL Scrobbler" 
-       version="7.3.3" 
+       version="7.3.4" 
        provider-name="Claude.ai with assistance from Michael Beck">
     
     <requires>

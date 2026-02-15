@@ -128,9 +128,16 @@ class SimklService:
             log_error(f"Error processing dispatch: {e}")
     
     def _check_auth_triggers(self):
-        """Check if user triggered authentication from settings"""
-        # This is handled by default.py when buttons are clicked
-        pass
+        """
+        Check if auth state changed and refresh API token if needed.
+        
+        Called when settings change - this catches the case where the user
+        just completed authentication in default.py (separate Python process)
+        and the service needs to pick up the new token.
+        """
+        if self.scrobbler and hasattr(self.scrobbler, 'api'):
+            self.scrobbler.api.refresh_token()
+            log("Refreshed API token after settings change")
     
     def _load_last_sync_time(self):
         """Load the last sync timestamp from addon settings."""
