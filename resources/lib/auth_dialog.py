@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 SIMKL Scrobbler - Authentication Dialog Handler  
-Version: 7.3.1
+Version: 7.3.4
 Last Modified: 2026-02-14
 
 BUG FIXES:
@@ -27,7 +27,7 @@ import time
 import os
 
 # Module version
-__version__ = '7.3.1'
+__version__ = '7.3.4'
 
 # Log module initialization
 xbmc.log(f'[SIMKL Scrobbler] auth_dialog.py v{__version__} - Auth dialog module loading', level=xbmc.LOGINFO)

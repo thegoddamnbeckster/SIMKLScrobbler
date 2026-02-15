@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """
 SIMKL Scrobbler - The Brains of the Operation
-Version: 7.3.0
-Last Modified: 2026-02-06
+Version: 7.3.4
+Last Modified: 2026-02-14
 
 PHASE 9: Advanced Features & Polish
 
@@ -30,7 +30,7 @@ from resources.lib.exclusions import check_exclusion, get_exclusion_summary
 from resources.lib.strings import getString, NOW_SCROBBLING, MARKED_AS_WATCHED
 
 # Module version
-__version__ = '7.3.0'
+__version__ = '7.3.4'
 
 # Log module initialization
 xbmc.log(f'[SIMKL Scrobbler] scrobbler.py v{__version__} - Core scrobbler engine loading', level=xbmc.LOGINFO)
@@ -66,7 +66,7 @@ class SimklScrobbler:
         self.last_progress_update = 0  # timestamp of last SIMKL progress update
         self.paused_at = 0
         
-        log("SimklScrobbler initialized")
+        log(f"[scrobbler v{__version__}] SimklScrobbler initialized")
     
     def playback_started(self, data):
         """
@@ -78,7 +78,7 @@ class SimklScrobbler:
         Args:
             data: Dict with video info from player
         """
-        log(f"Playback started: {data}")
+        log(f"[scrobbler v{__version__}] Playback started: {data}")
         
         if not data:
             return
@@ -156,12 +156,14 @@ class SimklScrobbler:
                 episode = data.get("episode", 0)
                 title = f"{show} S{season:02d}E{episode:02d}"
             
-            if get_setting_bool("show_notifications"):
+            show_notif = get_setting_bool("show_notifications")
+            log(f"[scrobbler v{__version__}] Scrobble start SUCCESS | title={title} | show_notifications={show_notif}")
+            if show_notif:
                 notify(getString(NOW_SCROBBLING), title)
             
-            log(f"Started scrobbling: {title}")
+            log(f"[scrobbler v{__version__}] Started scrobbling: {title}")
         else:
-            log_warning("Failed to start scrobble - continuing without")
+            log_warning(f"[scrobbler v{__version__}] Failed to start scrobble - response was None - continuing without")
     
     def playback_paused(self):
         """Handle playback paused event."""
@@ -217,14 +219,15 @@ class SimklScrobbler:
         if not self.is_playing:
             return
         
-        log("Playback ended")
+        log(f"[scrobbler v{__version__}] Playback ended")
         
         # Calculate final progress
         watched_percent = self._calculate_watched_percent()
-        log(f"Final progress: {watched_percent:.1f}%")
+        log(f"[scrobbler v{__version__}] Final progress: {watched_percent:.1f}%")
         
         # Send stop scrobble (always send this to end the session)
         response = self._scrobble("stop")
+        log(f"[scrobbler v{__version__}] Scrobble stop response: {'OK' if response else 'NONE/FAILED'}")
         
         # Determine if content should be marked as watched
         # User's threshold from settings (default 70%)
@@ -241,20 +244,20 @@ class SimklScrobbler:
             if simkl_marked_watched:
                 # SIMKL handled it via /scrobble/stop - we're good
                 was_marked_watched = True
-                log(f"SIMKL marked as watched via scrobble/stop ({watched_percent:.1f}% >= 80%)")
+                log(f"[scrobbler v{__version__}] SIMKL marked as watched via scrobble/stop ({watched_percent:.1f}% >= 80%)")
             else:
                 # Either scrobble/stop failed, or progress < 80% but user threshold met
                 # Use history API as fallback to explicitly mark watched
                 if response is None:
-                    log(f"Scrobble/stop failed - using history API fallback to mark watched")
+                    log(f"[scrobbler v{__version__}] Scrobble/stop failed - using history API fallback to mark watched")
                 else:
-                    log(f"Progress {watched_percent:.1f}% meets user threshold ({threshold}%) but below SIMKL's 80% - using history API fallback")
+                    log(f"[scrobbler v{__version__}] Progress {watched_percent:.1f}% meets user threshold ({threshold}%) but below SIMKL's 80% - using history API fallback")
                 history_result = self._mark_watched_via_history()
                 if history_result:
                     was_marked_watched = True
-                    log("Successfully marked as watched via history API")
+                    log(f"[scrobbler v{__version__}] Successfully marked as watched via history API")
                 else:
-                    log_warning("Failed to mark as watched via history API fallback")
+                    log_warning(f"[scrobbler v{__version__}] Failed to mark as watched via history API fallback")
         
         if was_marked_watched and get_setting_bool("show_notifications"):
             title = self._get_display_title()
@@ -466,7 +469,7 @@ class SimklScrobbler:
         
         # If we have IDs, we can use them directly
         if ids:
-            log(f"Using IDs for movie lookup: {ids}")
+            log(f"[scrobbler v{__version__}] Using IDs for movie lookup: {ids}")
             return {
                 "title": title,
                 "year": year,
@@ -474,6 +477,7 @@ class SimklScrobbler:
             }
         
         # Otherwise, search SIMKL
+        log(f"[scrobbler v{__version__}] No IDs available, searching SIMKL for: {title} ({year})")
         log(f"Searching SIMKL for movie: {title} ({year})")
         results = self.api.search_movie(title, year)
         
@@ -541,10 +545,10 @@ class SimklScrobbler:
             show_info["year"] = year
         if ids:
             show_info["ids"] = ids
-            log(f"Using IDs for show lookup: {ids}")
+            log(f"[scrobbler v{__version__}] Using IDs for show lookup: {ids}")
         else:
             # Search for show on SIMKL
-            log(f"Searching SIMKL for show: {show_title}")
+            log(f"[scrobbler v{__version__}] Searching SIMKL for show: {show_title}")
             results = self.api.search_tv(show_title, year)
             
             if results:
@@ -590,7 +594,7 @@ class SimklScrobbler:
         
         media_type = self.current_video.get("type", "movie")
         
-        log(f"Sending {action} scrobble at {progress:.1f}%")
+        log(f"[scrobbler v{__version__}] _scrobble('{action}') at {progress:.1f}% | media_type={media_type}")
         
         try:
             if media_type == "movie":

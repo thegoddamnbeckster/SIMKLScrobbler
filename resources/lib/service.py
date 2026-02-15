@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """
 SIMKL Service - The Main Event Loop
-Version: 7.3.0
-Last Modified: 2026-02-06
+Version: 7.3.4
+Last Modified: 2026-02-14
 
 This is the background service that makes scrobbling actually work.
 Monitors playback events and sends data to SIMKL in real-time.
@@ -45,7 +45,7 @@ from resources.lib.strings import (
 )
 
 # Module version
-__version__ = '7.3.0'
+__version__ = '7.3.4'
 
 # Log module initialization
 xbmc.log(f'[SIMKL Scrobbler] service.py v{__version__} - Main service module loading', level=xbmc.LOGINFO)
@@ -69,7 +69,7 @@ class SimklService:
         self._sync_in_progress = False
         self._last_sync_time = None
         self._load_last_sync_time()
-        log("SimklService initialized - ready to scrobble!")
+        log(f"[service v{__version__}] SimklService initialized - ready to scrobble!")
     
     def _dispatch_to_queue(self, data):
         """
@@ -118,7 +118,7 @@ class SimklService:
                 
             elif action == "settings_changed":
                 # Settings changed - might need to reload something
-                log("Settings changed - checking for auth triggers")
+                log(f"[service v{__version__}] Settings changed - checking for auth triggers")
                 self._check_auth_triggers()
                 
             else:
@@ -130,14 +130,13 @@ class SimklService:
     def _check_auth_triggers(self):
         """
         Check if auth state changed and refresh API token if needed.
-        
-        Called when settings change - this catches the case where the user
-        just completed authentication in default.py (separate Python process)
-        and the service needs to pick up the new token.
         """
+        import threading
+        tid = threading.current_thread().name
+        log(f"[service v{__version__}] _check_auth_triggers() | thread={tid}")
         if self.scrobbler and hasattr(self.scrobbler, 'api'):
             self.scrobbler.api.refresh_token()
-            log("Refreshed API token after settings change")
+            log(f"[service v{__version__}] Refreshed API token after settings change")
     
     def _load_last_sync_time(self):
         """Load the last sync timestamp from addon settings."""
@@ -532,7 +531,7 @@ class SimklPlayer(xbmc.Player):
         try:
             # Get the file being played
             self._current_file = self.getPlayingFile()
-            log(f"Video playback started: {self._current_file}")
+            log(f"[service v{__version__}] Video playback started: {self._current_file}")
             
             # Check exclusions (PVR, HTTP streams, etc.)
             if self._should_exclude(self._current_file):
@@ -698,7 +697,7 @@ class SimklPlayer(xbmc.Player):
                 video_data["episode"] = info_tag.getEpisode()
                 video_data["episode_title"] = info_tag.getTitle()
             
-            log(f"Video data extracted: {video_data}")
+            log(f"[service v{__version__}] Video data extracted: {video_data}")
             return video_data
             
         except Exception as e:
@@ -728,7 +727,7 @@ class SimklMonitor(xbmc.Monitor):
     
     def onSettingsChanged(self):
         """Called when addon settings are changed."""
-        log("Settings changed detected")
+        log(f"[service v{__version__}] Settings changed detected")
         self.action({"action": "settings_changed"})
     
     def onScanFinished(self, database):

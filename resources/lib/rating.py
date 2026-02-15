@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 SIMKL Scrobbler Rating Service
-Version: 7.3.0
+Version: 7.3.4
 Last Modified: 2026-02-04
 
 PHASE 9: Advanced Features & Polish
@@ -46,7 +46,7 @@ from resources.lib.strings import (
 )
 
 # Module version
-__version__ = '7.3.0'
+__version__ = '7.3.4'
 
 # Log module initialization
 xbmc.log(f'[SIMKL Scrobbler] rating.py v{__version__} - Rating service module loading', level=xbmc.LOGINFO)

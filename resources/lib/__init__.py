@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 SIMKL Scrobbler - Package Initialization
-Version: 7.3.0
+Version: 7.3.4
 Last Modified: 2026-02-04
 
 PHASE 9: Advanced Features & Polish
@@ -12,5 +12,5 @@ Professional code - suitable for public distribution
 Attribution: Claude.ai with assistance from Michael Beck
 """
 
-__version__ = '7.3.0'
+__version__ = '7.3.4'
 __author__ = 'Claude.ai with assistance from Michael Beck'

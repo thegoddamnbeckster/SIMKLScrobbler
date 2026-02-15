@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """
 SIMKL API Client
-Version: 7.3.0
-Last Modified: 2026-02-04
+Version: 7.3.4
+Last Modified: 2026-02-14
 
 PHASE 9: Advanced Features & Polish
 
@@ -32,7 +32,7 @@ import xbmcaddon
 from resources.lib.utils import log, log_error, log_debug, log_warning, log_module_init, get_setting
 
 # Module version
-__version__ = '7.3.0'
+__version__ = '7.3.4'
 
 # Log module initialization
 log_module_init('api.py', __version__)
@@ -52,7 +52,10 @@ class SimklAPI:
         
         Sets up the session with required headers.
         """
+        import threading
+        tid = threading.current_thread().name
         self.access_token = get_setting("access_token")
+        token_preview = self.access_token[:8] + '...' if self.access_token else 'NONE'
         
         # Create persistent session for connection reuse
         self.session = requests.Session()
@@ -68,9 +71,8 @@ class SimklAPI:
             self.session.headers.update({
                 "Authorization": f"Bearer {self.access_token}"
             })
-            log_debug("API initialized with access token")
-        else:
-            log_debug("API initialized without access token")
+        
+        log(f"[api.py v{__version__}] SimklAPI initialized | token={token_preview} | thread={tid}")
     
     def close(self):
         """Close the requests session to free socket connections."""
@@ -92,13 +94,17 @@ class SimklAPI:
         Returns:
             Response JSON dict, or None on error
         """
+        import threading
+        tid = threading.current_thread().name
         url = f"{self.BASE_URL}{endpoint}"
+        has_auth = 'Authorization' in self.session.headers
+        token_preview = self.access_token[:8] + '...' if self.access_token else 'NONE'
+        
+        log(f"[api.py v{__version__}] _request() {method} {endpoint} | thread={tid} | has_auth_header={has_auth} | token={token_preview}")
         
         try:
-            log_debug(f"API {method} {endpoint}")
-            
             if data:
-                log_debug(f"Request body: {json.dumps(data)}")
+                log_debug(f"[api.py v{__version__}] Request body: {json.dumps(data)[:500]}")
             
             if method == "GET":
                 response = self.session.get(url, params=params, timeout=timeout)
@@ -107,10 +113,10 @@ class SimklAPI:
             elif method == "DELETE":
                 response = self.session.delete(url, timeout=timeout)
             else:
-                log_error(f"Unsupported HTTP method: {method}")
+                log_error(f"[api.py v{__version__}] Unsupported HTTP method: {method}")
                 return None
             
-            log_debug(f"Response status: {response.status_code}")
+            log(f"[api.py v{__version__}] _request() {method} {endpoint} -> HTTP {response.status_code} | thread={tid}")
             
             # Handle specific status codes
             if response.status_code == 204:
@@ -118,11 +124,17 @@ class SimklAPI:
                 return {"success": True}
             
             if response.status_code == 401:
+                log_error(f"[api.py v{__version__}] 401 Unauthorized on {method} {endpoint} | token_was={token_preview} | thread={tid}")
                 # Try refreshing token once before giving up
                 old_token = self.access_token
+                log(f"[api.py v{__version__}] Calling refresh_token() to get latest from settings...")
                 self.refresh_token()
-                if self.access_token and self.access_token != old_token:
-                    log("401 received - token refreshed from settings, retrying...")
+                new_token_preview = self.access_token[:8] + '...' if self.access_token else 'NONE'
+                token_changed = self.access_token and self.access_token != old_token
+                log(f"[api.py v{__version__}] After refresh: token={new_token_preview} | changed={token_changed}")
+                
+                if token_changed:
+                    log(f"[api.py v{__version__}] Retrying {method} {endpoint} with refreshed token...")
                     # Retry the request with new token
                     if method == "GET":
                         response = self.session.get(url, params=params, timeout=timeout)
@@ -131,12 +143,14 @@ class SimklAPI:
                     elif method == "DELETE":
                         response = self.session.delete(url, timeout=timeout)
                     
+                    log(f"[api.py v{__version__}] Retry result: HTTP {response.status_code} | thread={tid}")
+                    
                     if response.status_code == 401:
-                        log_error("401 Unauthorized after token refresh - token is invalid")
+                        log_error(f"[api.py v{__version__}] 401 STILL after token refresh - token is truly invalid")
                         return None
                     # Fall through to normal response handling
                 else:
-                    log_error("401 Unauthorized - access token may be invalid")
+                    log_error(f"[api.py v{__version__}] Token unchanged after refresh (was={token_preview}, now={new_token_preview}) - cannot retry")
                     return None
             
             if response.status_code == 404:
@@ -640,25 +654,31 @@ class SimklAPI:
         Refresh the access token from addon settings.
         
         Creates a FRESH Addon() instance to bypass any settings cache.
-        This is critical because auth happens in a different Python process
-        (default.py) than the service, so the service's cached Addon()
-        may not see the newly saved token.
         """
+        import threading
+        tid = threading.current_thread().name
+        log(f"[api.py v{__version__}] refresh_token() called | thread={tid}")
+        
         try:
             import xbmcaddon
             fresh_addon = xbmcaddon.Addon('script.simkl')
             new_token = fresh_addon.getSetting('access_token')
+            log(f"[api.py v{__version__}] refresh_token() fresh Addon read: token={'YES (len=' + str(len(new_token)) + ')' if new_token else 'EMPTY'}")
         except Exception as e:
-            log_error(f"Error refreshing token: {e}")
+            log_error(f"[api.py v{__version__}] refresh_token() fresh Addon failed: {e} - falling back to cached")
             new_token = get_setting("access_token")
         
         if new_token != self.access_token:
+            old_preview = self.access_token[:8] + '...' if self.access_token else 'NONE'
+            new_preview = new_token[:8] + '...' if new_token else 'NONE'
             self.access_token = new_token
             if self.access_token:
                 self.session.headers.update({
                     "Authorization": f"Bearer {self.access_token}"
                 })
-                log("Access token refreshed from settings")
+                log(f"[api.py v{__version__}] refresh_token() token CHANGED: {old_preview} -> {new_preview}")
             else:
                 self.session.headers.pop("Authorization", None)
-                log("Access token cleared")
+                log(f"[api.py v{__version__}] refresh_token() token CLEARED (was {old_preview})")
+        else:
+            log(f"[api.py v{__version__}] refresh_token() token unchanged")
