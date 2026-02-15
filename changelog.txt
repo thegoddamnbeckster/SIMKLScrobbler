@@ -1,16 +1,25 @@
 
-[7.3.4] - 2026-02-14
-FIX: API token not visible to service after authentication
-- ROOT CAUSE: Auth runs in default.py (separate Python invocation from service.py).
-  The service's cached xbmcaddon.Addon() instance doesn't see settings changes made
-  by other processes. The 401 auto-retry called refresh_token() which used the same
-  stale cached Addon, so it read the same empty token and retry still failed.
-- FIX: refresh_token() now creates a fresh xbmcaddon.Addon('script.simkl') instance
-  to guarantee reading latest settings from disk
-- FIX: onSettingsChanged handler now calls refresh_token() on the scrobbler's API
-  instance, so the service picks up the new token as soon as auth completes
-- NOTE: After installing this version, RESTART KODI to ensure new code loads
-  (Python caches modules in memory; addon update alone doesn't reload them)
+[7.3.4] - 2026-02-15
+FIX: Uninstall fails due to file locks + scrobbling 401s + version tracking
+- ROOT CAUSE (uninstall): The sync thread creates its own SimklAPI with a
+  requests.Session that holds socket file handles. When Kodi uninstalls during
+  sync, it tries to rename the addon directory 35ms after triggering abort,
+  but the daemon thread's session still has locks. Directory rename fails,
+  addon stays "installed" in a zombie state.
+- FIX: Service shutdown now waits up to 3 seconds for sync thread to finish
+  and clean up its API session before allowing Python interpreter to exit.
+  Sync thread stored as self._sync_thread with proper reference tracking.
+- FIX: API._request() auto-refreshes token on 401 using fresh Addon() instance
+  to bypass settings cache between default.py (auth) and service.py processes
+- FIX: onSettingsChanged triggers API token refresh so service picks up new
+  token immediately after authentication completes
+- FIX: IMDb ID validation - getUniqueID("imdb") preferred over getIMDBNumber(),
+  tt prefix validated, pure numeric values correctly identified as TMDb IDs
+- FIX: Scrobble stop checks API response before claiming watched status,
+  falls back to /sync/history when /scrobble/stop returns error
+- ALL module __version__ constants bumped to 7.3.4
+- Comprehensive version-tagged logging: [module v7.3.4] prefix on all key log
+  lines including thread ID, token status, function name for debugging
 
 [7.3.3] - 2026-02-14
 FIX: Scrobbling 401 errors and IMDb ID format

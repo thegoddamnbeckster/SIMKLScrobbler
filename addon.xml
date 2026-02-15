@@ -5,11 +5,14 @@ Version: 7.3.4
 Last Modified: 2026-02-14
 
 CHANGELOG:
-7.3.4 - FIX: API token not visible to service after authentication
-        - FIXED: refresh_token() creates fresh Addon() instance to bypass settings cache
-        - FIXED: Settings change handler now triggers API token refresh in service
-        - Auth happens in default.py (separate process), service needs fresh read
-        - CRITICAL: Restart Kodi after installing this update
+7.3.4 - FIX: Uninstall fails + scrobbling 401s + version tracking
+        - FIXED: Sync thread file locks prevented addon directory removal on uninstall
+        - FIXED: Service shutdown waits for sync thread cleanup before exiting
+        - FIXED: API auto-retries on 401 with fresh Addon() settings read
+        - FIXED: Settings change triggers API token refresh for post-auth pickup
+        - FIXED: IMDb ID validation (tt prefix, TMDb numeric detection)
+        - FIXED: Scrobble stop checks API response before claiming watched
+        - ALL module versions bumped to 7.3.4 with verbose tagged logging
 7.3.3 - FIX: Scrobbling 401 errors and IMDb ID format
         - FIXED: API auto-retries on 401 by refreshing token from settings (handles post-auth timing)
         - FIXED: IMDb IDs now validated with tt prefix (Kodi TMDb scraper returns raw numbers)

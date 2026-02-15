@@ -67,6 +67,7 @@ class SimklService:
         self.monitor = None
         self._running = False
         self._sync_in_progress = False
+        self._sync_thread = None
         self._last_sync_time = None
         self._load_last_sync_time()
         log(f"[service v{__version__}] SimklService initialized - ready to scrobble!")
@@ -311,11 +312,12 @@ class SimklService:
                 )
             
             # Run sync in background thread
-            sync_thread = threading.Thread(target=self._run_sync_thread)
+            sync_thread = threading.Thread(target=self._run_sync_thread, name="SIMKL-Sync")
             sync_thread.daemon = True
             sync_thread.start()
+            self._sync_thread = sync_thread
             
-            log("Library sync thread started")
+            log(f"[service v{__version__}] Library sync thread started (thread={sync_thread.name})")
             
         except Exception as e:
             log_error(f"Error triggering library sync: {e}")
@@ -338,7 +340,7 @@ class SimklService:
             # Mark sync as in progress
             self._sync_in_progress = True
             
-            log("Running full bidirectional sync in background...")
+            log(f"[service v{__version__}] Running full bidirectional sync in background...")
             
             # Check if notifications are enabled
             show_notifications = get_setting_bool('show_library_sync_notifications')
@@ -400,10 +402,13 @@ class SimklService:
                     5000
                 )
         finally:
-            # Always clean up
+            # Always clean up - critical for preventing file locks on uninstall
             if sync_manager:
                 sync_manager.close()
+                log(f"[service v{__version__}] Sync manager closed")
             self._sync_in_progress = False
+            self._sync_thread = None
+            log(f"[service v{__version__}] Sync thread finished")
     
     def run(self):
         """
@@ -477,19 +482,27 @@ class SimklService:
                 break
         
         # Cleanup
-        log("Service shutting down...")
+        log(f"[service v{__version__}] Service shutting down...")
         self._running = False
         
-        # Close API session to free socket connections
-        if hasattr(self, 'scrobbler') and hasattr(self.scrobbler, 'api'):
+        # Wait for sync thread to finish (max 3 seconds) so it can clean up
+        if self._sync_thread and self._sync_thread.is_alive():
+            log(f"[service v{__version__}] Waiting for sync thread to finish...")
+            self._sync_thread.join(timeout=3)
+            if self._sync_thread.is_alive():
+                log_warning(f"[service v{__version__}] Sync thread did not finish in time")
+        
+        # Close API session to free socket connections (prevents file locks on uninstall)
+        if hasattr(self, 'scrobbler') and self.scrobbler and hasattr(self.scrobbler, 'api'):
             self.scrobbler.api.close()
+            log(f"[service v{__version__}] Scrobbler API session closed")
         
         if self.player:
             del self.player
         if self.monitor:
             del self.monitor
         
-        log("Service stopped")
+        log(f"[service v{__version__}] Service stopped")
 
 
 class SimklPlayer(xbmc.Player):
