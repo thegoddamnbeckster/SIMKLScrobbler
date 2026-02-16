@@ -1,4 +1,20 @@
 
+[7.4.3] - 2026-02-16
+FIX: Toast timing, rating dialog layout, existing rating lookup
+- FIXED: Toast notification invisible because Kodi UI transition after stopping
+  playback obscured it. Increased pre-toast delay to 5 seconds to let Kodi
+  finish returning to main screen, plus 5 seconds after toast before rating
+  dialog opens (10 seconds total from playback stop to rating dialog).
+- FIXED: Rating dialog title ("Rate: Sisu") and description ("Click a star")
+  were rendered off the right edge of the dialog box. Labels used posx=400
+  (center of 800px dialog) as the left edge with center alignment, pushing
+  text rightward. Changed to posx=20 with full 760px width.
+- FIXED: Existing rating not loaded into dialog. get_current_rating() only
+  searched by SIMKL ID, but movies identified by Kodi only have IMDb/TMDb IDs.
+  Now searches by IMDb and TMDb IDs as well, matching against the user's
+  full ratings list from SIMKL.
+- All modules version-bumped to 7.4.3.
+
 [7.4.2] - 2026-02-16
 FIX: Rating dialog stars invisible + toast hidden by rating dialog
 - FIXED: Star images (rating-star-filled.png, rating-star-empty.png) were WEBP

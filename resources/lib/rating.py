@@ -46,7 +46,7 @@ from resources.lib.strings import (
 )
 
 # Module version
-__version__ = '7.4.2'
+__version__ = '7.4.3'
 
 # Log module initialization
 xbmc.log(f'[SIMKL Scrobbler] rating.py v{__version__} - Rating service module loading', level=xbmc.LOGINFO)
@@ -254,44 +254,51 @@ class RatingService:
                 return False
         return False
     
-    def get_current_rating(self, media_type, simkl_id):
+    def get_current_rating(self, media_type, simkl_id=None, imdb_id=None, tmdb_id=None):
         """
-        Retrieve current user rating from SIMKL
+        Retrieve current user rating from SIMKL.
+        
+        Searches by any available ID (SIMKL, IMDb, TMDb).
         
         Args:
             media_type (str): 'movie' or 'episode'
-            simkl_id (int): SIMKL ID of the item
+            simkl_id (int, optional): SIMKL ID of the item
+            imdb_id (str, optional): IMDb ID of the item
+            tmdb_id (str, optional): TMDb ID of the item
             
         Returns:
             int or None: Current rating (1-10) or None if not rated
         """
+        if not simkl_id and not imdb_id and not tmdb_id:
+            return None
+        
         try:
-            # Determine API type parameter
             api_type = 'movies' if media_type == 'movie' else 'shows'
-            
-            # Get user's ratings for this type
-            # api.get_ratings() returns a list of rated items directly
             ratings_list = self.api.get_ratings(api_type)
             
             if not ratings_list:
                 return None
             
-            # Search through the list for this specific item
             for item in ratings_list:
-                # Extract item data based on type
                 if media_type == 'movie':
                     item_data = item.get('movie', {})
                 else:
                     item_data = item.get('show', {})
                 
                 item_ids = item_data.get('ids', {})
-                if item_ids.get('simkl') == simkl_id:
+                
+                # Match on any available ID
+                if simkl_id and item_ids.get('simkl') == simkl_id:
+                    return item.get('user_rating')
+                if imdb_id and item_ids.get('imdb') == imdb_id:
+                    return item.get('user_rating')
+                if tmdb_id and str(item_ids.get('tmdb', '')) == str(tmdb_id):
                     return item.get('user_rating')
             
             return None
             
         except Exception as e:
-            utils.log("Error retrieving current rating: {}".format(str(e)), xbmc.LOGERROR)
+            utils.log(f"[rating v{__version__}] Error retrieving current rating: {e}", xbmc.LOGERROR)
             return None
     
     def prompt_for_rating(self, media_info):
@@ -317,12 +324,14 @@ class RatingService:
             media_type = media_info.get('media_type')
             title = media_info.get('title', 'Unknown')
             
-            # Get current rating if we have a SIMKL ID
-            # (we can only look up existing ratings by SIMKL ID)
-            current_rating = None
-            simkl_id = media_info.get('simkl_id')
-            if simkl_id:
-                current_rating = self.get_current_rating(media_type, simkl_id)
+            # Look up existing rating using any available ID
+            current_rating = self.get_current_rating(
+                media_type,
+                simkl_id=media_info.get('simkl_id'),
+                imdb_id=media_info.get('imdb_id'),
+                tmdb_id=media_info.get('tmdb_id')
+            )
+            utils.log(f"[rating v{__version__}] Current rating lookup: {current_rating}")
             
             # Check rerating setting
             allow_rerating = utils.get_setting_bool("rating_allow_rerating", False)

@@ -42,7 +42,7 @@
 
                 <!-- Title label -->
                 <control type="label" id="100">
-                    <posx>400</posx>
+                    <posx>20</posx>
                     <posy>20</posy>
                     <width>760</width>
                     <height>40</height>
@@ -54,7 +54,7 @@
 
                 <!-- Rating description label -->
                 <control type="label" id="101">
-                    <posx>400</posx>
+                    <posx>20</posx>
                     <posy>70</posy>
                     <width>760</width>
                     <height>30</height>

@@ -30,7 +30,7 @@ from resources.lib.exclusions import check_exclusion, get_exclusion_summary
 from resources.lib.strings import getString, NOW_SCROBBLING, MARKED_AS_WATCHED
 
 # Module version
-__version__ = '7.4.2'
+__version__ = '7.4.3'
 
 # Log module initialization
 xbmc.log(f'[SIMKL Scrobbler] scrobbler.py v{__version__} - Core scrobbler engine loading', level=xbmc.LOGINFO)
@@ -260,17 +260,17 @@ class SimklScrobbler:
                     log_warning(f"[scrobbler v{__version__}] Failed to mark as watched via history API fallback")
         
         # Show "Marked as watched" notification
-        # Small delay before AND after to ensure visibility:
-        # - Before: let any previous notification finish closing
-        # - After: let our toast display before rating dialog covers it
+        # Delays ensure visibility during Kodi's UI transition after stop:
+        # - 5s before toast: let Kodi finish returning to main screen
+        # - 5s after toast: let user read it before rating dialog opens
         if was_marked_watched:
             title = self._get_display_title()
             log(f"[scrobbler v{__version__}] Marked as watched: {title}")
             if get_setting_bool("show_notifications"):
-                xbmc.sleep(500)
+                xbmc.sleep(5000)
                 log(f"[scrobbler v{__version__}] Showing 'marked as watched' notification for: {title}")
                 notify(getString(MARKED_AS_WATCHED), title)
-                xbmc.sleep(3000)  # Let toast be visible before rating dialog
+                xbmc.sleep(5000)  # Let toast be visible before rating dialog
         
         # Check if we should prompt for rating
         # Rating is triggered AFTER the scrobble completes

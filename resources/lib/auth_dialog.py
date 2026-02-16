@@ -27,7 +27,7 @@ import time
 import os
 
 # Module version
-__version__ = '7.4.2'
+__version__ = '7.4.3'
 
 # Log module initialization
 xbmc.log(f'[SIMKL Scrobbler] auth_dialog.py v{__version__} - Auth dialog module loading', level=xbmc.LOGINFO)
