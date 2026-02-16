@@ -1,4 +1,14 @@
 
+[7.4.2] - 2026-02-16
+FIX: Rating dialog stars invisible + toast hidden by rating dialog
+- FIXED: Star images (rating-star-filled.png, rating-star-empty.png) were WEBP
+  files renamed to .png. Kodi's texture loader rejected them with "Invalid PNG
+  signature 0x52494646". Regenerated as proper 64x64 PNG files with Pillow.
+- FIXED: "Marked as watched" toast was immediately covered by rating dialog
+  opening ~74ms later. Added 3-second delay after toast before showing rating
+  dialog so the user can actually see the notification.
+- All modules version-bumped to 7.4.2.
+
 [7.4.1] - 2026-02-16
 FIX: Toast notification timing, rating dialog, and sync thread authentication
 - FIXED: "Marked as watched" toast was being swallowed by Kodi's notification

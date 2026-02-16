@@ -1,10 +1,15 @@
 ﻿<?xml version="1.0" encoding="UTF-8"?>
 <!--
 SIMKL Scrobbler for Kodi
-Version: 7.4.1
+Version: 7.4.2
 Last Modified: 2026-02-16
 
 CHANGELOG:
+7.4.2 - Fix rating dialog stars invisible + toast hidden by rating dialog
+        - FIXED: Star images were WEBP files with .png extensions (Kodi rejected them)
+        - FIXED: "Marked as watched" toast covered by rating dialog opening immediately
+        - Regenerated star images as proper PNG files
+        - Added 3s delay after toast before opening rating dialog
 7.4.1 - Fix toast notification timing, rating dialog, and sync thread auth
         - FIXED: "Marked as watched" toast swallowed by Kodi notification timing
         - FIXED: Rating dialog required SIMKL ID (now works with IMDb/TMDb/TVDB)
@@ -72,7 +77,7 @@ CHANGELOG:
 -->
 <addon id="script.simkl.scrobbler" 
        name="SIMKL Scrobbler" 
-       version="7.4.1" 
+       version="7.4.2" 
        provider-name="Claude.ai with assistance from Michael Beck">
     
     <requires>
