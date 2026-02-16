@@ -1,4 +1,24 @@
 
+[7.4.1] - 2026-02-16
+FIX: Toast notification timing, rating dialog, and sync thread authentication
+- FIXED: "Marked as watched" toast was being swallowed by Kodi's notification
+  timing. Previous notification closing at the exact moment our toast fires
+  caused it to be invisible. Added 500ms delay before firing toast.
+- FIXED: Rating dialog required a SIMKL ID to function, but movies identified
+  by IMDb/TMDb IDs never have a SIMKL ID. Now works with ANY available ID.
+- FIXED: rating_min_view setting (minimum % viewed before rating prompt) was
+  defined in settings.xml but never checked in code. Now enforced.
+- FIXED: rating_allow_rerating setting was defined but never checked. Now
+  prevents rating dialog if item already rated and rerating is disabled.
+- FIXED: _build_rating_info() now merges IDs from both the SIMKL-formatted
+  video_info and the original player data (imdb_id, tmdb_id, tvdb_id) so
+  the rating system always has all available IDs.
+- FIXED: SyncManager background thread created SimklAPI() with empty token
+  because xbmcaddon.Addon() cache is stale on non-main threads. Now reads
+  token with fresh Addon('script.simkl.scrobbler') instance and injects it.
+- Added logging around notification calls and rating info building.
+- All modules version-bumped to 7.4.1.
+
 [7.4.0] - 2026-02-15
 RENAME: Addon ID changed from script.simkl to script.simkl.scrobbler
 - More descriptive addon ID avoids confusion with potential future SIMKL addons

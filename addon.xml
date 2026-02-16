@@ -1,10 +1,16 @@
 ﻿<?xml version="1.0" encoding="UTF-8"?>
 <!--
 SIMKL Scrobbler for Kodi
-Version: 7.4.0
-Last Modified: 2026-02-14
+Version: 7.4.1
+Last Modified: 2026-02-16
 
 CHANGELOG:
+7.4.1 - Fix toast notification timing, rating dialog, and sync thread auth
+        - FIXED: "Marked as watched" toast swallowed by Kodi notification timing
+        - FIXED: Rating dialog required SIMKL ID (now works with IMDb/TMDb/TVDB)
+        - FIXED: Sync thread created API with empty token (fresh Addon() read)
+        - FIXED: rating_min_view and rating_allow_rerating settings now wired up
+        - FIXED: _build_rating_info() merges IDs from player + SIMKL data
 7.4.0 - Addon ID renamed from script.simkl to script.simkl.scrobbler
         - Renamed addon ID to script.simkl.scrobbler (more descriptive)
         - Updated all Addon() calls, RunScript() commands, context menu dependencies
@@ -66,7 +72,7 @@ CHANGELOG:
 -->
 <addon id="script.simkl.scrobbler" 
        name="SIMKL Scrobbler" 
-       version="7.4.0" 
+       version="7.4.1" 
        provider-name="Claude.ai with assistance from Michael Beck">
     
     <requires>

@@ -30,7 +30,7 @@ from resources.lib.exclusions import check_exclusion, get_exclusion_summary
 from resources.lib.strings import getString, NOW_SCROBBLING, MARKED_AS_WATCHED
 
 # Module version
-__version__ = '7.4.0'
+__version__ = '7.4.1'
 
 # Log module initialization
 xbmc.log(f'[SIMKL Scrobbler] scrobbler.py v{__version__} - Core scrobbler engine loading', level=xbmc.LOGINFO)
@@ -259,9 +259,16 @@ class SimklScrobbler:
                 else:
                     log_warning(f"[scrobbler v{__version__}] Failed to mark as watched via history API fallback")
         
-        if was_marked_watched and get_setting_bool("show_notifications"):
+        # Show "Marked as watched" notification
+        # Small delay to let any previous notification finish closing,
+        # otherwise Kodi can swallow our toast if one is already animating out
+        if was_marked_watched:
             title = self._get_display_title()
-            notify(getString(MARKED_AS_WATCHED), title)
+            log(f"[scrobbler v{__version__}] Marked as watched: {title}")
+            if get_setting_bool("show_notifications"):
+                xbmc.sleep(500)
+                log(f"[scrobbler v{__version__}] Showing 'marked as watched' notification for: {title}")
+                notify(getString(MARKED_AS_WATCHED), title)
         
         # Check if we should prompt for rating
         # Rating is triggered AFTER the scrobble completes
@@ -276,6 +283,7 @@ class SimklScrobbler:
         if should_rate:
             rating_media_type = self.current_video.get("type", "movie")
             rating_media_info = self._build_rating_info()
+            log(f"[scrobbler v{__version__}] Rating info built: {rating_media_info}")
         
         # Reset state BEFORE showing rating dialog so new playback isn't blocked
         self._reset_state()
@@ -317,6 +325,10 @@ class SimklScrobbler:
         """
         Build media info dict for the rating system.
         
+        Merges IDs from both the SIMKL-formatted video_info and the 
+        original player data so the rating system has all available IDs 
+        (SIMKL, IMDb, TMDb, TVDB) even when only some were found.
+        
         Returns:
             Dict with title, ids, season/episode info
         """
@@ -326,23 +338,40 @@ class SimklScrobbler:
         media_type = self.current_video.get("type", "movie")
         
         if media_type == "movie":
+            # Start with IDs from SIMKL-formatted info
+            ids = dict(self.current_video_info.get("ids", {}))
+            # Merge in IDs from original player data (imdb_id, tmdb_id)
+            if self.current_video.get("imdb_id") and "imdb" not in ids:
+                ids["imdb"] = self.current_video["imdb_id"]
+            if self.current_video.get("tmdb_id") and "tmdb" not in ids:
+                ids["tmdb"] = str(self.current_video["tmdb_id"])
+            
             return {
                 "title": self.current_video.get("title", "Unknown"),
                 "year": self.current_video.get("year"),
-                "ids": self.current_video_info.get("ids", {})
+                "ids": ids
             }
         
         elif media_type == "episode":
             show_info = self.current_video_info.get("show", {})
             episode_info = self.current_video_info.get("episode", {})
             
+            # Merge show IDs with player data
+            ids = dict(show_info.get("ids", {}))
+            if self.current_video.get("imdb_id") and "imdb" not in ids:
+                ids["imdb"] = self.current_video["imdb_id"]
+            if self.current_video.get("tvdb_id") and "tvdb" not in ids:
+                ids["tvdb"] = str(self.current_video["tvdb_id"])
+            if self.current_video.get("tmdb_id") and "tmdb" not in ids:
+                ids["tmdb"] = str(self.current_video["tmdb_id"])
+            
             return {
                 "title": self.current_video.get("title"),
                 "show_title": self.current_video.get("show_title") or show_info.get("title"),
                 "season": episode_info.get("season"),
                 "episode": episode_info.get("number", episode_info.get("episode")),
-                "ids": self.current_video_info.get("ids", {}),
-                "show_ids": show_info.get("ids", {})
+                "ids": ids,
+                "show_ids": ids  # Same as ids for episode (show-level IDs)
             }
         
         return None

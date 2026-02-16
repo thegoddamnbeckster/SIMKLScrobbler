@@ -31,7 +31,7 @@ from resources.lib.utils import (
 from resources.lib.api import SimklAPI
 
 # Module version
-__version__ = '7.4.0'
+__version__ = '7.4.1'
 
 # Log module initialization
 xbmc.log(f'[SIMKL Scrobbler] sync.py v{__version__} - Sync manager module loading', level=xbmc.LOGINFO)
@@ -80,7 +80,23 @@ class SyncManager:
             show_progress (bool): Show progress dialog during sync
             silent (bool): Suppress notifications (for background sync)
         """
+        # Create API with fresh token read to avoid stale cache on background threads
+        import xbmcaddon
+        try:
+            fresh_addon = xbmcaddon.Addon('script.simkl.scrobbler')
+            token = fresh_addon.getSetting('access_token')
+        except Exception:
+            token = None
+        
         self.api = SimklAPI()
+        # Override with fresh token if the default read got nothing
+        if token and not self.api.access_token:
+            self.api.access_token = token
+            self.api.session.headers.update({
+                "Authorization": f"Bearer {token}"
+            })
+            log(f"[sync v{__version__}] Injected fresh token into SyncManager API (len={len(token)})")
+        
         self.show_progress = show_progress
         self.silent = silent
         self.progress_dialog = None

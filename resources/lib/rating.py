@@ -46,7 +46,7 @@ from resources.lib.strings import (
 )
 
 # Module version
-__version__ = '7.4.0'
+__version__ = '7.4.1'
 
 # Log module initialization
 xbmc.log(f'[SIMKL Scrobbler] rating.py v{__version__} - Rating service module loading', level=xbmc.LOGINFO)
@@ -71,24 +71,44 @@ def rating_check(media_type, media_info, watched_time, total_time, api):
         
         # Check if prompts are enabled for this media type
         if not rating_service.should_prompt_for_rating(media_type):
-            utils.log("Rating prompts disabled for {}".format(media_type), xbmc.LOGDEBUG)
+            utils.log(f"[rating v{__version__}] Rating prompts disabled for {media_type}", xbmc.LOGDEBUG)
             return
         
+        # Check minimum view time threshold
+        min_view_pct = utils.get_setting_int("rating_min_view", 75)
+        if total_time > 0:
+            viewed_pct = (watched_time / total_time) * 100
+            if viewed_pct < min_view_pct:
+                utils.log(f"[rating v{__version__}] Viewed {viewed_pct:.1f}% < minimum {min_view_pct}% for rating prompt")
+                return
+        
         # Build media info dict for rating dialog
+        ids = media_info.get('ids', {})
         rating_media_info = {
             'media_type': media_type,
             'title': media_info.get('title', 'Unknown'),
-            'simkl_id': media_info.get('ids', {}).get('simkl'),
-            'imdb_id': media_info.get('ids', {}).get('imdb'),
-            'tmdb_id': media_info.get('ids', {}).get('tmdb'),
-            'tvdb_id': media_info.get('ids', {}).get('tvdb')
+            'simkl_id': ids.get('simkl'),
+            'imdb_id': ids.get('imdb'),
+            'tmdb_id': ids.get('tmdb'),
+            'tvdb_id': ids.get('tvdb')
         }
+        
+        # We need at least ONE ID to submit a rating to SIMKL
+        has_any_id = any([rating_media_info.get('simkl_id'),
+                         rating_media_info.get('imdb_id'),
+                         rating_media_info.get('tmdb_id'),
+                         rating_media_info.get('tvdb_id')])
+        if not has_any_id:
+            utils.log(f"[rating v{__version__}] No IDs available for rating - cannot rate", xbmc.LOGWARNING)
+            return
+        
+        utils.log(f"[rating v{__version__}] Rating check passed for '{rating_media_info['title']}' - showing dialog")
         
         # Show rating dialog
         rating_service.prompt_for_rating(rating_media_info)
         
     except Exception as e:
-        utils.log("Error in rating_check: {}".format(str(e)), xbmc.LOGERROR)
+        utils.log(f"[rating v{__version__}] Error in rating_check: {e}", xbmc.LOGERROR)
 
 
 class RatingDialog(xbmcgui.WindowXMLDialog):
@@ -276,13 +296,16 @@ class RatingService:
     
     def prompt_for_rating(self, media_info):
         """
-        Display rating dialog and handle user input
+        Display rating dialog and handle user input.
+        
+        Works with any available ID (SIMKL, IMDb, TMDb, TVDB) — does not
+        require a SIMKL ID specifically.
         
         Args:
             media_info (dict): Media information including:
                 - title (str): Display title
                 - media_type (str): 'movie' or 'episode'
-                - simkl_id (int): SIMKL ID
+                - simkl_id (int, optional): SIMKL ID
                 - imdb_id (str, optional): IMDb ID
                 - tmdb_id (int, optional): TMDb ID
                 - tvdb_id (int, optional): TVDB ID
@@ -292,15 +315,20 @@ class RatingService:
         """
         try:
             media_type = media_info.get('media_type')
-            simkl_id = media_info.get('simkl_id')
             title = media_info.get('title', 'Unknown')
             
-            if not simkl_id:
-                utils.log("No SIMKL ID available for rating", xbmc.LOGWARNING)
-                return False
+            # Get current rating if we have a SIMKL ID
+            # (we can only look up existing ratings by SIMKL ID)
+            current_rating = None
+            simkl_id = media_info.get('simkl_id')
+            if simkl_id:
+                current_rating = self.get_current_rating(media_type, simkl_id)
             
-            # Get current rating if exists
-            current_rating = self.get_current_rating(media_type, simkl_id)
+            # Check rerating setting
+            allow_rerating = utils.get_setting_bool("rating_allow_rerating", False)
+            if current_rating and not allow_rerating:
+                utils.log(f"[rating v{__version__}] Already rated ({current_rating}/10) and rerating disabled - skipping")
+                return False
             
             # Show rating dialog
             dialog = RatingDialog(

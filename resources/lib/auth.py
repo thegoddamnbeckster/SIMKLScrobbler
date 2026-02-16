@@ -17,7 +17,7 @@ from resources.lib.utils import log, log_module_init, set_setting, get_setting
 from resources.lib.auth_dialog import show_auth_dialog
 
 # Module version
-__version__ = '7.4.0'
+__version__ = '7.4.1'
 
 # Log module initialization
 log_module_init('auth.py', __version__)
