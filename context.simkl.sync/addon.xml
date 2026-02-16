@@ -9,7 +9,7 @@ CHANGELOG:
         - Adds "Sync to SIMKL now" to context menu
         - Works on movies and TV episodes
         - Triggers immediate sync for selected item
-        - Delegates to script.simkl for sync management
+        - Delegates to script.simkl.scrobbler for sync management
         - Professional logging with version tracking
         - Full error handling
 -->
@@ -19,7 +19,7 @@ CHANGELOG:
        provider-name="Claude.ai with assistance from Michael Beck">
     <requires>
         <import addon="xbmc.python" version="3.0.0"/>
-        <import addon="script.simkl" version="6.9.0"/>
+        <import addon="script.simkl.scrobbler" version="6.9.0"/>
     </requires>
     <extension point="kodi.context.item">
         <menu id="kodi.core.main">

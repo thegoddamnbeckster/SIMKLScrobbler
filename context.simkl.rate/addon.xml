@@ -21,7 +21,7 @@ CHANGELOG:
        provider-name="Claude.ai with assistance from Michael Beck">
     <requires>
         <import addon="xbmc.python" version="3.0.0"/>
-        <import addon="script.simkl" version="6.7.0"/>
+        <import addon="script.simkl.scrobbler" version="6.7.0"/>
     </requires>
     <extension point="kodi.context.item">
         <menu id="kodi.core.main">

@@ -1,10 +1,16 @@
 ﻿<?xml version="1.0" encoding="UTF-8"?>
 <!--
 SIMKL Scrobbler for Kodi
-Version: 7.3.4
+Version: 7.4.0
 Last Modified: 2026-02-14
 
 CHANGELOG:
+7.4.0 - Addon ID renamed from script.simkl to script.simkl.scrobbler
+        - Renamed addon ID to script.simkl.scrobbler (more descriptive)
+        - Updated all Addon() calls, RunScript() commands, context menu dependencies
+        - ZIP installs to script.simkl.scrobbler/ folder in Kodi addons
+        - IMPORTANT: Remove old script.simkl/ folder manually before installing
+        - Includes all fixes from 7.3.4 (uninstall locks, 401 auth, IMDb IDs, logging)
 7.3.4 - FIX: Uninstall fails + scrobbling 401s + version tracking
         - FIXED: Sync thread file locks prevented addon directory removal on uninstall
         - FIXED: Service shutdown waits for sync thread cleanup before exiting
@@ -58,9 +64,9 @@ CHANGELOG:
         - Service: Localized sync and auth notifications
 6.13.0 - Previous release
 -->
-<addon id="script.simkl" 
+<addon id="script.simkl.scrobbler" 
        name="SIMKL Scrobbler" 
-       version="7.3.4" 
+       version="7.4.0" 
        provider-name="Claude.ai with assistance from Michael Beck">
     
     <requires>

@@ -31,7 +31,7 @@ from resources.lib.utils import (
 from resources.lib.api import SimklAPI
 
 # Module version
-__version__ = '7.3.4'
+__version__ = '7.4.0'
 
 # Log module initialization
 xbmc.log(f'[SIMKL Scrobbler] sync.py v{__version__} - Sync manager module loading', level=xbmc.LOGINFO)
@@ -132,7 +132,7 @@ class SyncManager:
         """
         try:
             import xbmcaddon
-            addon = xbmcaddon.Addon('script.simkl')
+            addon = xbmcaddon.Addon('script.simkl.scrobbler')
             key = self._get_sync_state_key(category)
             state_json = addon.getSetting(key)
             
@@ -153,7 +153,7 @@ class SyncManager:
         """
         try:
             import xbmcaddon
-            addon = xbmcaddon.Addon('script.simkl')
+            addon = xbmcaddon.Addon('script.simkl.scrobbler')
             key = self._get_sync_state_key(category)
             state_json = json.dumps(state)
             addon.setSetting(key, state_json)

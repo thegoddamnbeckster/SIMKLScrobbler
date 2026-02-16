@@ -8,7 +8,7 @@ CHANGELOG:
 1.0.0 - Initial release
         - Adds "Toggle watched on SIMKL" to context menu
         - Works on movies, TV shows, seasons, episodes
-        - Delegates to script.simkl for watched state management
+        - Delegates to script.simkl.scrobbler for watched state management
         - Professional logging with version tracking
         - Full error handling
 -->
@@ -18,7 +18,7 @@ CHANGELOG:
        provider-name="Claude.ai with assistance from Michael Beck">
     <requires>
         <import addon="xbmc.python" version="3.0.0"/>
-        <import addon="script.simkl" version="6.7.1"/>
+        <import addon="script.simkl.scrobbler" version="6.7.1"/>
     </requires>
     <extension point="kodi.context.item">
         <menu id="kodi.core.main">

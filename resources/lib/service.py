@@ -45,7 +45,7 @@ from resources.lib.strings import (
 )
 
 # Module version
-__version__ = '7.3.4'
+__version__ = '7.4.0'
 
 # Log module initialization
 xbmc.log(f'[SIMKL Scrobbler] service.py v{__version__} - Main service module loading', level=xbmc.LOGINFO)
@@ -142,7 +142,7 @@ class SimklService:
     def _load_last_sync_time(self):
         """Load the last sync timestamp from addon settings."""
         try:
-            addon = xbmcaddon.Addon('script.simkl')
+            addon = xbmcaddon.Addon('script.simkl.scrobbler')
             last_sync_str = addon.getSetting('last_auto_sync_time')
             if last_sync_str:
                 self._last_sync_time = float(last_sync_str)
@@ -157,7 +157,7 @@ class SimklService:
     def _save_last_sync_time(self):
         """Save the current sync timestamp to addon settings."""
         try:
-            addon = xbmcaddon.Addon('script.simkl')
+            addon = xbmcaddon.Addon('script.simkl.scrobbler')
             self._last_sync_time = time.time()
             addon.setSetting('last_auto_sync_time', str(self._last_sync_time))
             log(f"Saved last sync time: {time.ctime(self._last_sync_time)}")
@@ -171,7 +171,7 @@ class SimklService:
         This runs once at startup to let the user know
         if they're authenticated or not.
         """
-        addon = xbmcaddon.Addon('script.simkl')
+        addon = xbmcaddon.Addon('script.simkl.scrobbler')
         
         try:
             access_token = addon.getSetting('access_token')
@@ -440,7 +440,7 @@ class SimklService:
         self._check_auth_status_on_startup()
         
         # Trigger startup sync if enabled and authenticated
-        addon = xbmcaddon.Addon('script.simkl')
+        addon = xbmcaddon.Addon('script.simkl.scrobbler')
         if get_setting_bool('sync_on_startup') and addon.getSetting('access_token'):
             log("Sync on startup enabled - triggering initial sync")
             self._trigger_library_sync()
@@ -779,7 +779,7 @@ def main():
     Creates the service and runs it.
     Main entry point for the background service.
     """
-    addon = xbmcaddon.Addon('script.simkl')
+    addon = xbmcaddon.Addon('script.simkl.scrobbler')
     
     log("=" * 50)
     log(f"SIMKL Scrobbler Service v{__version__} Starting")

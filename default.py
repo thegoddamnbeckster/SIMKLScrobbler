@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 SIMKL Scrobbler - Script Entry Point
-Version: 7.3.4
+Version: 7.4.0
 Last Modified: 2026-02-14
 
 This file handles script calls from settings buttons and normal addon launches.
@@ -17,7 +17,7 @@ from resources.lib.auth import SimklAuth
 from resources.lib.utils import log, log_error
 
 # Version constant
-VERSION = "7.3.4"
+VERSION = "7.4.0"
 
 # Get addon instance
 addon = xbmcaddon.Addon()
@@ -65,8 +65,8 @@ def get_args_from_argv():
     """
     Parse all parameters from sys.argv.
     
-    Settings buttons call: RunScript(script.simkl,action=auth)
-    Context menus call: RunScript(script.simkl,action=rate,media_type=movie,dbid=123)
+    Settings buttons call: RunScript(script.simkl.scrobbler,action=auth)
+    Context menus call: RunScript(script.simkl.scrobbler,action=rate,media_type=movie,dbid=123)
     
     Returns:
         dict: Parsed key=value pairs from argv

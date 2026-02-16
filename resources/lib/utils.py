@@ -19,7 +19,7 @@ import xbmcgui
 import xbmcvfs
 
 # Module version
-__version__ = '7.3.4'
+__version__ = '7.4.0'
 
 # Log module initialization
 xbmc.log(f'[SIMKL Scrobbler] utils.py v{__version__} - Utility module loading', level=xbmc.LOGINFO)
@@ -233,7 +233,7 @@ def get_addon_id():
     Get the addon ID.
     
     Returns:
-        str: Addon ID (e.g., "script.simkl")
+        str: Addon ID (e.g., "script.simkl.scrobbler")
     """
     return get_addon().getAddonInfo('id')
 

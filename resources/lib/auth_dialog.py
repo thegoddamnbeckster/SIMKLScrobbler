@@ -27,7 +27,7 @@ import time
 import os
 
 # Module version
-__version__ = '7.3.4'
+__version__ = '7.4.0'
 
 # Log module initialization
 xbmc.log(f'[SIMKL Scrobbler] auth_dialog.py v{__version__} - Auth dialog module loading', level=xbmc.LOGINFO)
@@ -91,7 +91,7 @@ class SIMKLAuthDialog(xbmcgui.WindowXMLDialog):
         super(SIMKLAuthDialog, self).__init__()
         xbmc.log(f"[SIMKL Scrobbler] Auth: Initializing WindowXMLDialog", xbmc.LOGINFO)
         
-        self.addon = xbmcaddon.Addon('script.simkl')
+        self.addon = xbmcaddon.Addon('script.simkl.scrobbler')
         self.CLIENT_ID = 'ab02f10030b0d629ffada90e2bf6236c57f42256a9e94d243255392af7b391e7'
         
         # Auth state
@@ -441,7 +441,7 @@ def show_auth_dialog():
     """
     xbmc.log(f"[SIMKL Scrobbler] show_auth_dialog() called", xbmc.LOGINFO)
     
-    addon = xbmcaddon.Addon('script.simkl')
+    addon = xbmcaddon.Addon('script.simkl.scrobbler')
     addon_path = xbmcvfs.translatePath(addon.getAddonInfo('path'))
     
     dialog = SIMKLAuthDialog('script-simkl-AuthDialog.xml', addon_path, 'Default', '720p')

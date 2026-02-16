@@ -29,7 +29,7 @@ import xbmcgui
 from resources.lib.utils import log, log_debug, log_module_init, get_setting, get_setting_bool
 
 # Module version
-__version__ = '7.3.4'
+__version__ = '7.4.0'
 
 # Log module initialization
 log_module_init('exclusions.py', __version__)
@@ -93,10 +93,10 @@ def _is_script_paused():
     controlling playback and don't want interference.
     
     Returns:
-        True if script.simkl.paused property is set to "true"
+        True if script.simkl.scrobbler.paused property is set to "true"
     """
     window = xbmcgui.Window(10000)  # Home window
-    return window.getProperty("script.simkl.paused") == "true"
+    return window.getProperty("script.simkl.scrobbler.paused") == "true"
 
 
 def set_script_paused(paused):
@@ -109,7 +109,7 @@ def set_script_paused(paused):
         paused: True to pause scrobbling, False to resume
     """
     window = xbmcgui.Window(10000)
-    window.setProperty("script.simkl.paused", "true" if paused else "")
+    window.setProperty("script.simkl.scrobbler.paused", "true" if paused else "")
     log(f"Script paused property set to: {paused}")
 
 

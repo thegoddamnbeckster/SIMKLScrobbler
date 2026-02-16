@@ -5,7 +5,7 @@ Version: 1.0.1
 Last Modified: 2025-12-27
 
 Context menu addon that adds "Rate on SIMKL" option to media items.
-Delegates to script.simkl for actual rating functionality.
+Delegates to script.simkl.scrobbler for actual rating functionality.
 
 Professional code - Project 4 standards
 """
@@ -71,11 +71,11 @@ if __name__ == '__main__':
         elif not media_type:
             log_error("Unknown media type - cannot rate")
         else:
-            # Call script.simkl with rating action
-            command = "RunScript(script.simkl,action=rate,media_type=%s,dbid=%s)" % (media_type, dbid)
+            # Call script.simkl.scrobbler with rating action
+            command = "RunScript(script.simkl.scrobbler,action=rate,media_type=%s,dbid=%s)" % (media_type, dbid)
             log("Executing: %s" % command)
             xbmc.executebuiltin(command)
-            log("Command sent to script.simkl")
+            log("Command sent to script.simkl.scrobbler")
         
         log("========================================")
         log("CONTEXT MENU COMPLETE")

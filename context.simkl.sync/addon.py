@@ -5,7 +5,7 @@ Version: 1.0.0
 Last Modified: 2025-12-28
 
 Context menu addon that adds "Sync to SIMKL now" option to media items.
-Delegates to script.simkl for actual sync management.
+Delegates to script.simkl.scrobbler for actual sync management.
 
 Professional code - Project 4 standards
 """
@@ -67,11 +67,11 @@ if __name__ == '__main__':
         elif not media_type:
             log_error("Unknown media type - cannot sync")
         else:
-            # Call script.simkl with sync action
-            command = "RunScript(script.simkl,action=sync,media_type=%s,dbid=%s)" % (media_type, dbid)
+            # Call script.simkl.scrobbler with sync action
+            command = "RunScript(script.simkl.scrobbler,action=sync,media_type=%s,dbid=%s)" % (media_type, dbid)
             log("Executing: %s" % command)
             xbmc.executebuiltin(command)
-            log("Command sent to script.simkl")
+            log("Command sent to script.simkl.scrobbler")
         
         log("========================================")
         log("CONTEXT MENU COMPLETE")

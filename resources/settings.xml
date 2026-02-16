@@ -6,8 +6,8 @@
     <category label="32100">
         <setting id="auth_info" type="lsep" label="32101"/>
         <setting id="auth_status" type="text" label="32107" enable="false"/>
-        <setting id="authorization" type="action" label="32105" action="RunScript(script.simkl,action=auth)"/>
-        <setting id="sign_out" type="action" label="32106" action="RunScript(script.simkl,action=signout)"/>
+        <setting id="authorization" type="action" label="32105" action="RunScript(script.simkl.scrobbler,action=auth)"/>
+        <setting id="sign_out" type="action" label="32106" action="RunScript(script.simkl.scrobbler,action=signout)"/>
         <!-- Hidden storage fields -->
         <setting id="simkl_usercode" type="text" label="32102" visible="false"/>
         <setting id="simkl_token" type="text" label="32103" visible="false"/>

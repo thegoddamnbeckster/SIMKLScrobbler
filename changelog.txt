@@ -1,4 +1,18 @@
 
+[7.4.0] - 2026-02-15
+RENAME: Addon ID changed from script.simkl to script.simkl.scrobbler
+- More descriptive addon ID avoids confusion with potential future SIMKL addons
+- Updated all xbmcaddon.Addon() calls across api.py, auth_dialog.py, exclusions.py,
+  service.py, strings.py, sync.py, utils.py, default.py, settings.xml
+- Updated all RunScript() commands in context menu addons (rate, watched, sync)
+- Updated context menu addon.xml dependency imports
+- INSTALL NOTE: Delete old C:\Users\mbeck\AppData\Roaming\Kodi\addons\script.simkl\
+  folder manually before installing (Kodi won't auto-remove the old ID)
+- Settings preserved: addon_data/script.simkl.scrobbler/ is a new path, so you will
+  need to re-authenticate after install
+- Includes all 7.3.4 fixes: uninstall file locks, 401 auth retry, IMDb ID validation,
+  scrobble response checking, comprehensive version-tagged logging
+
 [7.3.4] - 2026-02-15
 FIX: Uninstall fails due to file locks + scrobbling 401s + version tracking
 - ROOT CAUSE (uninstall): The sync thread creates its own SimklAPI with a

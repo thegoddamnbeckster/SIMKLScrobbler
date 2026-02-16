@@ -32,7 +32,7 @@ import xbmcaddon
 from resources.lib.utils import log, log_error, log_debug, log_warning, log_module_init, get_setting
 
 # Module version
-__version__ = '7.3.4'
+__version__ = '7.4.0'
 
 # Log module initialization
 log_module_init('api.py', __version__)
@@ -661,7 +661,7 @@ class SimklAPI:
         
         try:
             import xbmcaddon
-            fresh_addon = xbmcaddon.Addon('script.simkl')
+            fresh_addon = xbmcaddon.Addon('script.simkl.scrobbler')
             new_token = fresh_addon.getSetting('access_token')
             log(f"[api.py v{__version__}] refresh_token() fresh Addon read: token={'YES (len=' + str(len(new_token)) + ')' if new_token else 'EMPTY'}")
         except Exception as e:

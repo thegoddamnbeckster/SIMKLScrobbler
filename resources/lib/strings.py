@@ -15,13 +15,13 @@ import xbmc
 import xbmcaddon
 
 # Module version
-__version__ = '7.3.4'
+__version__ = '7.4.0'
 
 # Log module initialization
 xbmc.log(f'[SIMKL Scrobbler] strings.py v{__version__} - Localization helper loading', level=xbmc.LOGINFO)
 
 # Cache the addon instance
-_addon = xbmcaddon.Addon('script.simkl')
+_addon = xbmcaddon.Addon('script.simkl.scrobbler')
 
 
 def getString(string_id):

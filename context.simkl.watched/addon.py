@@ -5,7 +5,7 @@ Version: 1.0.0
 Last Modified: 2025-12-27
 
 Context menu addon that adds "Toggle watched on SIMKL" option to media items.
-Delegates to script.simkl for actual watched state management.
+Delegates to script.simkl.scrobbler for actual watched state management.
 
 Professional code - Project 4 standards
 """
@@ -71,11 +71,11 @@ if __name__ == '__main__':
         elif not media_type:
             log_error("Unknown media type - cannot toggle watched")
         else:
-            # Call script.simkl with togglewatched action
-            command = "RunScript(script.simkl,action=togglewatched,media_type=%s,dbid=%s)" % (media_type, dbid)
+            # Call script.simkl.scrobbler with togglewatched action
+            command = "RunScript(script.simkl.scrobbler,action=togglewatched,media_type=%s,dbid=%s)" % (media_type, dbid)
             log("Executing: %s" % command)
             xbmc.executebuiltin(command)
-            log("Command sent to script.simkl")
+            log("Command sent to script.simkl.scrobbler")
         
         log("========================================")
         log("CONTEXT MENU COMPLETE")
