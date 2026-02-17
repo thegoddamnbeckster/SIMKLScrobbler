@@ -46,7 +46,7 @@ from resources.lib.strings import (
 )
 
 # Module version
-__version__ = '7.4.5'
+__version__ = '7.4.6'
 
 # Log module initialization
 xbmc.log(f'[SIMKL Scrobbler] rating.py v{__version__} - Rating service module loading', level=xbmc.LOGINFO)
@@ -184,9 +184,10 @@ class RatingDialog(xbmcgui.WindowXMLDialog):
             self.close()
     
     def onFocus(self, controlId):
-        """Handle focus changes - update description as user hovers"""
+        """Handle focus changes - preview stars and update description as user hovers"""
         if 1 <= controlId <= 10:
             self._update_description(controlId)
+            self._highlight_stars(controlId)
     
     def _update_description(self, rating):
         """Update rating description label with full description and meaning"""
@@ -198,13 +199,16 @@ class RatingDialog(xbmcgui.WindowXMLDialog):
             utils.log("[rating v7.4.4] RatingDialog._update_description() Error updating description: {}".format(str(e)), xbmc.LOGERROR)
     
     def _highlight_stars(self, rating):
-        """Visual feedback - highlight stars up to selected rating"""
-        # This would update star textures based on rating
-        # For now, just update the focus
+        """Visual feedback - highlight stars 1 through rating as gold, rest as grey.
+        
+        Uses radiobutton setSelected() - selected = gold star, unselected = grey star.
+        """
         try:
-            self.setFocusId(rating)
+            for i in range(1, 11):
+                star = self.getControl(i)
+                star.setSelected(i <= rating)
         except Exception as e:
-            utils.log("[rating v7.4.4] RatingDialog._highlight_stars() Error highlighting stars: {}".format(str(e)), xbmc.LOGERROR)
+            utils.log("[rating v7.4.5] RatingDialog._highlight_stars() Error highlighting stars: {}".format(str(e)), xbmc.LOGERROR)
 
 
 class RatingService:

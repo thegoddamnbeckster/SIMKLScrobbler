@@ -64,7 +64,9 @@
                     <textcolor>FFC0C0C0</textcolor>
                 </control>
 
-                <!-- Star buttons (horizontal layout) -->
+                <!-- Star radiobuttons (horizontal layout) -->
+                <!-- Selected = gold star, Unselected = grey star -->
+                <!-- Using radiobutton so we can programmatically set selected state -->
                 <control type="grouplist" id="1000">
                     <posx>100</posx>
                     <posy>120</posy>
@@ -74,13 +76,18 @@
                     <orientation>horizontal</orientation>
                     <align>center</align>
 
+
                     <!-- Star 1 -->
-                    <control type="button" id="1">
+                    <control type="radiobutton" id="1">
                         <width>60</width>
                         <height>60</height>
-                        <texturefocus colordiffuse="FFFFD700">rating-star-filled.png</texturefocus>
-                        <texturenofocus colordiffuse="FF808080">rating-star-empty.png</texturenofocus>
                         <font>-</font>
+                        <textureradioofffocus colordiffuse="FF808080">rating-star-empty.png</textureradioofffocus>
+                        <textureradiooffnofocus colordiffuse="FF808080">rating-star-empty.png</textureradiooffnofocus>
+                        <textureradioonfocus colordiffuse="FFFFD700">rating-star-filled.png</textureradioonfocus>
+                        <textureradioonnofocus colordiffuse="FFFFD700">rating-star-filled.png</textureradioonnofocus>
+                        <texturefocus>-</texturefocus>
+                        <texturenofocus>-</texturenofocus>
                         <onleft>9010</onleft>
                         <onright>2</onright>
                         <onup>1</onup>
@@ -88,12 +95,16 @@
                     </control>
 
                     <!-- Star 2 -->
-                    <control type="button" id="2">
+                    <control type="radiobutton" id="2">
                         <width>60</width>
                         <height>60</height>
-                        <texturefocus colordiffuse="FFFFD700">rating-star-filled.png</texturefocus>
-                        <texturenofocus colordiffuse="FF808080">rating-star-empty.png</texturenofocus>
                         <font>-</font>
+                        <textureradioofffocus colordiffuse="FF808080">rating-star-empty.png</textureradioofffocus>
+                        <textureradiooffnofocus colordiffuse="FF808080">rating-star-empty.png</textureradiooffnofocus>
+                        <textureradioonfocus colordiffuse="FFFFD700">rating-star-filled.png</textureradioonfocus>
+                        <textureradioonnofocus colordiffuse="FFFFD700">rating-star-filled.png</textureradioonnofocus>
+                        <texturefocus>-</texturefocus>
+                        <texturenofocus>-</texturenofocus>
                         <onleft>1</onleft>
                         <onright>3</onright>
                         <onup>2</onup>
@@ -101,12 +112,16 @@
                     </control>
 
                     <!-- Star 3 -->
-                    <control type="button" id="3">
+                    <control type="radiobutton" id="3">
                         <width>60</width>
                         <height>60</height>
-                        <texturefocus colordiffuse="FFFFD700">rating-star-filled.png</texturefocus>
-                        <texturenofocus colordiffuse="FF808080">rating-star-empty.png</texturenofocus>
                         <font>-</font>
+                        <textureradioofffocus colordiffuse="FF808080">rating-star-empty.png</textureradioofffocus>
+                        <textureradiooffnofocus colordiffuse="FF808080">rating-star-empty.png</textureradiooffnofocus>
+                        <textureradioonfocus colordiffuse="FFFFD700">rating-star-filled.png</textureradioonfocus>
+                        <textureradioonnofocus colordiffuse="FFFFD700">rating-star-filled.png</textureradioonnofocus>
+                        <texturefocus>-</texturefocus>
+                        <texturenofocus>-</texturenofocus>
                         <onleft>2</onleft>
                         <onright>4</onright>
                         <onup>3</onup>
@@ -114,12 +129,16 @@
                     </control>
 
                     <!-- Star 4 -->
-                    <control type="button" id="4">
+                    <control type="radiobutton" id="4">
                         <width>60</width>
                         <height>60</height>
-                        <texturefocus colordiffuse="FFFFD700">rating-star-filled.png</texturefocus>
-                        <texturenofocus colordiffuse="FF808080">rating-star-empty.png</texturenofocus>
                         <font>-</font>
+                        <textureradioofffocus colordiffuse="FF808080">rating-star-empty.png</textureradioofffocus>
+                        <textureradiooffnofocus colordiffuse="FF808080">rating-star-empty.png</textureradiooffnofocus>
+                        <textureradioonfocus colordiffuse="FFFFD700">rating-star-filled.png</textureradioonfocus>
+                        <textureradioonnofocus colordiffuse="FFFFD700">rating-star-filled.png</textureradioonnofocus>
+                        <texturefocus>-</texturefocus>
+                        <texturenofocus>-</texturenofocus>
                         <onleft>3</onleft>
                         <onright>5</onright>
                         <onup>4</onup>
@@ -127,25 +146,34 @@
                     </control>
 
                     <!-- Star 5 -->
-                    <control type="button" id="5">
+                    <control type="radiobutton" id="5">
                         <width>60</width>
                         <height>60</height>
-                        <texturefocus colordiffuse="FFFFD700">rating-star-filled.png</texturefocus>
-                        <texturenofocus colordiffuse="FF808080">rating-star-empty.png</texturenofocus>
                         <font>-</font>
+                        <textureradioofffocus colordiffuse="FF808080">rating-star-empty.png</textureradioofffocus>
+                        <textureradiooffnofocus colordiffuse="FF808080">rating-star-empty.png</textureradiooffnofocus>
+                        <textureradioonfocus colordiffuse="FFFFD700">rating-star-filled.png</textureradioonfocus>
+                        <textureradioonnofocus colordiffuse="FFFFD700">rating-star-filled.png</textureradioonnofocus>
+                        <texturefocus>-</texturefocus>
+                        <texturenofocus>-</texturenofocus>
                         <onleft>4</onleft>
                         <onright>6</onright>
                         <onup>5</onup>
                         <ondown>9000</ondown>
                     </control>
 
+
                     <!-- Star 6 -->
-                    <control type="button" id="6">
+                    <control type="radiobutton" id="6">
                         <width>60</width>
                         <height>60</height>
-                        <texturefocus colordiffuse="FFFFD700">rating-star-filled.png</texturefocus>
-                        <texturenofocus colordiffuse="FF808080">rating-star-empty.png</texturenofocus>
                         <font>-</font>
+                        <textureradioofffocus colordiffuse="FF808080">rating-star-empty.png</textureradioofffocus>
+                        <textureradiooffnofocus colordiffuse="FF808080">rating-star-empty.png</textureradiooffnofocus>
+                        <textureradioonfocus colordiffuse="FFFFD700">rating-star-filled.png</textureradioonfocus>
+                        <textureradioonnofocus colordiffuse="FFFFD700">rating-star-filled.png</textureradioonnofocus>
+                        <texturefocus>-</texturefocus>
+                        <texturenofocus>-</texturenofocus>
                         <onleft>5</onleft>
                         <onright>7</onright>
                         <onup>6</onup>
@@ -153,12 +181,16 @@
                     </control>
 
                     <!-- Star 7 -->
-                    <control type="button" id="7">
+                    <control type="radiobutton" id="7">
                         <width>60</width>
                         <height>60</height>
-                        <texturefocus colordiffuse="FFFFD700">rating-star-filled.png</texturefocus>
-                        <texturenofocus colordiffuse="FF808080">rating-star-empty.png</texturenofocus>
                         <font>-</font>
+                        <textureradioofffocus colordiffuse="FF808080">rating-star-empty.png</textureradioofffocus>
+                        <textureradiooffnofocus colordiffuse="FF808080">rating-star-empty.png</textureradiooffnofocus>
+                        <textureradioonfocus colordiffuse="FFFFD700">rating-star-filled.png</textureradioonfocus>
+                        <textureradioonnofocus colordiffuse="FFFFD700">rating-star-filled.png</textureradioonnofocus>
+                        <texturefocus>-</texturefocus>
+                        <texturenofocus>-</texturenofocus>
                         <onleft>6</onleft>
                         <onright>8</onright>
                         <onup>7</onup>
@@ -166,12 +198,16 @@
                     </control>
 
                     <!-- Star 8 -->
-                    <control type="button" id="8">
+                    <control type="radiobutton" id="8">
                         <width>60</width>
                         <height>60</height>
-                        <texturefocus colordiffuse="FFFFD700">rating-star-filled.png</texturefocus>
-                        <texturenofocus colordiffuse="FF808080">rating-star-empty.png</texturenofocus>
                         <font>-</font>
+                        <textureradioofffocus colordiffuse="FF808080">rating-star-empty.png</textureradioofffocus>
+                        <textureradiooffnofocus colordiffuse="FF808080">rating-star-empty.png</textureradiooffnofocus>
+                        <textureradioonfocus colordiffuse="FFFFD700">rating-star-filled.png</textureradioonfocus>
+                        <textureradioonnofocus colordiffuse="FFFFD700">rating-star-filled.png</textureradioonnofocus>
+                        <texturefocus>-</texturefocus>
+                        <texturenofocus>-</texturenofocus>
                         <onleft>7</onleft>
                         <onright>9</onright>
                         <onup>8</onup>
@@ -179,12 +215,16 @@
                     </control>
 
                     <!-- Star 9 -->
-                    <control type="button" id="9">
+                    <control type="radiobutton" id="9">
                         <width>60</width>
                         <height>60</height>
-                        <texturefocus colordiffuse="FFFFD700">rating-star-filled.png</texturefocus>
-                        <texturenofocus colordiffuse="FF808080">rating-star-empty.png</texturenofocus>
                         <font>-</font>
+                        <textureradioofffocus colordiffuse="FF808080">rating-star-empty.png</textureradioofffocus>
+                        <textureradiooffnofocus colordiffuse="FF808080">rating-star-empty.png</textureradiooffnofocus>
+                        <textureradioonfocus colordiffuse="FFFFD700">rating-star-filled.png</textureradioonfocus>
+                        <textureradioonnofocus colordiffuse="FFFFD700">rating-star-filled.png</textureradioonnofocus>
+                        <texturefocus>-</texturefocus>
+                        <texturenofocus>-</texturenofocus>
                         <onleft>8</onleft>
                         <onright>10</onright>
                         <onup>9</onup>
@@ -192,12 +232,16 @@
                     </control>
 
                     <!-- Star 10 -->
-                    <control type="button" id="10">
+                    <control type="radiobutton" id="10">
                         <width>60</width>
                         <height>60</height>
-                        <texturefocus colordiffuse="FFFFD700">rating-star-filled.png</texturefocus>
-                        <texturenofocus colordiffuse="FF808080">rating-star-empty.png</texturenofocus>
                         <font>-</font>
+                        <textureradioofffocus colordiffuse="FF808080">rating-star-empty.png</textureradioofffocus>
+                        <textureradiooffnofocus colordiffuse="FF808080">rating-star-empty.png</textureradiooffnofocus>
+                        <textureradioonfocus colordiffuse="FFFFD700">rating-star-filled.png</textureradioonfocus>
+                        <textureradioonnofocus colordiffuse="FFFFD700">rating-star-filled.png</textureradioonnofocus>
+                        <texturefocus>-</texturefocus>
+                        <texturenofocus>-</texturenofocus>
                         <onleft>9</onleft>
                         <onright>9010</onright>
                         <onup>10</onup>

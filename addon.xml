@@ -1,10 +1,15 @@
 ﻿<?xml version="1.0" encoding="UTF-8"?>
 <!--
 SIMKL Scrobbler for Kodi
-Version: 7.4.5
+Version: 7.4.6
 Last Modified: 2026-02-17
 
 CHANGELOG:
+7.4.6 - Fix rating dialog star highlighting
+        - FIXED: Stars now properly highlight 1 through N as gold when rating is N
+        - Changed star controls from button to radiobutton (supports setSelected)
+        - Stars preview on hover/focus and persist on click
+        - Hovering updates both star visuals and rating description
 7.4.5 - Fix rerating setting not picked up from cached Addon object
         - FIXED: rating_allow_rerating read from stale cached Addon() singleton
         - Rating rerating check now uses fresh Addon() instance to see latest settings
@@ -89,7 +94,7 @@ CHANGELOG:
 -->
 <addon id="script.simkl.scrobbler" 
        name="SIMKL Scrobbler" 
-       version="7.4.5" 
+       version="7.4.6" 
        provider-name="Claude.ai with assistance from Michael Beck">
     
     <requires>
