@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """
 SIMKL API Client
-Version: 7.3.4
-Last Modified: 2026-02-14
+Version: 7.4.4
+Last Modified: 2026-02-17
 
 PHASE 9: Advanced Features & Polish
 
@@ -32,7 +32,7 @@ import xbmcaddon
 from resources.lib.utils import log, log_error, log_debug, log_warning, log_module_init, get_setting
 
 # Module version
-__version__ = '7.4.3'
+__version__ = '7.4.4'
 
 # Log module initialization
 log_module_init('api.py', __version__)
@@ -72,13 +72,13 @@ class SimklAPI:
                 "Authorization": f"Bearer {self.access_token}"
             })
         
-        log(f"[api.py v{__version__}] SimklAPI initialized | token={token_preview} | thread={tid}")
+        log(f"[api v7.4.4] SimklAPI.__init__() SimklAPI initialized | token={token_preview} | thread={tid}")
     
     def close(self):
         """Close the requests session to free socket connections."""
         if self.session:
             self.session.close()
-            log_debug("API session closed")
+            log_debug("[api v7.4.4] SimklAPI.close() API session closed")
     
     def _request(self, method, endpoint, data=None, params=None, timeout=30):
         """
@@ -100,11 +100,11 @@ class SimklAPI:
         has_auth = 'Authorization' in self.session.headers
         token_preview = self.access_token[:8] + '...' if self.access_token else 'NONE'
         
-        log(f"[api.py v{__version__}] _request() {method} {endpoint} | thread={tid} | has_auth_header={has_auth} | token={token_preview}")
+        log(f"[api v7.4.4] SimklAPI._request() {method} {endpoint} | thread={tid} | has_auth_header={has_auth} | token={token_preview}")
         
         try:
             if data:
-                log_debug(f"[api.py v{__version__}] Request body: {json.dumps(data)[:500]}")
+                log_debug(f"[api v7.4.4] SimklAPI._request() Request body: {json.dumps(data)[:500]}")
             
             if method == "GET":
                 response = self.session.get(url, params=params, timeout=timeout)
@@ -113,10 +113,10 @@ class SimklAPI:
             elif method == "DELETE":
                 response = self.session.delete(url, timeout=timeout)
             else:
-                log_error(f"[api.py v{__version__}] Unsupported HTTP method: {method}")
+                log_error(f"[api v7.4.4] SimklAPI._request() Unsupported HTTP method: {method}")
                 return None
             
-            log(f"[api.py v{__version__}] _request() {method} {endpoint} -> HTTP {response.status_code} | thread={tid}")
+            log(f"[api v7.4.4] SimklAPI._request() {method} {endpoint} -> HTTP {response.status_code} | thread={tid}")
             
             # Handle specific status codes
             if response.status_code == 204:
@@ -124,17 +124,17 @@ class SimklAPI:
                 return {"success": True}
             
             if response.status_code == 401:
-                log_error(f"[api.py v{__version__}] 401 Unauthorized on {method} {endpoint} | token_was={token_preview} | thread={tid}")
+                log_error(f"[api v7.4.4] SimklAPI._request() 401 Unauthorized on {method} {endpoint} | token_was={token_preview} | thread={tid}")
                 # Try refreshing token once before giving up
                 old_token = self.access_token
-                log(f"[api.py v{__version__}] Calling refresh_token() to get latest from settings...")
+                log(f"[api v7.4.4] SimklAPI._request() Calling refresh_token() to get latest from settings...")
                 self.refresh_token()
                 new_token_preview = self.access_token[:8] + '...' if self.access_token else 'NONE'
                 token_changed = self.access_token and self.access_token != old_token
-                log(f"[api.py v{__version__}] After refresh: token={new_token_preview} | changed={token_changed}")
+                log(f"[api v7.4.4] SimklAPI._request() After refresh: token={new_token_preview} | changed={token_changed}")
                 
                 if token_changed:
-                    log(f"[api.py v{__version__}] Retrying {method} {endpoint} with refreshed token...")
+                    log(f"[api v7.4.4] SimklAPI._request() Retrying {method} {endpoint} with refreshed token...")
                     # Retry the request with new token
                     if method == "GET":
                         response = self.session.get(url, params=params, timeout=timeout)
@@ -143,30 +143,30 @@ class SimklAPI:
                     elif method == "DELETE":
                         response = self.session.delete(url, timeout=timeout)
                     
-                    log(f"[api.py v{__version__}] Retry result: HTTP {response.status_code} | thread={tid}")
+                    log(f"[api v7.4.4] SimklAPI._request() Retry result: HTTP {response.status_code} | thread={tid}")
                     
                     if response.status_code == 401:
-                        log_error(f"[api.py v{__version__}] 401 STILL after token refresh - token is truly invalid")
+                        log_error(f"[api v7.4.4] SimklAPI._request() 401 STILL after token refresh - token is truly invalid")
                         return None
                     # Fall through to normal response handling
                 else:
-                    log_error(f"[api.py v{__version__}] Token unchanged after refresh (was={token_preview}, now={new_token_preview}) - cannot retry")
+                    log_error(f"[api v7.4.4] SimklAPI._request() Token unchanged after refresh (was={token_preview}, now={new_token_preview}) - cannot retry")
                     return None
             
             if response.status_code == 404:
-                log_error("404 Not Found - content not found on SIMKL")
+                log_error("[api v7.4.4] SimklAPI._request() 404 Not Found - content not found on SIMKL")
                 return None
             
             if response.status_code == 409:
                 # Conflict - already watched recently
-                log("409 Conflict - already scrobbled recently")
+                log("[api v7.4.4] SimklAPI._request() 409 Conflict - already scrobbled recently")
                 try:
                     return response.json()
                 except:
                     return {"conflict": True}
             
             if response.status_code == 429:
-                log_error("429 Rate Limited - slow down!")
+                log_error("[api v7.4.4] SimklAPI._request() 429 Rate Limited - slow down!")
                 return None
             
             response.raise_for_status()
@@ -174,20 +174,20 @@ class SimklAPI:
             # Parse JSON response
             try:
                 result = response.json()
-                log_debug(f"Response body: {json.dumps(result)}")
+                log_debug(f"[api v7.4.4] SimklAPI._request() Response body: {json.dumps(result)}")
                 return result
             except json.JSONDecodeError:
-                log_error("Failed to parse JSON response")
+                log_error("[api v7.4.4] SimklAPI._request() Failed to parse JSON response")
                 return None
                 
         except requests.exceptions.Timeout:
-            log_error(f"Request timeout: {endpoint}")
+            log_error(f"[api v7.4.4] SimklAPI._request() Request timeout: {endpoint}")
             return None
         except requests.exceptions.ConnectionError:
-            log_error(f"Connection error: {endpoint}")
+            log_error(f"[api v7.4.4] SimklAPI._request() Connection error: {endpoint}")
             return None
         except requests.exceptions.RequestException as e:
-            log_error(f"Request failed: {endpoint} - {e}")
+            log_error(f"[api v7.4.4] SimklAPI._request() Request failed: {endpoint} - {e}")
             return None
     
     # ========== Scrobbling Endpoints ==========
@@ -209,7 +209,7 @@ class SimklAPI:
         """
         valid_actions = ["start", "pause", "stop"]
         if action not in valid_actions:
-            log_error(f"Invalid scrobble action: {action}")
+            log_error(f"[api v7.4.4] SimklAPI.scrobble() Invalid scrobble action: {action}")
             return None
         
         endpoint = f"/scrobble/{action}"
@@ -222,20 +222,20 @@ class SimklAPI:
         # Add the appropriate media object
         if movie:
             data["movie"] = movie
-            log(f"Scrobble {action}: Movie - {movie.get('title', 'Unknown')}")
+            log(f"[api v7.4.4] SimklAPI.scrobble() Scrobble {action}: Movie - {movie.get('title', 'Unknown')}")
         elif show and episode:
             data["show"] = show
             data["episode"] = episode
             show_title = show.get("title", "Unknown")
             season = episode.get("season", 0)
             ep_num = episode.get("number", episode.get("episode", 0))
-            log(f"Scrobble {action}: {show_title} S{season:02d}E{ep_num:02d}")
+            log(f"[api v7.4.4] SimklAPI.scrobble() Scrobble {action}: {show_title} S{season:02d}E{ep_num:02d}")
         elif anime and episode:
             data["anime"] = anime
             data["episode"] = episode
-            log(f"Scrobble {action}: Anime - {anime.get('title', 'Unknown')}")
+            log(f"[api v7.4.4] SimklAPI.scrobble() Scrobble {action}: Anime - {anime.get('title', 'Unknown')}")
         else:
-            log_error("Scrobble requires movie, show+episode, or anime+episode")
+            log_error("[api v7.4.4] SimklAPI.scrobble() Scrobble requires movie, show+episode, or anime+episode")
             return None
         
         return self._request("POST", endpoint, data=data)
@@ -257,12 +257,12 @@ class SimklAPI:
         if year:
             params["year"] = year
         
-        log(f"Searching movies: {query}" + (f" ({year})" if year else ""))
+        log(f"[api v7.4.4] SimklAPI.search_movie() Searching movies: {query}" + (f" ({year})" if year else ""))
         
         response = self._request("GET", "/search/movie", params=params)
         
         if response and isinstance(response, list):
-            log(f"Found {len(response)} movie result(s)")
+            log(f"[api v7.4.4] SimklAPI.search_movie() Found {len(response)} movie result(s)")
             return response
         
         return []
@@ -282,12 +282,12 @@ class SimklAPI:
         if year:
             params["year"] = year
         
-        log(f"Searching TV shows: {query}" + (f" ({year})" if year else ""))
+        log(f"[api v7.4.4] SimklAPI.search_tv() Searching TV shows: {query}" + (f" ({year})" if year else ""))
         
         response = self._request("GET", "/search/tv", params=params)
         
         if response and isinstance(response, list):
-            log(f"Found {len(response)} TV show result(s)")
+            log(f"[api v7.4.4] SimklAPI.search_tv() Found {len(response)} TV show result(s)")
             return response
         
         return []
@@ -307,12 +307,12 @@ class SimklAPI:
         if year:
             params["year"] = year
         
-        log(f"Searching anime: {query}" + (f" ({year})" if year else ""))
+        log(f"[api v7.4.4] SimklAPI.search_anime() Searching anime: {query}" + (f" ({year})" if year else ""))
         
         response = self._request("GET", "/search/anime", params=params)
         
         if response and isinstance(response, list):
-            log(f"Found {len(response)} anime result(s)")
+            log(f"[api v7.4.4] SimklAPI.search_anime() Found {len(response)} anime result(s)")
             return response
         
         return []
@@ -342,14 +342,14 @@ class SimklAPI:
             data["shows"] = shows
         
         if not data:
-            log_error("No items provided to add to history")
+            log_error("[api v7.4.4] SimklAPI.add_to_history() No items provided to add to history")
             return None
         
         movie_count = len(data.get('movies', []))
         show_count = len(data.get('shows', []))
         
-        log(f"Adding to history: {movie_count} movies, {show_count} shows")
-        log_debug(f"History payload: {json.dumps(data)[:500]}...")  # First 500 chars
+        log(f"[api v7.4.4] SimklAPI.add_to_history() Adding to history: {movie_count} movies, {show_count} shows")
+        log_debug(f"[api v7.4.4] SimklAPI.add_to_history() History payload: {json.dumps(data)[:500]}...")  # First 500 chars
         
         return self._request("POST", "/sync/history", data=data)
     
@@ -374,20 +374,20 @@ class SimklAPI:
         if extended:
             params["extended"] = "full"
         
-        log(f"Fetching {status} {media_type} from SIMKL...")
+        log(f"[api v7.4.4] SimklAPI.get_all_items() Fetching {status} {media_type} from SIMKL...")
         
         response = self._request("GET", endpoint, params=params if params else None)
         
         if response and isinstance(response, list):
-            log(f"Retrieved {len(response)} {media_type} from SIMKL")
+            log(f"[api v7.4.4] SimklAPI.get_all_items() Retrieved {len(response)} {media_type} from SIMKL")
             return response
         elif response and isinstance(response, dict) and media_type in response:
             # Some endpoints return {"movies": [...]} format
             items = response[media_type]
-            log(f"Retrieved {len(items)} {media_type} from SIMKL")
+            log(f"[api v7.4.4] SimklAPI.get_all_items() Retrieved {len(items)} {media_type} from SIMKL")
             return items
         
-        log_warning(f"No {status} {media_type} found on SIMKL")
+        log_warning(f"[api v7.4.4] SimklAPI.get_all_items() No {status} {media_type} found on SIMKL")
         return []
     
     def get_last_activity(self):
@@ -419,7 +419,7 @@ class SimklAPI:
             Response dict or None on error
         """
         if not 1 <= rating <= 10:
-            log_error(f"Invalid rating: {rating} (must be 1-10)")
+            log_error(f"[api v7.4.4] SimklAPI.add_rating() Invalid rating: {rating} (must be 1-10)")
             return None
         
         data = {}
@@ -436,7 +436,7 @@ class SimklAPI:
                 movie_obj["year"] = media_info["year"]
             
             data["movies"] = [movie_obj]
-            log(f"Rating movie: {media_info.get('title', 'Unknown')} - {rating}/10")
+            log(f"[api v7.4.4] SimklAPI.add_rating() Rating movie: {media_info.get('title', 'Unknown')} - {rating}/10")
             
         elif media_type == "show":
             # For shows, rate the show itself (not individual episodes)
@@ -450,7 +450,7 @@ class SimklAPI:
                 show_obj["year"] = media_info["year"]
             
             data["shows"] = [show_obj]
-            log(f"Rating show: {media_info.get('title', 'Unknown')} - {rating}/10")
+            log(f"[api v7.4.4] SimklAPI.add_rating() Rating show: {media_info.get('title', 'Unknown')} - {rating}/10")
             
         elif media_type == "episode":
             # For episodes, we need to structure it as show -> season -> episode
@@ -468,14 +468,14 @@ class SimklAPI:
                 show_obj["title"] = media_info["show_title"]
             
             data["shows"] = [show_obj]
-            log(f"Rating episode: {media_info.get('show_title', 'Unknown')} "
+            log(f"[api v7.4.4] SimklAPI.add_rating() Rating episode: {media_info.get('show_title', 'Unknown')} "
                 f"S{media_info.get('season', 0):02d}E{media_info.get('episode', 0):02d} - {rating}/10")
         
         else:
-            log_error(f"Unknown media type for rating: {media_type}")
+            log_error(f"[api v7.4.4] SimklAPI.add_rating() Unknown media type for rating: {media_type}")
             return None
         
-        log_debug(f"Rating payload: {json.dumps(data)}")
+        log_debug(f"[api v7.4.4] SimklAPI.add_rating() Rating payload: {json.dumps(data)}")
         return self._request("POST", "/sync/ratings", data=data)
     
     def remove_rating(self, media_type, media_info):
@@ -510,10 +510,10 @@ class SimklAPI:
                 }]
             }]
         else:
-            log_error(f"Unknown media type for unrating: {media_type}")
+            log_error(f"[api v7.4.4] SimklAPI.remove_rating() Unknown media type for unrating: {media_type}")
             return None
         
-        log(f"Removing rating for: {media_info.get('title', 'Unknown')}")
+        log(f"[api v7.4.4] SimklAPI.remove_rating() Removing rating for: {media_info.get('title', 'Unknown')}")
         return self._request("POST", "/sync/ratings/remove", data=data)
     
     def get_user_ratings(self, media_type="movies"):
@@ -528,13 +528,25 @@ class SimklAPI:
         """
         endpoint = f"/sync/ratings/{media_type}"
         
-        log(f"Fetching user ratings for {media_type}...")
+        log(f"[api v7.4.4] SimklAPI.get_user_ratings() Fetching user ratings for {media_type}...")
         response = self._request("GET", endpoint)
         
-        if response and isinstance(response, list):
-            log(f"Retrieved {len(response)} {media_type} ratings")
+        if response is None:
+            return []
+        
+        if isinstance(response, dict):
+            # SIMKL returns ratings nested: {"movies": [...]} or {"shows": [...]}
+            for key in [media_type, 'ratings', 'movies', 'shows']:
+                if key in response and isinstance(response[key], list):
+                    log(f"[api v7.4.4] SimklAPI.get_user_ratings() Retrieved {len(response[key])} {media_type} ratings")
+                    return response[key]
+            log(f"[api v7.4.4] SimklAPI.get_user_ratings() Dict response but no recognized list key: {list(response.keys())}")
+            return []
+        elif isinstance(response, list):
+            log(f"[api v7.4.4] SimklAPI.get_user_ratings() Retrieved {len(response)} {media_type} ratings")
             return response
         
+        log_warning(f"[api v7.4.4] SimklAPI.get_user_ratings() Unexpected response type: {type(response).__name__}")
         return []
     
     def get_ratings(self, media_type="movies"):
@@ -628,25 +640,25 @@ class SimklAPI:
         Returns:
             True if connection successful
         """
-        log("Testing SIMKL API connection...")
+        log("[api v7.4.4] SimklAPI.test_connection() Testing SIMKL API connection...")
         
         # Try to get user settings (requires auth)
         if self.access_token:
             result = self.get_user_settings()
             if result:
-                log("API connection test successful (authenticated)")
+                log("[api v7.4.4] SimklAPI.test_connection() API connection test successful (authenticated)")
                 return True
             else:
-                log_error("API connection test failed (auth error?)")
+                log_error("[api v7.4.4] SimklAPI.test_connection() API connection test failed (auth error?)")
                 return False
         else:
             # Try a simple search (no auth required)
             result = self.search_movie("test", 2020)
             if result is not None:  # Empty list is ok
-                log("API connection test successful (unauthenticated)")
+                log("[api v7.4.4] SimklAPI.test_connection() API connection test successful (unauthenticated)")
                 return True
             else:
-                log_error("API connection test failed")
+                log_error("[api v7.4.4] SimklAPI.test_connection() API connection test failed")
                 return False
     
     def refresh_token(self):
@@ -657,15 +669,15 @@ class SimklAPI:
         """
         import threading
         tid = threading.current_thread().name
-        log(f"[api.py v{__version__}] refresh_token() called | thread={tid}")
+        log(f"[api v7.4.4] SimklAPI.refresh_token() called | thread={tid}")
         
         try:
             import xbmcaddon
             fresh_addon = xbmcaddon.Addon('script.simkl.scrobbler')
             new_token = fresh_addon.getSetting('access_token')
-            log(f"[api.py v{__version__}] refresh_token() fresh Addon read: token={'YES (len=' + str(len(new_token)) + ')' if new_token else 'EMPTY'}")
+            log(f"[api v7.4.4] SimklAPI.refresh_token() fresh Addon read: token={'YES (len=' + str(len(new_token)) + ')' if new_token else 'EMPTY'}")
         except Exception as e:
-            log_error(f"[api.py v{__version__}] refresh_token() fresh Addon failed: {e} - falling back to cached")
+            log_error(f"[api v7.4.4] SimklAPI.refresh_token() fresh Addon failed: {e} - falling back to cached")
             new_token = get_setting("access_token")
         
         if new_token != self.access_token:
@@ -676,9 +688,9 @@ class SimklAPI:
                 self.session.headers.update({
                     "Authorization": f"Bearer {self.access_token}"
                 })
-                log(f"[api.py v{__version__}] refresh_token() token CHANGED: {old_preview} -> {new_preview}")
+                log(f"[api v7.4.4] SimklAPI.refresh_token() token CHANGED: {old_preview} -> {new_preview}")
             else:
                 self.session.headers.pop("Authorization", None)
-                log(f"[api.py v{__version__}] refresh_token() token CLEARED (was {old_preview})")
+                log(f"[api v7.4.4] SimklAPI.refresh_token() token CLEARED (was {old_preview})")
         else:
-            log(f"[api.py v{__version__}] refresh_token() token unchanged")
+            log(f"[api v7.4.4] SimklAPI.refresh_token() token unchanged")

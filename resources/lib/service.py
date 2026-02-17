@@ -45,7 +45,7 @@ from resources.lib.strings import (
 )
 
 # Module version
-__version__ = '7.4.3'
+__version__ = '7.4.4'
 
 # Log module initialization
 xbmc.log(f'[SIMKL Scrobbler] service.py v{__version__} - Main service module loading', level=xbmc.LOGINFO)
@@ -70,7 +70,7 @@ class SimklService:
         self._sync_thread = None
         self._last_sync_time = None
         self._load_last_sync_time()
-        log(f"[service v{__version__}] SimklService initialized - ready to scrobble!")
+        log(f"[service v7.4.4] SimklService.__init__() SimklService initialized - ready to scrobble!")
     
     def _dispatch_to_queue(self, data):
         """
@@ -79,7 +79,7 @@ class SimklService:
         Args:
             data: Dict containing action and any associated data
         """
-        log_debug(f"Queuing dispatch: {data}")
+        log_debug(f"[service v7.4.4] SimklService._dispatch_to_queue() Queuing dispatch: {data}")
         self.dispatch_queue.append(data)
     
     def _process_dispatch(self, data):
@@ -94,7 +94,7 @@ class SimklService:
         """
         try:
             action = data.get("action")
-            log_debug(f"Processing dispatch: {action}")
+            log_debug(f"[service v7.4.4] SimklService._process_dispatch() Processing dispatch: {action}")
             
             if action == "started":
                 # Playback started - identify and start scrobbling
@@ -119,14 +119,14 @@ class SimklService:
                 
             elif action == "settings_changed":
                 # Settings changed - might need to reload something
-                log(f"[service v{__version__}] Settings changed - checking for auth triggers")
+                log(f"[service v7.4.4] SimklService._process_dispatch() Settings changed - checking for auth triggers")
                 self._check_auth_triggers()
                 
             else:
-                log_debug(f"Unknown dispatch action: {action}")
+                log_debug(f"[service v7.4.4] SimklService._process_dispatch() Unknown dispatch action: {action}")
                 
         except Exception as e:
-            log_error(f"Error processing dispatch: {e}")
+            log_error(f"[service v7.4.4] SimklService._process_dispatch() Error processing dispatch: {e}")
     
     def _check_auth_triggers(self):
         """
@@ -134,10 +134,10 @@ class SimklService:
         """
         import threading
         tid = threading.current_thread().name
-        log(f"[service v{__version__}] _check_auth_triggers() | thread={tid}")
+        log(f"[service v7.4.4] SimklService._check_auth_triggers() | thread={tid}")
         if self.scrobbler and hasattr(self.scrobbler, 'api'):
             self.scrobbler.api.refresh_token()
-            log(f"[service v{__version__}] Refreshed API token after settings change")
+            log(f"[service v7.4.4] SimklService._check_auth_triggers() Refreshed API token after settings change")
     
     def _load_last_sync_time(self):
         """Load the last sync timestamp from addon settings."""
@@ -146,12 +146,12 @@ class SimklService:
             last_sync_str = addon.getSetting('last_auto_sync_time')
             if last_sync_str:
                 self._last_sync_time = float(last_sync_str)
-                log(f"Loaded last sync time: {time.ctime(self._last_sync_time)}")
+                log(f"[service v7.4.4] SimklService._load_last_sync_time() Loaded last sync time: {time.ctime(self._last_sync_time)}")
             else:
                 self._last_sync_time = None
-                log("No previous sync time found")
+                log("[service v7.4.4] SimklService._load_last_sync_time() No previous sync time found")
         except Exception as e:
-            log_error(f"Error loading last sync time: {e}")
+            log_error(f"[service v7.4.4] SimklService._load_last_sync_time() Error loading last sync time: {e}")
             self._last_sync_time = None
     
     def _save_last_sync_time(self):
@@ -160,9 +160,9 @@ class SimklService:
             addon = xbmcaddon.Addon('script.simkl.scrobbler')
             self._last_sync_time = time.time()
             addon.setSetting('last_auto_sync_time', str(self._last_sync_time))
-            log(f"Saved last sync time: {time.ctime(self._last_sync_time)}")
+            log(f"[service v7.4.4] SimklService._save_last_sync_time() Saved last sync time: {time.ctime(self._last_sync_time)}")
         except Exception as e:
-            log_error(f"Error saving last sync time: {e}")
+            log_error(f"[service v7.4.4] SimklService._save_last_sync_time() Error saving last sync time: {e}")
     
     def _check_auth_status_on_startup(self):
         """
@@ -185,9 +185,9 @@ class SimklService:
                 # Fix inconsistent state if needed
                 if "Not Authenticated" in auth_status:
                     addon.setSetting('auth_status', f"Authenticated as {display_name}")
-                    log("Fixed auth_status mismatch")
+                    log("[service v7.4.4] SimklService._check_auth_status_on_startup() Fixed auth_status mismatch")
                 
-                log(f"Authenticated as {display_name}")
+                log(f"[service v7.4.4] SimklService._check_auth_status_on_startup() Authenticated as {display_name}")
                 xbmcgui.Dialog().notification(
                     getString(ADDON_NAME),
                     getString(READY_TO_SCROBBLE).format(display_name),
@@ -199,7 +199,7 @@ class SimklService:
                 if "Not Authenticated" not in auth_status:
                     addon.setSetting('auth_status', "Not Authenticated")
                 
-                log("Not authenticated")
+                log("[service v7.4.4] SimklService._check_auth_status_on_startup() Not authenticated")
                 xbmcgui.Dialog().notification(
                     getString(ADDON_NAME),
                     getString(NOT_AUTHENTICATED_CONFIGURE),
@@ -208,7 +208,7 @@ class SimklService:
                 )
                 
         except Exception as e:
-            log_error(f"Error checking auth status: {e}")
+            log_error(f"[service v7.4.4] SimklService._check_auth_status_on_startup() Error checking auth status: {e}")
     
     def _check_scheduled_sync(self):
         """
@@ -231,13 +231,13 @@ class SimklService:
             
             # Check if sync is already in progress
             if self._sync_in_progress:
-                log_debug("Sync already in progress, skipping scheduled check")
+                log_debug("[service v7.4.4] SimklService._check_scheduled_sync() Sync already in progress, skipping scheduled check")
                 return False
             
             # Check if enough time has passed
             if self._last_sync_time is None:
                 # Never synced before - trigger now
-                log(f"First scheduled sync (interval: {interval_hours}h)")
+                log(f"[service v7.4.4] SimklService._check_scheduled_sync() First scheduled sync (interval: {interval_hours}h)")
                 self._trigger_scheduled_sync()
                 return True
             
@@ -245,16 +245,16 @@ class SimklService:
             elapsed_hours = (current_time - self._last_sync_time) / 3600.0
             
             if elapsed_hours >= interval_hours:
-                log(f"Scheduled sync triggered ({elapsed_hours:.1f}h >= {interval_hours}h)")
+                log(f"[service v7.4.4] SimklService._check_scheduled_sync() Scheduled sync triggered ({elapsed_hours:.1f}h >= {interval_hours}h)")
                 self._trigger_scheduled_sync()
                 return True
             else:
                 remaining = interval_hours - elapsed_hours
-                log_debug(f"Next scheduled sync in {remaining:.1f} hours")
+                log_debug(f"[service v7.4.4] SimklService._check_scheduled_sync() Next scheduled sync in {remaining:.1f} hours")
                 return False
                 
         except Exception as e:
-            log_error(f"Error checking scheduled sync: {e}")
+            log_error(f"[service v7.4.4] SimklService._check_scheduled_sync() Error checking scheduled sync: {e}")
             return False
     
     def _trigger_scheduled_sync(self):
@@ -278,10 +278,10 @@ class SimklService:
             sync_thread.daemon = True
             sync_thread.start()
             
-            log("Scheduled sync thread started")
+            log("[service v7.4.4] SimklService._trigger_scheduled_sync() Scheduled sync thread started")
             
         except Exception as e:
-            log_error(f"Error triggering scheduled sync: {e}")
+            log_error(f"[service v7.4.4] SimklService._trigger_scheduled_sync() Error triggering scheduled sync: {e}")
             if show_notifications:
                 xbmcgui.Dialog().notification(
                     getString(ADDON_NAME),
@@ -317,10 +317,10 @@ class SimklService:
             sync_thread.start()
             self._sync_thread = sync_thread
             
-            log(f"[service v{__version__}] Library sync thread started (thread={sync_thread.name})")
+            log(f"[service v7.4.4] SimklService._trigger_library_sync() Library sync thread started (thread={sync_thread.name})")
             
         except Exception as e:
-            log_error(f"Error triggering library sync: {e}")
+            log_error(f"[service v7.4.4] SimklService._trigger_library_sync() Error triggering library sync: {e}")
             if show_notifications:
                 xbmcgui.Dialog().notification(
                     getString(ADDON_NAME),
@@ -340,7 +340,7 @@ class SimklService:
             # Mark sync as in progress
             self._sync_in_progress = True
             
-            log(f"[service v{__version__}] Running full bidirectional sync in background...")
+            log(f"[service v7.4.4] SimklService._run_sync_thread() Running full bidirectional sync in background...")
             
             # Check if notifications are enabled
             show_notifications = get_setting_bool('show_library_sync_notifications')
@@ -383,16 +383,16 @@ class SimklService:
                     3000
                 )
             
-            log(f"Library sync completed - Exported: {total_exported}, Imported: {total_imported}, Errors: {stats['errors']}")
+            log(f"[service v7.4.4] SimklService._run_sync_thread() Library sync completed - Exported: {total_exported}, Imported: {total_imported}, Errors: {stats['errors']}")
             
             # Save last sync time (for scheduled syncs)
             self._save_last_sync_time()
                 
         except Exception as e:
-            log_error(f"Error in sync thread: {e}")
+            log_error(f"[service v7.4.4] SimklService._run_sync_thread() Error in sync thread: {e}")
             # Import traceback for detailed error logging
             import traceback
-            log_error(f"Traceback: {traceback.format_exc()}")
+            log_error(f"[service v7.4.4] SimklService._run_sync_thread() Traceback: {traceback.format_exc()}")
             
             if show_notifications:
                 xbmcgui.Dialog().notification(
@@ -405,10 +405,10 @@ class SimklService:
             # Always clean up - critical for preventing file locks on uninstall
             if sync_manager:
                 sync_manager.close()
-                log(f"[service v{__version__}] Sync manager closed")
+                log(f"[service v7.4.4] SimklService._run_sync_thread() Sync manager closed")
             self._sync_in_progress = False
             self._sync_thread = None
-            log(f"[service v{__version__}] Sync thread finished")
+            log(f"[service v7.4.4] SimklService._run_sync_thread() Sync thread finished")
     
     def run(self):
         """
@@ -419,12 +419,12 @@ class SimklService:
         2. Does transition checks during playback
         3. Waits a bit before checking again
         """
-        log("SIMKL Service starting main loop...")
+        log("[service v7.4.4] SimklService.run() SIMKL Service starting main loop...")
         self._running = True
         
         # Wait for Kodi to fully start up
         startup_delay = 5  # Could make this a setting
-        log(f"Waiting {startup_delay} seconds for Kodi startup...")
+        log(f"[service v7.4.4] SimklService.run() Waiting {startup_delay} seconds for Kodi startup...")
         
         # Create monitor first for abort checking
         self.monitor = SimklMonitor(
@@ -433,7 +433,7 @@ class SimklService:
         )
         
         if self.monitor.waitForAbort(startup_delay):
-            log("Abort requested during startup delay")
+            log("[service v7.4.4] SimklService.run() Abort requested during startup delay")
             return
         
         # Check auth status and show notification
@@ -442,7 +442,7 @@ class SimklService:
         # Trigger startup sync if enabled and authenticated
         addon = xbmcaddon.Addon('script.simkl.scrobbler')
         if get_setting_bool('sync_on_startup') and addon.getSetting('access_token'):
-            log("Sync on startup enabled - triggering initial sync")
+            log("[service v7.4.4] SimklService.run() Sync on startup enabled - triggering initial sync")
             self._trigger_library_sync()
         
         # Initialize scrobbler with API
@@ -452,7 +452,7 @@ class SimklService:
         # Initialize player with callback to our dispatch queue
         self.player = SimklPlayer(action=self._dispatch_to_queue)
         
-        log("Service initialized - entering main loop")
+        log("[service v7.4.4] SimklService.run() Service initialized - entering main loop")
         
         # Track loop iterations for scheduled sync checking
         loop_count = 0
@@ -462,7 +462,7 @@ class SimklService:
             # Process any queued events
             while self.dispatch_queue and not self.monitor.abortRequested():
                 data = self.dispatch_queue.popleft()
-                log_debug(f"Processing queued dispatch: {data}")
+                log_debug(f"[service v7.4.4] SimklService.run() Processing queued dispatch: {data}")
                 self._process_dispatch(data)
             
             # Do transition check if playing video
@@ -482,27 +482,27 @@ class SimklService:
                 break
         
         # Cleanup
-        log(f"[service v{__version__}] Service shutting down...")
+        log(f"[service v7.4.4] SimklService.run() Service shutting down...")
         self._running = False
         
         # Wait for sync thread to finish (max 3 seconds) so it can clean up
         if self._sync_thread and self._sync_thread.is_alive():
-            log(f"[service v{__version__}] Waiting for sync thread to finish...")
+            log(f"[service v7.4.4] SimklService.run() Waiting for sync thread to finish...")
             self._sync_thread.join(timeout=3)
             if self._sync_thread.is_alive():
-                log_warning(f"[service v{__version__}] Sync thread did not finish in time")
+                log_warning(f"[service v7.4.4] SimklService.run() Sync thread did not finish in time")
         
         # Close API session to free socket connections (prevents file locks on uninstall)
         if hasattr(self, 'scrobbler') and self.scrobbler and hasattr(self.scrobbler, 'api'):
             self.scrobbler.api.close()
-            log(f"[service v{__version__}] Scrobbler API session closed")
+            log(f"[service v7.4.4] SimklService.run() Scrobbler API session closed")
         
         if self.player:
             del self.player
         if self.monitor:
             del self.monitor
         
-        log(f"[service v{__version__}] Service stopped")
+        log(f"[service v7.4.4] SimklService.run() Service stopped")
 
 
 class SimklPlayer(xbmc.Player):
@@ -524,7 +524,7 @@ class SimklPlayer(xbmc.Player):
         self.action = kwargs.get("action")
         self._playing = False
         self._current_file = None
-        log("SimklPlayer initialized")
+        log("[service v7.4.4] SimklPlayer.__init__() SimklPlayer initialized")
     
     def onAVStarted(self):
         """
@@ -538,17 +538,17 @@ class SimklPlayer(xbmc.Player):
         
         # Only care about video
         if not self.isPlayingVideo():
-            log_debug("Not playing video, ignoring")
+            log_debug("[service v7.4.4] SimklPlayer.onAVStarted() Not playing video, ignoring")
             return
         
         try:
             # Get the file being played
             self._current_file = self.getPlayingFile()
-            log(f"[service v{__version__}] Video playback started: {self._current_file}")
+            log(f"[service v7.4.4] SimklPlayer.onAVStarted() Video playback started: {self._current_file}")
             
             # Check exclusions (PVR, HTTP streams, etc.)
             if self._should_exclude(self._current_file):
-                log(f"File excluded from scrobbling: {self._current_file}")
+                log(f"[service v7.4.4] SimklPlayer.onAVStarted() File excluded from scrobbling: {self._current_file}")
                 return
             
             # Get video info and dispatch to service
@@ -558,15 +558,15 @@ class SimklPlayer(xbmc.Player):
                 self._playing = True
                 self.action(video_data)
             else:
-                log("Could not get video data, skipping scrobble")
+                log("[service v7.4.4] SimklPlayer.onAVStarted() Could not get video data, skipping scrobble")
                 
         except Exception as e:
-            log_error(f"Error in onAVStarted: {e}")
+            log_error(f"[service v7.4.4] SimklPlayer.onAVStarted() Error in onAVStarted: {e}")
     
     def onPlayBackStopped(self):
         """Called when user manually stops playback."""
         if self._playing:
-            log("Playback stopped by user")
+            log("[service v7.4.4] SimklPlayer.onPlayBackStopped() Playback stopped by user")
             self._playing = False
             self._current_file = None
             self.action({"action": "stopped"})
@@ -574,7 +574,7 @@ class SimklPlayer(xbmc.Player):
     def onPlayBackEnded(self):
         """Called when playback ends naturally."""
         if self._playing:
-            log("Playback ended naturally")
+            log("[service v7.4.4] SimklPlayer.onPlayBackEnded() Playback ended naturally")
             self._playing = False
             self._current_file = None
             self.action({"action": "ended"})
@@ -582,13 +582,13 @@ class SimklPlayer(xbmc.Player):
     def onPlayBackPaused(self):
         """Called when user pauses playback."""
         if self._playing:
-            log("Playback paused")
+            log("[service v7.4.4] SimklPlayer.onPlayBackPaused() Playback paused")
             self.action({"action": "paused"})
     
     def onPlayBackResumed(self):
         """Called when playback resumes from pause."""
         if self._playing:
-            log("Playback resumed")
+            log("[service v7.4.4] SimklPlayer.onPlayBackResumed() Playback resumed")
             self.action({"action": "resumed"})
     
     def onPlayBackSeek(self, *args):
@@ -601,7 +601,7 @@ class SimklPlayer(xbmc.Player):
         Values are logged but not used for scrobble logic.
         """
         if self._playing:
-            log(f"Playback seek detected")
+            log(f"[service v7.4.4] SimklPlayer.onPlayBackSeek() Playback seek detected")
             self.action({"action": "seek"})
     
     def _should_exclude(self, file_path):
@@ -701,7 +701,7 @@ class SimklPlayer(xbmc.Player):
             # we don't have a TMDb ID yet, use it as TMDb
             if not video_data.get("tmdb_id") and raw_imdb and raw_imdb.isdigit():
                 video_data["tmdb_id"] = raw_imdb
-                log_debug(f"Using getIMDBNumber() value '{raw_imdb}' as TMDb ID (pure numeric, no tt prefix)")
+                log_debug(f"[service v7.4.4] SimklPlayer._get_video_data() Using getIMDBNumber() value '{raw_imdb}' as TMDb ID (pure numeric, no tt prefix)")
             
             # TV-specific info
             if media_type == "episode":
@@ -710,11 +710,11 @@ class SimklPlayer(xbmc.Player):
                 video_data["episode"] = info_tag.getEpisode()
                 video_data["episode_title"] = info_tag.getTitle()
             
-            log(f"[service v{__version__}] Video data extracted: {video_data}")
+            log(f"[service v7.4.4] SimklPlayer._get_video_data() Video data extracted: {video_data}")
             return video_data
             
         except Exception as e:
-            log_error(f"Error getting video data: {e}")
+            log_error(f"[service v7.4.4] SimklPlayer._get_video_data() Error getting video data: {e}")
             return None
 
 
@@ -736,11 +736,11 @@ class SimklMonitor(xbmc.Monitor):
         super(SimklMonitor, self).__init__()
         self.action = kwargs.get("action")
         self.service = kwargs.get("service")
-        log("SimklMonitor initialized")
+        log("[service v7.4.4] SimklMonitor.__init__() SimklMonitor initialized")
     
     def onSettingsChanged(self):
         """Called when addon settings are changed."""
-        log(f"[service v{__version__}] Settings changed detected")
+        log(f"[service v7.4.4] SimklMonitor.onSettingsChanged() Settings changed detected")
         self.action({"action": "settings_changed"})
     
     def onScanFinished(self, database):
@@ -751,10 +751,10 @@ class SimklMonitor(xbmc.Monitor):
             database: "video" or "music"
         """
         if database == "video":
-            log("Video library scan finished")
+            log("[service v7.4.4] SimklMonitor.onScanFinished() Video library scan finished")
             # Trigger sync if setting is enabled
             if get_setting_bool('sync_on_update'):
-                log("Triggering sync after library scan...")
+                log("[service v7.4.4] SimklMonitor.onScanFinished() Triggering sync after library scan...")
                 self.service._trigger_library_sync()
     
     def onCleanFinished(self, database):
@@ -765,10 +765,10 @@ class SimklMonitor(xbmc.Monitor):
             database: "video" or "music"
         """
         if database == "video":
-            log("Video library clean finished")
+            log("[service v7.4.4] SimklMonitor.onCleanFinished() Video library clean finished")
             # Trigger sync if setting is enabled
             if get_setting_bool('sync_on_update'):
-                log("Triggering sync after library clean...")
+                log("[service v7.4.4] SimklMonitor.onCleanFinished() Triggering sync after library clean...")
                 self.service._trigger_library_sync()
 
 
@@ -781,12 +781,12 @@ def main():
     """
     addon = xbmcaddon.Addon('script.simkl.scrobbler')
     
-    log("=" * 50)
-    log(f"SIMKL Scrobbler Service v{__version__} Starting")
-    log(f"Addon ID: {addon.getAddonInfo('id')}")
-    log(f"Addon Version: {addon.getAddonInfo('version')}")
-    log(f"Addon Path: {addon.getAddonInfo('path')}")
-    log("=" * 50)
+    log("[service v7.4.4] SimklMonitor.main() =" * 50)
+    log(f"[service v7.4.4] SimklMonitor.main() SIMKL Scrobbler Service v{__version__} Starting")
+    log(f"[service v7.4.4] SimklMonitor.main() Addon ID: {addon.getAddonInfo('id')}")
+    log(f"[service v7.4.4] SimklMonitor.main() Addon Version: {addon.getAddonInfo('version')}")
+    log(f"[service v7.4.4] SimklMonitor.main() Addon Path: {addon.getAddonInfo('path')}")
+    log("[service v7.4.4] SimklMonitor.main() =" * 50)
     
     # Log exclusion settings summary
     log(get_exclusion_summary())
@@ -794,9 +794,9 @@ def main():
     service = SimklService()
     service.run()
     
-    log("=" * 50)
-    log("SIMKL Scrobbler Service Stopped")
-    log("=" * 50)
+    log("[service v7.4.4] SimklMonitor.main() =" * 50)
+    log("[service v7.4.4] SimklMonitor.main() SIMKL Scrobbler Service Stopped")
+    log("[service v7.4.4] SimklMonitor.main() =" * 50)
 
 
 if __name__ == "__main__":

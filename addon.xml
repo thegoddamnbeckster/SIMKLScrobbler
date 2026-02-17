@@ -1,10 +1,15 @@
 ﻿<?xml version="1.0" encoding="UTF-8"?>
 <!--
 SIMKL Scrobbler for Kodi
-Version: 7.4.3
-Last Modified: 2026-02-16
+Version: 7.4.4
+Last Modified: 2026-02-17
 
 CHANGELOG:
+7.4.4 - Standardize log messages across all modules
+        - All 323 log calls now use consistent [module vX.X.X] Class.method() prefix
+        - Removed 12 diagnostic logging lines (raw response dumps, sample entries)
+        - Cleaned up api.py get_user_ratings() leftover diagnostic code
+        - All 7 core modules updated: api, auth, exclusions, rating, scrobbler, service, sync
 7.4.3 - Fix toast timing, rating dialog layout, existing rating lookup
         - FIXED: Toast delay increased to 5s before + 5s after (10s total)
         - FIXED: Rating dialog title/description off-screen (label positioning)
@@ -81,7 +86,7 @@ CHANGELOG:
 -->
 <addon id="script.simkl.scrobbler" 
        name="SIMKL Scrobbler" 
-       version="7.4.3" 
+       version="7.4.4" 
        provider-name="Claude.ai with assistance from Michael Beck">
     
     <requires>

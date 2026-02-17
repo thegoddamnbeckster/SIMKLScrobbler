@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """
 SIMKL Scrobbler Rating Service
-Version: 7.3.4
-Last Modified: 2026-02-04
+Version: 7.4.4
+Last Modified: 2026-02-17
 
 PHASE 9: Advanced Features & Polish
 
@@ -46,7 +46,7 @@ from resources.lib.strings import (
 )
 
 # Module version
-__version__ = '7.4.3'
+__version__ = '7.4.4'
 
 # Log module initialization
 xbmc.log(f'[SIMKL Scrobbler] rating.py v{__version__} - Rating service module loading', level=xbmc.LOGINFO)
@@ -71,7 +71,7 @@ def rating_check(media_type, media_info, watched_time, total_time, api):
         
         # Check if prompts are enabled for this media type
         if not rating_service.should_prompt_for_rating(media_type):
-            utils.log(f"[rating v{__version__}] Rating prompts disabled for {media_type}", xbmc.LOGDEBUG)
+            utils.log(f"[rating v7.4.4] rating_check() Rating prompts disabled for {media_type}", xbmc.LOGDEBUG)
             return
         
         # Check minimum view time threshold
@@ -79,7 +79,7 @@ def rating_check(media_type, media_info, watched_time, total_time, api):
         if total_time > 0:
             viewed_pct = (watched_time / total_time) * 100
             if viewed_pct < min_view_pct:
-                utils.log(f"[rating v{__version__}] Viewed {viewed_pct:.1f}% < minimum {min_view_pct}% for rating prompt")
+                utils.log(f"[rating v7.4.4] rating_check() Viewed {viewed_pct:.1f}% < minimum {min_view_pct}% for rating prompt")
                 return
         
         # Build media info dict for rating dialog
@@ -99,16 +99,16 @@ def rating_check(media_type, media_info, watched_time, total_time, api):
                          rating_media_info.get('tmdb_id'),
                          rating_media_info.get('tvdb_id')])
         if not has_any_id:
-            utils.log(f"[rating v{__version__}] No IDs available for rating - cannot rate", xbmc.LOGWARNING)
+            utils.log(f"[rating v7.4.4] rating_check() No IDs available for rating - cannot rate", xbmc.LOGWARNING)
             return
         
-        utils.log(f"[rating v{__version__}] Rating check passed for '{rating_media_info['title']}' - showing dialog")
+        utils.log(f"[rating v7.4.4] rating_check() Rating check passed for '{rating_media_info['title']}' - showing dialog")
         
         # Show rating dialog
         rating_service.prompt_for_rating(rating_media_info)
         
     except Exception as e:
-        utils.log(f"[rating v{__version__}] Error in rating_check: {e}", xbmc.LOGERROR)
+        utils.log(f"[rating v7.4.4] rating_check() Error in rating_check: {e}", xbmc.LOGERROR)
 
 
 class RatingDialog(xbmcgui.WindowXMLDialog):
@@ -154,7 +154,7 @@ class RatingDialog(xbmcgui.WindowXMLDialog):
                 desc_label.setLabel(getString(CLICK_STAR))
                 
         except Exception as e:
-            utils.log("Error initializing rating dialog: {}".format(str(e)), xbmc.LOGERROR)
+            utils.log("[rating v7.4.4] RatingDialog.onInit() Error initializing rating dialog: {}".format(str(e)), xbmc.LOGERROR)
     
     def onClick(self, controlId):
         """Handle button clicks"""
@@ -195,7 +195,7 @@ class RatingDialog(xbmcgui.WindowXMLDialog):
             description = get_rating_description(rating)
             desc_label.setLabel(getString(RATING_DESC_FORMAT).format(rating, description))
         except Exception as e:
-            utils.log("Error updating description: {}".format(str(e)), xbmc.LOGERROR)
+            utils.log("[rating v7.4.4] RatingDialog._update_description() Error updating description: {}".format(str(e)), xbmc.LOGERROR)
     
     def _highlight_stars(self, rating):
         """Visual feedback - highlight stars up to selected rating"""
@@ -204,7 +204,7 @@ class RatingDialog(xbmcgui.WindowXMLDialog):
         try:
             self.setFocusId(rating)
         except Exception as e:
-            utils.log("Error highlighting stars: {}".format(str(e)), xbmc.LOGERROR)
+            utils.log("[rating v7.4.4] RatingDialog._highlight_stars() Error highlighting stars: {}".format(str(e)), xbmc.LOGERROR)
 
 
 class RatingService:
@@ -287,25 +287,30 @@ class RatingService:
                 
                 item_ids = item_data.get('ids', {})
                 
+                # Also check top-level ids (SIMKL API format varies)
+                if not item_ids:
+                    item_ids = item.get('ids', {})
+                
                 # Match on any available ID
                 if simkl_id and item_ids.get('simkl') == simkl_id:
-                    return item.get('user_rating')
+                    return item.get('user_rating', item.get('rating'))
                 if imdb_id and item_ids.get('imdb') == imdb_id:
-                    return item.get('user_rating')
+                    return item.get('user_rating', item.get('rating'))
                 if tmdb_id and str(item_ids.get('tmdb', '')) == str(tmdb_id):
-                    return item.get('user_rating')
+                    return item.get('user_rating', item.get('rating'))
             
+            utils.log(f"[rating v7.4.4] RatingService.get_current_rating() No matching rating found in {len(ratings_list)} entries")
             return None
             
         except Exception as e:
-            utils.log(f"[rating v{__version__}] Error retrieving current rating: {e}", xbmc.LOGERROR)
+            utils.log(f"[rating v7.4.4] RatingService.get_current_rating() Error retrieving current rating: {e}", xbmc.LOGERROR)
             return None
     
     def prompt_for_rating(self, media_info):
         """
         Display rating dialog and handle user input.
         
-        Works with any available ID (SIMKL, IMDb, TMDb, TVDB) — does not
+        Works with any available ID (SIMKL, IMDb, TMDb, TVDB) - does not
         require a SIMKL ID specifically.
         
         Args:
@@ -331,12 +336,12 @@ class RatingService:
                 imdb_id=media_info.get('imdb_id'),
                 tmdb_id=media_info.get('tmdb_id')
             )
-            utils.log(f"[rating v{__version__}] Current rating lookup: {current_rating}")
+            utils.log(f"[rating v7.4.4] RatingService.prompt_for_rating() Current rating lookup: {current_rating}")
             
             # Check rerating setting
             allow_rerating = utils.get_setting_bool("rating_allow_rerating", False)
             if current_rating and not allow_rerating:
-                utils.log(f"[rating v{__version__}] Already rated ({current_rating}/10) and rerating disabled - skipping")
+                utils.log(f"[rating v7.4.4] RatingService.prompt_for_rating() Already rated ({current_rating}/10) and rerating disabled - skipping")
                 return False
             
             # Show rating dialog
@@ -384,7 +389,7 @@ class RatingService:
             return False
             
         except Exception as e:
-            utils.log("Error prompting for rating: {}".format(str(e)), xbmc.LOGERROR)
+            utils.log("[rating v7.4.4] RatingService.prompt_for_rating() Error prompting for rating: {}".format(str(e)), xbmc.LOGERROR)
             return False
     
     def submit_rating(self, media_info, rating):
@@ -419,19 +424,19 @@ class RatingService:
             
             # Submit to SIMKL using correct api.add_rating signature:
             # add_rating(media_type, media_info, rating)
-            utils.log("Submitting rating {} for '{}' to SIMKL".format(
+            utils.log("[rating v7.4.4] RatingService.submit_rating() Submitting rating {} for '{}' to SIMKL".format(
                 rating, media_info.get('title', 'Unknown')
             ))
             
             response = self.api.add_rating(media_type, api_media_info, rating)
             
             if response:
-                utils.log("Rating submitted successfully")
+                utils.log("[rating v7.4.4] RatingService.submit_rating() Rating submitted successfully")
                 return True
             else:
-                utils.log("Failed to submit rating", xbmc.LOGERROR)
+                utils.log("[rating v7.4.4] RatingService.submit_rating() Failed to submit rating", xbmc.LOGERROR)
                 return False
                 
         except Exception as e:
-            utils.log("Error submitting rating: {}".format(str(e)), xbmc.LOGERROR)
+            utils.log("[rating v7.4.4] RatingService.submit_rating() Error submitting rating: {}".format(str(e)), xbmc.LOGERROR)
             return False

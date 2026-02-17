@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """
 SIMKL Scrobbler - Exclusions Module
-Version: 7.3.4
-Last Modified: 2026-02-04
+Version: 7.4.4
+Last Modified: 2026-02-17
 
 PHASE 9: Advanced Features & Polish
 - All exclusion settings now active in settings.xml
@@ -29,7 +29,7 @@ import xbmcgui
 from resources.lib.utils import log, log_debug, log_module_init, get_setting, get_setting_bool
 
 # Module version
-__version__ = '7.4.3'
+__version__ = '7.4.4'
 
 # Log module initialization
 log_module_init('exclusions.py', __version__)
@@ -50,30 +50,30 @@ def check_exclusion(fullpath):
     """
     # No path provided - cannot scrobble
     if not fullpath:
-        log_debug("check_exclusion: Empty path, excluding")
+        log_debug("[exclusions v7.4.4] check_exclusion() check_exclusion: Empty path, excluding")
         return True
     
     # Live TV exclusion (pvr:// sources)
     if fullpath.startswith("pvr://") and get_setting_bool("ExcludeLiveTV"):
-        log("Exclusion: Live TV source excluded (pvr://)")
+        log("[exclusions v7.4.4] check_exclusion() Exclusion: Live TV source excluded (pvr://)")
         return True
     
     # HTTP/HTTPS exclusion
     if fullpath.startswith(("http://", "https://")) and get_setting_bool("ExcludeHTTP"):
-        log("Exclusion: HTTP/HTTPS source excluded")
+        log("[exclusions v7.4.4] check_exclusion() Exclusion: HTTP/HTTPS source excluded")
         return True
     
     # Plugin exclusion
     # For addon-triggered playback (plugin://)
     if fullpath.startswith("plugin://") and get_setting_bool("ExcludePlugin"):
-        log("Exclusion: Plugin source excluded")
+        log("[exclusions v7.4.4] check_exclusion() Exclusion: Plugin source excluded")
         return True
     
     # Script exclusion  
     # Check if another script is controlling playback
     # Uses window property like Trakt does
     if _is_script_paused() and get_setting_bool("ExcludeScript"):
-        log("Exclusion: Script-controlled playback excluded")
+        log("[exclusions v7.4.4] check_exclusion() Exclusion: Script-controlled playback excluded")
         return True
     
     # Path exclusions (up to 5 paths)
@@ -81,7 +81,7 @@ def check_exclusion(fullpath):
         return True
     
     # No exclusions matched - proceed with scrobbling
-    log_debug(f"check_exclusion: No exclusions matched for {fullpath}")
+    log_debug(f"[exclusions v7.4.4] check_exclusion() check_exclusion: No exclusions matched for {fullpath}")
     return False
 
 
@@ -110,7 +110,7 @@ def set_script_paused(paused):
     """
     window = xbmcgui.Window(10000)
     window.setProperty("script.simkl.scrobbler.paused", "true" if paused else "")
-    log(f"Script paused property set to: {paused}")
+    log(f"[exclusions v7.4.4] set_script_paused() Script paused property set to: {paused}")
 
 
 def _check_path_exclusions(fullpath):
@@ -170,7 +170,7 @@ def _check_single_path(fullpath, option_key, path_key, path_number):
     
     # Check if video path starts with excluded path
     if normalized_fullpath.startswith(normalized_excluded):
-        log(f"Exclusion: Path {path_number} matched ({excluded_path})")
+        log(f"[exclusions v7.4.4] _check_single_path() Exclusion: Path {path_number} matched ({excluded_path})")
         return True
     
     return False
