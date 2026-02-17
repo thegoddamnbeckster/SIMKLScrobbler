@@ -46,7 +46,7 @@ from resources.lib.strings import (
 )
 
 # Module version
-__version__ = '7.4.4'
+__version__ = '7.4.5'
 
 # Log module initialization
 xbmc.log(f'[SIMKL Scrobbler] rating.py v{__version__} - Rating service module loading', level=xbmc.LOGINFO)
@@ -338,8 +338,11 @@ class RatingService:
             )
             utils.log(f"[rating v7.4.4] RatingService.prompt_for_rating() Current rating lookup: {current_rating}")
             
-            # Check rerating setting
-            allow_rerating = utils.get_setting_bool("rating_allow_rerating", False)
+            # Check rerating setting - fresh Addon() read to pick up recent changes
+            try:
+                allow_rerating = xbmcaddon.Addon().getSettingBool("rating_allow_rerating")
+            except Exception:
+                allow_rerating = False
             if current_rating and not allow_rerating:
                 utils.log(f"[rating v7.4.4] RatingService.prompt_for_rating() Already rated ({current_rating}/10) and rerating disabled - skipping")
                 return False
