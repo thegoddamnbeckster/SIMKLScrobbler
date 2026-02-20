@@ -1,10 +1,18 @@
 ﻿<?xml version="1.0" encoding="UTF-8"?>
 <!--
 SIMKL Scrobbler for Kodi
-Version: 7.4.7
+Version: 7.4.8
 Last Modified: 2026-02-20
 
 CHANGELOG:
+7.4.8 - Fix addon click behavior + rating star visibility
+        - Clicking addon in Programs now triggers manual sync (like Trakt)
+        - Previously opened settings; now runs bidirectional sync with progress
+        - Falls back to settings if not authenticated
+        - FIXED: Gold star images had <visible>false</visible> in XML
+        - Kodi treats <visible>false</visible> as permanent condition, overrides Python
+        - Removed all <visible> tags from gold stars; Python controls via onInit()
+        - onInit() now hides all gold stars first, then highlights current rating
 7.4.7 - Complete rating dialog star UI rewrite
         - Replaced radiobutton controls with image+button overlay architecture
         - Gold star images (IDs 301-310) layered over grey (IDs 201-210)
@@ -97,7 +105,7 @@ CHANGELOG:
 -->
 <addon id="script.simkl.scrobbler" 
        name="SIMKL Scrobbler" 
-       version="7.4.7" 
+       version="7.4.8" 
        provider-name="Claude.ai with assistance from Michael Beck">
     
     <requires>
@@ -105,7 +113,7 @@ CHANGELOG:
         <import addon="script.module.requests" version="2.31.0"/>
     </requires>
     
-    <!-- Script extension: Opens settings when addon is clicked -->
+    <!-- Script extension: Triggers manual sync when addon is clicked (opens settings if not authenticated) -->
     <extension point="xbmc.python.script" library="default.py">
         <provides>executable</provides>
     </extension>

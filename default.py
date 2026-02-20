@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """
 SIMKL Scrobbler - Script Entry Point
-Version: 7.4.3
-Last Modified: 2026-02-14
+Version: 7.4.8
+Last Modified: 2026-02-20
 
 This file handles script calls from settings buttons and normal addon launches.
 Professional code - Project 4 standards
@@ -17,7 +17,7 @@ from resources.lib.auth import SimklAuth
 from resources.lib.utils import log, log_error
 
 # Version constant
-VERSION = "7.4.3"
+VERSION = "7.4.8"
 
 # Get addon instance
 addon = xbmcaddon.Addon()
@@ -497,6 +497,82 @@ def handle_sync_action(media_type, dbid):
     log(f"[default.py v{VERSION}] ========== handle_sync_action() END ==========")
 
 
+def handle_manual_sync():
+    """
+    Handle manual sync triggered by clicking the addon in Programs.
+    Runs a full bidirectional sync with a progress dialog.
+    This mimics what Trakt does when you click their addon.
+    """
+    log(f"[default.py v{VERSION}] ========== handle_manual_sync() START ==========")
+    
+    # Check authentication first
+    auth = SimklAuth()
+    if not auth.is_authenticated():
+        log(f"[default.py v{VERSION}] Not authenticated - opening settings instead")
+        update_auth_status()
+        addon.openSettings()
+        return
+    
+    # Show notification that sync is starting
+    xbmcgui.Dialog().notification(
+        "SIMKL",
+        "Starting manual library sync...",
+        xbmcgui.NOTIFICATION_INFO,
+        3000
+    )
+    
+    try:
+        from resources.lib.sync import SyncManager
+        from resources.lib.api import SimklAPI
+        
+        api = SimklAPI()
+        sync_manager = SyncManager(show_progress=True, silent=False)
+        
+        log(f"[default.py v{VERSION}] Running full bidirectional sync...")
+        
+        # Export to SIMKL
+        export_movies, export_episodes, export_errors = sync_manager.sync_to_simkl()
+        
+        # Import from SIMKL
+        import_movies, import_episodes, import_errors = sync_manager.sync_from_simkl()
+        
+        total_exported = export_movies + export_episodes
+        total_imported = import_movies + import_episodes
+        total_errors = export_errors + import_errors
+        
+        # Show completion notification
+        if total_errors > 0:
+            msg = f"Sync complete: {total_exported} exported, {total_imported} imported, {total_errors} errors"
+            icon = xbmcgui.NOTIFICATION_WARNING
+        elif total_exported + total_imported > 0:
+            msg = f"Sync complete: {total_exported} exported, {total_imported} imported"
+            icon = xbmcgui.NOTIFICATION_INFO
+        else:
+            msg = "Library is up to date with SIMKL"
+            icon = xbmcgui.NOTIFICATION_INFO
+        
+        xbmcgui.Dialog().notification("SIMKL", msg, icon, 5000)
+        log(f"[default.py v{VERSION}] Manual sync complete: exported={total_exported}, imported={total_imported}, errors={total_errors}")
+        
+        # Save last sync time
+        import time
+        addon.setSetting('last_sync_time', str(time.time()))
+        
+        # Clean up
+        sync_manager.close()
+        
+    except Exception as e:
+        log_error(f"[default.py v{VERSION}] Manual sync failed: {e}")
+        xbmcgui.Dialog().notification(
+            "SIMKL",
+            "Sync failed - check log for details",
+            xbmcgui.NOTIFICATION_ERROR,
+            5000
+        )
+    
+    log(f"[default.py v{VERSION}] ========== handle_manual_sync() END ==========")
+
+
 def main():
     """
     Main entry point for script calls.
@@ -529,9 +605,9 @@ def main():
         log(f"[default.py v{VERSION}] Routing to handle_sync_action()")
         handle_sync_action(media_type, dbid)
     else:
-        log(f"[default.py v{VERSION}] No action - updating status and opening settings")
-        update_auth_status()
-        addon.openSettings()
+        # No action specified - trigger a manual sync (like Trakt does)
+        log(f"[default.py v{VERSION}] No action specified - triggering manual sync")
+        handle_manual_sync()
     
     log(f"[default.py v{VERSION}] ==========================================")
     log(f"[default.py v{VERSION}] MAIN() COMPLETE")

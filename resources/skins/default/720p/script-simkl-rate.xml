@@ -1,8 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- SIMKL Scrobbler Rating Dialog v7.4.7
+<!-- SIMKL Scrobbler Rating Dialog v7.4.8
      Base resolution: 720p (1280x720) - Kodi auto-scales to actual display
      Star visual state managed entirely via Python setVisible() on image controls
-     Buttons are transparent overlays for click/focus detection only -->
+     Buttons are transparent overlays for click/focus detection only
+     CRITICAL: Gold stars must NOT have <visible> tags - Python controls all visibility
+     Kodi's <visible> creates conditional expressions that override setVisible() -->
 <window>
     <defaultcontrol always="true">1</defaultcontrol>
     <coordinates>
@@ -148,7 +150,6 @@
                 <width>52</width>
                 <height>52</height>
                 <texture colordiffuse="FFFFD700">rating-star-filled.png</texture>
-                <visible>false</visible>
             </control>
             <control type="image" id="302">
                 <posx>185</posx>
@@ -156,7 +157,6 @@
                 <width>52</width>
                 <height>52</height>
                 <texture colordiffuse="FFFFD700">rating-star-filled.png</texture>
-                <visible>false</visible>
             </control>
             <control type="image" id="303">
                 <posx>239</posx>
@@ -164,7 +164,6 @@
                 <width>52</width>
                 <height>52</height>
                 <texture colordiffuse="FFFFD700">rating-star-filled.png</texture>
-                <visible>false</visible>
             </control>
             <control type="image" id="304">
                 <posx>293</posx>
@@ -172,7 +171,6 @@
                 <width>52</width>
                 <height>52</height>
                 <texture colordiffuse="FFFFD700">rating-star-filled.png</texture>
-                <visible>false</visible>
             </control>
             <control type="image" id="305">
                 <posx>347</posx>
@@ -180,7 +178,6 @@
                 <width>52</width>
                 <height>52</height>
                 <texture colordiffuse="FFFFD700">rating-star-filled.png</texture>
-                <visible>false</visible>
             </control>
             <control type="image" id="306">
                 <posx>401</posx>
@@ -188,7 +185,6 @@
                 <width>52</width>
                 <height>52</height>
                 <texture colordiffuse="FFFFD700">rating-star-filled.png</texture>
-                <visible>false</visible>
             </control>
             <control type="image" id="307">
                 <posx>455</posx>
@@ -196,7 +192,6 @@
                 <width>52</width>
                 <height>52</height>
                 <texture colordiffuse="FFFFD700">rating-star-filled.png</texture>
-                <visible>false</visible>
             </control>
             <control type="image" id="308">
                 <posx>509</posx>
@@ -204,7 +199,6 @@
                 <width>52</width>
                 <height>52</height>
                 <texture colordiffuse="FFFFD700">rating-star-filled.png</texture>
-                <visible>false</visible>
             </control>
             <control type="image" id="309">
                 <posx>563</posx>
@@ -212,7 +206,6 @@
                 <width>52</width>
                 <height>52</height>
                 <texture colordiffuse="FFFFD700">rating-star-filled.png</texture>
-                <visible>false</visible>
             </control>
             <control type="image" id="310">
                 <posx>617</posx>
@@ -220,7 +213,6 @@
                 <width>52</width>
                 <height>52</height>
                 <texture colordiffuse="FFFFD700">rating-star-filled.png</texture>
-                <visible>false</visible>
             </control>
 
             <!-- =================================================================== -->

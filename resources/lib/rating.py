@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """
 SIMKL Scrobbler Rating Service
-Version: 7.4.4
-Last Modified: 2026-02-17
+Version: 7.4.8
+Last Modified: 2026-02-20
 
 PHASE 9: Advanced Features & Polish
 
@@ -46,7 +46,7 @@ from resources.lib.strings import (
 )
 
 # Module version
-__version__ = '7.4.7'
+__version__ = '7.4.8'
 
 # Log module initialization
 xbmc.log(f'[SIMKL Scrobbler] rating.py v{__version__} - Rating service module loading', level=xbmc.LOGINFO)
@@ -134,11 +134,16 @@ class RatingDialog(xbmcgui.WindowXMLDialog):
     def onInit(self):
         """Called when dialog is initialized - set up UI"""
         try:
+            # Hide all gold stars first - XML has no <visible> tags so they
+            # start visible. Python controls ALL star visibility.
+            for i in range(1, 11):
+                self.getControl(300 + i).setVisible(False)
+            
             # Set title label
             title_label = self.getControl(100)
             title_label.setLabel(getString(RATE_TITLE).format(self.media_title))
             
-            # Set initial description
+            # Set initial description and star state
             if self.current_rating:
                 desc_label = self.getControl(101)
                 rating_desc = get_rating_description(self.current_rating)
@@ -147,14 +152,14 @@ class RatingDialog(xbmcgui.WindowXMLDialog):
                     rating_desc
                 ))
                 
-                # Highlight current rating star
+                # Highlight current rating stars
                 self._highlight_stars(self.current_rating)
             else:
                 desc_label = self.getControl(101)
                 desc_label.setLabel(getString(CLICK_STAR))
                 
         except Exception as e:
-            utils.log("[rating v7.4.4] RatingDialog.onInit() Error initializing rating dialog: {}".format(str(e)), xbmc.LOGERROR)
+            utils.log("[rating v7.4.8] RatingDialog.onInit() Error initializing rating dialog: {}".format(str(e)), xbmc.LOGERROR)
     
     def onClick(self, controlId):
         """Handle button clicks"""
