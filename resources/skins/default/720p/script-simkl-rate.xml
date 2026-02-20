@@ -1,6 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<!-- SIMKL Scrobbler Rating Dialog v7.4.7
+     Base resolution: 720p (1280x720) - Kodi auto-scales to actual display
+     Star visual state managed entirely via Python setVisible() on image controls
+     Buttons are transparent overlays for click/focus detection only -->
 <window>
-    <defaultcontrol always="true">1000</defaultcontrol>
+    <defaultcontrol always="true">1</defaultcontrol>
     <coordinates>
         <s>1</s>
         <posx>0</posx>
@@ -8,286 +12,390 @@
     </coordinates>
 
     <controls>
-        <!-- Background overlay -->
-        <control type="group">
+        <!-- Full-screen semi-transparent background -->
+        <control type="image">
             <posx>0</posx>
             <posy>0</posy>
             <width>1280</width>
             <height>720</height>
-            
-            <!-- Semi-transparent background -->
+            <texture colordiffuse="C0000000">white.png</texture>
+        </control>
+
+        <!-- Dialog box: 800w x 320h, centered horizontally -->
+        <control type="group">
+            <posx>240</posx>
+            <posy>200</posy>
+            <width>800</width>
+            <height>320</height>
+
+            <!-- Dialog background -->
             <control type="image">
                 <posx>0</posx>
                 <posy>0</posy>
-                <width>1280</width>
-                <height>720</height>
-                <texture border="1" colordiffuse="C0000000">white.png</texture>
-            </control>
-
-            <!-- Dialog box -->
-            <control type="group">
-                <posx>240</posx>
-                <posy>200</posy>
                 <width>800</width>
                 <height>320</height>
+                <texture border="5" colordiffuse="FF1F1F1F">white.png</texture>
+            </control>
 
-                <!-- Dialog background -->
-                <control type="image">
-                    <posx>0</posx>
-                    <posy>0</posy>
-                    <width>800</width>
-                    <height>320</height>
-                    <texture border="5" colordiffuse="FF1F1F1F">white.png</texture>
-                </control>
+            <!-- Title label -->
+            <control type="label" id="100">
+                <posx>20</posx>
+                <posy>20</posy>
+                <width>760</width>
+                <height>40</height>
+                <align>center</align>
+                <aligny>center</aligny>
+                <font>font13_title</font>
+                <textcolor>FFFFFFFF</textcolor>
+            </control>
 
-                <!-- Title label -->
-                <control type="label" id="100">
-                    <posx>20</posx>
-                    <posy>20</posy>
-                    <width>760</width>
-                    <height>40</height>
-                    <align>center</align>
-                    <aligny>center</aligny>
-                    <font>font13_title</font>
-                    <textcolor>FFFFFFFF</textcolor>
-                </control>
+            <!-- Rating description label -->
+            <control type="label" id="101">
+                <posx>20</posx>
+                <posy>70</posy>
+                <width>760</width>
+                <height>30</height>
+                <align>center</align>
+                <aligny>center</aligny>
+                <font>font12</font>
+                <textcolor>FFC0C0C0</textcolor>
+            </control>
 
-                <!-- Rating description label -->
-                <control type="label" id="101">
-                    <posx>20</posx>
-                    <posy>70</posy>
-                    <width>760</width>
-                    <height>30</height>
-                    <align>center</align>
-                    <aligny>center</aligny>
-                    <font>font12</font>
-                    <textcolor>FFC0C0C0</textcolor>
-                </control>
+            <!-- =================================================================== -->
+            <!-- STAR IMAGES - Grey (empty) state, IDs 101-110 NOT USED, use 201-210 -->
+            <!-- 10 stars x 52px each + 2px gap = 538px total, centered in 800px      -->
+            <!-- Left offset: (800 - 538) / 2 = 131                                   -->
+            <!-- Each star: 52px wide + 2px gap = 54px pitch                           -->
+            <!-- =================================================================== -->
 
-                <!-- Star radiobuttons (horizontal layout) -->
-                <!-- Selected = gold star, Unselected = grey star -->
-                <!-- Using radiobutton so we can programmatically set selected state -->
-                <control type="grouplist" id="1000">
-                    <posx>100</posx>
-                    <posy>120</posy>
-                    <width>600</width>
-                    <height>60</height>
-                    <itemgap>0</itemgap>
-                    <orientation>horizontal</orientation>
-                    <align>center</align>
+            <!-- Grey (empty) star images - IDs 201-210 -->
+            <control type="image" id="201">
+                <posx>131</posx>
+                <posy>115</posy>
+                <width>52</width>
+                <height>52</height>
+                <texture colordiffuse="FF808080">rating-star-empty.png</texture>
+            </control>
+            <control type="image" id="202">
+                <posx>185</posx>
+                <posy>115</posy>
+                <width>52</width>
+                <height>52</height>
+                <texture colordiffuse="FF808080">rating-star-empty.png</texture>
+            </control>
+            <control type="image" id="203">
+                <posx>239</posx>
+                <posy>115</posy>
+                <width>52</width>
+                <height>52</height>
+                <texture colordiffuse="FF808080">rating-star-empty.png</texture>
+            </control>
+            <control type="image" id="204">
+                <posx>293</posx>
+                <posy>115</posy>
+                <width>52</width>
+                <height>52</height>
+                <texture colordiffuse="FF808080">rating-star-empty.png</texture>
+            </control>
+            <control type="image" id="205">
+                <posx>347</posx>
+                <posy>115</posy>
+                <width>52</width>
+                <height>52</height>
+                <texture colordiffuse="FF808080">rating-star-empty.png</texture>
+            </control>
+            <control type="image" id="206">
+                <posx>401</posx>
+                <posy>115</posy>
+                <width>52</width>
+                <height>52</height>
+                <texture colordiffuse="FF808080">rating-star-empty.png</texture>
+            </control>
+            <control type="image" id="207">
+                <posx>455</posx>
+                <posy>115</posy>
+                <width>52</width>
+                <height>52</height>
+                <texture colordiffuse="FF808080">rating-star-empty.png</texture>
+            </control>
+            <control type="image" id="208">
+                <posx>509</posx>
+                <posy>115</posy>
+                <width>52</width>
+                <height>52</height>
+                <texture colordiffuse="FF808080">rating-star-empty.png</texture>
+            </control>
+            <control type="image" id="209">
+                <posx>563</posx>
+                <posy>115</posy>
+                <width>52</width>
+                <height>52</height>
+                <texture colordiffuse="FF808080">rating-star-empty.png</texture>
+            </control>
+            <control type="image" id="210">
+                <posx>617</posx>
+                <posy>115</posy>
+                <width>52</width>
+                <height>52</height>
+                <texture colordiffuse="FF808080">rating-star-empty.png</texture>
+            </control>
 
+            <!-- Gold (filled) star images - IDs 301-310 -->
+            <!-- Same positions, layered on top. Python toggles visibility -->
+            <control type="image" id="301">
+                <posx>131</posx>
+                <posy>115</posy>
+                <width>52</width>
+                <height>52</height>
+                <texture colordiffuse="FFFFD700">rating-star-filled.png</texture>
+                <visible>false</visible>
+            </control>
+            <control type="image" id="302">
+                <posx>185</posx>
+                <posy>115</posy>
+                <width>52</width>
+                <height>52</height>
+                <texture colordiffuse="FFFFD700">rating-star-filled.png</texture>
+                <visible>false</visible>
+            </control>
+            <control type="image" id="303">
+                <posx>239</posx>
+                <posy>115</posy>
+                <width>52</width>
+                <height>52</height>
+                <texture colordiffuse="FFFFD700">rating-star-filled.png</texture>
+                <visible>false</visible>
+            </control>
+            <control type="image" id="304">
+                <posx>293</posx>
+                <posy>115</posy>
+                <width>52</width>
+                <height>52</height>
+                <texture colordiffuse="FFFFD700">rating-star-filled.png</texture>
+                <visible>false</visible>
+            </control>
+            <control type="image" id="305">
+                <posx>347</posx>
+                <posy>115</posy>
+                <width>52</width>
+                <height>52</height>
+                <texture colordiffuse="FFFFD700">rating-star-filled.png</texture>
+                <visible>false</visible>
+            </control>
+            <control type="image" id="306">
+                <posx>401</posx>
+                <posy>115</posy>
+                <width>52</width>
+                <height>52</height>
+                <texture colordiffuse="FFFFD700">rating-star-filled.png</texture>
+                <visible>false</visible>
+            </control>
+            <control type="image" id="307">
+                <posx>455</posx>
+                <posy>115</posy>
+                <width>52</width>
+                <height>52</height>
+                <texture colordiffuse="FFFFD700">rating-star-filled.png</texture>
+                <visible>false</visible>
+            </control>
+            <control type="image" id="308">
+                <posx>509</posx>
+                <posy>115</posy>
+                <width>52</width>
+                <height>52</height>
+                <texture colordiffuse="FFFFD700">rating-star-filled.png</texture>
+                <visible>false</visible>
+            </control>
+            <control type="image" id="309">
+                <posx>563</posx>
+                <posy>115</posy>
+                <width>52</width>
+                <height>52</height>
+                <texture colordiffuse="FFFFD700">rating-star-filled.png</texture>
+                <visible>false</visible>
+            </control>
+            <control type="image" id="310">
+                <posx>617</posx>
+                <posy>115</posy>
+                <width>52</width>
+                <height>52</height>
+                <texture colordiffuse="FFFFD700">rating-star-filled.png</texture>
+                <visible>false</visible>
+            </control>
 
-                    <!-- Star 1 -->
-                    <control type="radiobutton" id="1">
-                        <width>60</width>
-                        <height>60</height>
-                        <font>-</font>
-                        <textureradioofffocus colordiffuse="FF808080">rating-star-empty.png</textureradioofffocus>
-                        <textureradiooffnofocus colordiffuse="FF808080">rating-star-empty.png</textureradiooffnofocus>
-                        <textureradioonfocus colordiffuse="FFFFD700">rating-star-filled.png</textureradioonfocus>
-                        <textureradioonnofocus colordiffuse="FFFFD700">rating-star-filled.png</textureradioonnofocus>
-                        <texturefocus>-</texturefocus>
-                        <texturenofocus>-</texturenofocus>
-                        <onleft>9010</onleft>
-                        <onright>2</onright>
-                        <onup>1</onup>
-                        <ondown>9000</ondown>
-                    </control>
+            <!-- =================================================================== -->
+            <!-- TRANSPARENT BUTTON OVERLAYS for click/focus detection                 -->
+            <!-- Same positions/sizes as star images, no visible texture               -->
+            <!-- =================================================================== -->
+            <control type="button" id="1">
+                <posx>131</posx>
+                <posy>115</posy>
+                <width>54</width>
+                <height>52</height>
+                <texturefocus>-</texturefocus>
+                <texturenofocus>-</texturenofocus>
+                <font>-</font>
+                <onleft>9010</onleft>
+                <onright>2</onright>
+                <onup>1</onup>
+                <ondown>9000</ondown>
+            </control>
+            <control type="button" id="2">
+                <posx>185</posx>
+                <posy>115</posy>
+                <width>54</width>
+                <height>52</height>
+                <texturefocus>-</texturefocus>
+                <texturenofocus>-</texturenofocus>
+                <font>-</font>
+                <onleft>1</onleft>
+                <onright>3</onright>
+                <onup>2</onup>
+                <ondown>9000</ondown>
+            </control>
+            <control type="button" id="3">
+                <posx>239</posx>
+                <posy>115</posy>
+                <width>54</width>
+                <height>52</height>
+                <texturefocus>-</texturefocus>
+                <texturenofocus>-</texturenofocus>
+                <font>-</font>
+                <onleft>2</onleft>
+                <onright>4</onright>
+                <onup>3</onup>
+                <ondown>9000</ondown>
+            </control>
+            <control type="button" id="4">
+                <posx>293</posx>
+                <posy>115</posy>
+                <width>54</width>
+                <height>52</height>
+                <texturefocus>-</texturefocus>
+                <texturenofocus>-</texturenofocus>
+                <font>-</font>
+                <onleft>3</onleft>
+                <onright>5</onright>
+                <onup>4</onup>
+                <ondown>9000</ondown>
+            </control>
+            <control type="button" id="5">
+                <posx>347</posx>
+                <posy>115</posy>
+                <width>54</width>
+                <height>52</height>
+                <texturefocus>-</texturefocus>
+                <texturenofocus>-</texturenofocus>
+                <font>-</font>
+                <onleft>4</onleft>
+                <onright>6</onright>
+                <onup>5</onup>
+                <ondown>9000</ondown>
+            </control>
+            <control type="button" id="6">
+                <posx>401</posx>
+                <posy>115</posy>
+                <width>54</width>
+                <height>52</height>
+                <texturefocus>-</texturefocus>
+                <texturenofocus>-</texturenofocus>
+                <font>-</font>
+                <onleft>5</onleft>
+                <onright>7</onright>
+                <onup>6</onup>
+                <ondown>9000</ondown>
+            </control>
+            <control type="button" id="7">
+                <posx>455</posx>
+                <posy>115</posy>
+                <width>54</width>
+                <height>52</height>
+                <texturefocus>-</texturefocus>
+                <texturenofocus>-</texturenofocus>
+                <font>-</font>
+                <onleft>6</onleft>
+                <onright>8</onright>
+                <onup>7</onup>
+                <ondown>9000</ondown>
+            </control>
+            <control type="button" id="8">
+                <posx>509</posx>
+                <posy>115</posy>
+                <width>54</width>
+                <height>52</height>
+                <texturefocus>-</texturefocus>
+                <texturenofocus>-</texturenofocus>
+                <font>-</font>
+                <onleft>7</onleft>
+                <onright>9</onright>
+                <onup>8</onup>
+                <ondown>9000</ondown>
+            </control>
+            <control type="button" id="9">
+                <posx>563</posx>
+                <posy>115</posy>
+                <width>54</width>
+                <height>52</height>
+                <texturefocus>-</texturefocus>
+                <texturenofocus>-</texturenofocus>
+                <font>-</font>
+                <onleft>8</onleft>
+                <onright>10</onright>
+                <onup>9</onup>
+                <ondown>9000</ondown>
+            </control>
+            <control type="button" id="10">
+                <posx>617</posx>
+                <posy>115</posy>
+                <width>54</width>
+                <height>52</height>
+                <texturefocus>-</texturefocus>
+                <texturenofocus>-</texturenofocus>
+                <font>-</font>
+                <onleft>9</onleft>
+                <onright>9010</onright>
+                <onup>10</onup>
+                <ondown>9000</ondown>
+            </control>
 
-                    <!-- Star 2 -->
-                    <control type="radiobutton" id="2">
-                        <width>60</width>
-                        <height>60</height>
-                        <font>-</font>
-                        <textureradioofffocus colordiffuse="FF808080">rating-star-empty.png</textureradioofffocus>
-                        <textureradiooffnofocus colordiffuse="FF808080">rating-star-empty.png</textureradiooffnofocus>
-                        <textureradioonfocus colordiffuse="FFFFD700">rating-star-filled.png</textureradioonfocus>
-                        <textureradioonnofocus colordiffuse="FFFFD700">rating-star-filled.png</textureradioonnofocus>
-                        <texturefocus>-</texturefocus>
-                        <texturenofocus>-</texturenofocus>
-                        <onleft>1</onleft>
-                        <onright>3</onright>
-                        <onup>2</onup>
-                        <ondown>9000</ondown>
-                    </control>
+            <!-- Cancel button -->
+            <control type="button" id="9000">
+                <posx>150</posx>
+                <posy>240</posy>
+                <width>200</width>
+                <height>50</height>
+                <label>Cancel</label>
+                <font>font12</font>
+                <textcolor>FFFFFFFF</textcolor>
+                <focusedcolor>FFFFFFFF</focusedcolor>
+                <align>center</align>
+                <aligny>center</aligny>
+                <texturefocus colordiffuse="FF0E4B75" border="5">white.png</texturefocus>
+                <texturenofocus colordiffuse="FF2A2A2A" border="5">white.png</texturenofocus>
+                <onleft>9010</onleft>
+                <onright>9010</onright>
+                <onup>5</onup>
+                <ondown>9000</ondown>
+            </control>
 
-                    <!-- Star 3 -->
-                    <control type="radiobutton" id="3">
-                        <width>60</width>
-                        <height>60</height>
-                        <font>-</font>
-                        <textureradioofffocus colordiffuse="FF808080">rating-star-empty.png</textureradioofffocus>
-                        <textureradiooffnofocus colordiffuse="FF808080">rating-star-empty.png</textureradiooffnofocus>
-                        <textureradioonfocus colordiffuse="FFFFD700">rating-star-filled.png</textureradioonfocus>
-                        <textureradioonnofocus colordiffuse="FFFFD700">rating-star-filled.png</textureradioonnofocus>
-                        <texturefocus>-</texturefocus>
-                        <texturenofocus>-</texturenofocus>
-                        <onleft>2</onleft>
-                        <onright>4</onright>
-                        <onup>3</onup>
-                        <ondown>9000</ondown>
-                    </control>
-
-                    <!-- Star 4 -->
-                    <control type="radiobutton" id="4">
-                        <width>60</width>
-                        <height>60</height>
-                        <font>-</font>
-                        <textureradioofffocus colordiffuse="FF808080">rating-star-empty.png</textureradioofffocus>
-                        <textureradiooffnofocus colordiffuse="FF808080">rating-star-empty.png</textureradiooffnofocus>
-                        <textureradioonfocus colordiffuse="FFFFD700">rating-star-filled.png</textureradioonfocus>
-                        <textureradioonnofocus colordiffuse="FFFFD700">rating-star-filled.png</textureradioonnofocus>
-                        <texturefocus>-</texturefocus>
-                        <texturenofocus>-</texturenofocus>
-                        <onleft>3</onleft>
-                        <onright>5</onright>
-                        <onup>4</onup>
-                        <ondown>9000</ondown>
-                    </control>
-
-                    <!-- Star 5 -->
-                    <control type="radiobutton" id="5">
-                        <width>60</width>
-                        <height>60</height>
-                        <font>-</font>
-                        <textureradioofffocus colordiffuse="FF808080">rating-star-empty.png</textureradioofffocus>
-                        <textureradiooffnofocus colordiffuse="FF808080">rating-star-empty.png</textureradiooffnofocus>
-                        <textureradioonfocus colordiffuse="FFFFD700">rating-star-filled.png</textureradioonfocus>
-                        <textureradioonnofocus colordiffuse="FFFFD700">rating-star-filled.png</textureradioonnofocus>
-                        <texturefocus>-</texturefocus>
-                        <texturenofocus>-</texturenofocus>
-                        <onleft>4</onleft>
-                        <onright>6</onright>
-                        <onup>5</onup>
-                        <ondown>9000</ondown>
-                    </control>
-
-
-                    <!-- Star 6 -->
-                    <control type="radiobutton" id="6">
-                        <width>60</width>
-                        <height>60</height>
-                        <font>-</font>
-                        <textureradioofffocus colordiffuse="FF808080">rating-star-empty.png</textureradioofffocus>
-                        <textureradiooffnofocus colordiffuse="FF808080">rating-star-empty.png</textureradiooffnofocus>
-                        <textureradioonfocus colordiffuse="FFFFD700">rating-star-filled.png</textureradioonfocus>
-                        <textureradioonnofocus colordiffuse="FFFFD700">rating-star-filled.png</textureradioonnofocus>
-                        <texturefocus>-</texturefocus>
-                        <texturenofocus>-</texturenofocus>
-                        <onleft>5</onleft>
-                        <onright>7</onright>
-                        <onup>6</onup>
-                        <ondown>9000</ondown>
-                    </control>
-
-                    <!-- Star 7 -->
-                    <control type="radiobutton" id="7">
-                        <width>60</width>
-                        <height>60</height>
-                        <font>-</font>
-                        <textureradioofffocus colordiffuse="FF808080">rating-star-empty.png</textureradioofffocus>
-                        <textureradiooffnofocus colordiffuse="FF808080">rating-star-empty.png</textureradiooffnofocus>
-                        <textureradioonfocus colordiffuse="FFFFD700">rating-star-filled.png</textureradioonfocus>
-                        <textureradioonnofocus colordiffuse="FFFFD700">rating-star-filled.png</textureradioonnofocus>
-                        <texturefocus>-</texturefocus>
-                        <texturenofocus>-</texturenofocus>
-                        <onleft>6</onleft>
-                        <onright>8</onright>
-                        <onup>7</onup>
-                        <ondown>9000</ondown>
-                    </control>
-
-                    <!-- Star 8 -->
-                    <control type="radiobutton" id="8">
-                        <width>60</width>
-                        <height>60</height>
-                        <font>-</font>
-                        <textureradioofffocus colordiffuse="FF808080">rating-star-empty.png</textureradioofffocus>
-                        <textureradiooffnofocus colordiffuse="FF808080">rating-star-empty.png</textureradiooffnofocus>
-                        <textureradioonfocus colordiffuse="FFFFD700">rating-star-filled.png</textureradioonfocus>
-                        <textureradioonnofocus colordiffuse="FFFFD700">rating-star-filled.png</textureradioonnofocus>
-                        <texturefocus>-</texturefocus>
-                        <texturenofocus>-</texturenofocus>
-                        <onleft>7</onleft>
-                        <onright>9</onright>
-                        <onup>8</onup>
-                        <ondown>9000</ondown>
-                    </control>
-
-                    <!-- Star 9 -->
-                    <control type="radiobutton" id="9">
-                        <width>60</width>
-                        <height>60</height>
-                        <font>-</font>
-                        <textureradioofffocus colordiffuse="FF808080">rating-star-empty.png</textureradioofffocus>
-                        <textureradiooffnofocus colordiffuse="FF808080">rating-star-empty.png</textureradiooffnofocus>
-                        <textureradioonfocus colordiffuse="FFFFD700">rating-star-filled.png</textureradioonfocus>
-                        <textureradioonnofocus colordiffuse="FFFFD700">rating-star-filled.png</textureradioonnofocus>
-                        <texturefocus>-</texturefocus>
-                        <texturenofocus>-</texturenofocus>
-                        <onleft>8</onleft>
-                        <onright>10</onright>
-                        <onup>9</onup>
-                        <ondown>9000</ondown>
-                    </control>
-
-                    <!-- Star 10 -->
-                    <control type="radiobutton" id="10">
-                        <width>60</width>
-                        <height>60</height>
-                        <font>-</font>
-                        <textureradioofffocus colordiffuse="FF808080">rating-star-empty.png</textureradioofffocus>
-                        <textureradiooffnofocus colordiffuse="FF808080">rating-star-empty.png</textureradiooffnofocus>
-                        <textureradioonfocus colordiffuse="FFFFD700">rating-star-filled.png</textureradioonfocus>
-                        <textureradioonnofocus colordiffuse="FFFFD700">rating-star-filled.png</textureradioonnofocus>
-                        <texturefocus>-</texturefocus>
-                        <texturenofocus>-</texturenofocus>
-                        <onleft>9</onleft>
-                        <onright>9010</onright>
-                        <onup>10</onup>
-                        <ondown>9000</ondown>
-                    </control>
-                </control>
-
-                <!-- Cancel button -->
-                <control type="button" id="9000">
-                    <posx>150</posx>
-                    <posy>240</posy>
-                    <width>200</width>
-                    <height>50</height>
-                    <label>Cancel</label>
-                    <font>font12</font>
-                    <textcolor>FFFFFFFF</textcolor>
-                    <focusedcolor>FFFFFFFF</focusedcolor>
-                    <align>center</align>
-                    <aligny>center</aligny>
-                    <texturefocus colordiffuse="FF0E4B75" border="5">white.png</texturefocus>
-                    <texturenofocus colordiffuse="FF2A2A2A" border="5">white.png</texturenofocus>
-                    <onleft>9010</onleft>
-                    <onright>9010</onright>
-                    <onup>5</onup>
-                    <ondown>9000</ondown>
-                </control>
-
-                <!-- Submit button -->
-                <control type="button" id="9010">
-                    <posx>450</posx>
-                    <posy>240</posy>
-                    <width>200</width>
-                    <height>50</height>
-                    <label>Rate</label>
-                    <font>font12</font>
-                    <textcolor>FFFFFFFF</textcolor>
-                    <focusedcolor>FFFFFFFF</focusedcolor>
-                    <align>center</align>
-                    <aligny>center</aligny>
-                    <texturefocus colordiffuse="FF0E4B75" border="5">white.png</texturefocus>
-                    <texturenofocus colordiffuse="FF2A2A2A" border="5">white.png</texturenofocus>
-                    <onleft>9000</onleft>
-                    <onright>9000</onright>
-                    <onup>5</onup>
-                    <ondown>9010</ondown>
-                </control>
+            <!-- Submit button -->
+            <control type="button" id="9010">
+                <posx>450</posx>
+                <posy>240</posy>
+                <width>200</width>
+                <height>50</height>
+                <label>Rate</label>
+                <font>font12</font>
+                <textcolor>FFFFFFFF</textcolor>
+                <focusedcolor>FFFFFFFF</focusedcolor>
+                <align>center</align>
+                <aligny>center</aligny>
+                <texturefocus colordiffuse="FF0E4B75" border="5">white.png</texturefocus>
+                <texturenofocus colordiffuse="FF2A2A2A" border="5">white.png</texturenofocus>
+                <onleft>9000</onleft>
+                <onright>9000</onright>
+                <onup>6</onup>
+                <ondown>9010</ondown>
             </control>
         </control>
     </controls>

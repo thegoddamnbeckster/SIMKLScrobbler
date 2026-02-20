@@ -46,7 +46,7 @@ from resources.lib.strings import (
 )
 
 # Module version
-__version__ = '7.4.6'
+__version__ = '7.4.7'
 
 # Log module initialization
 xbmc.log(f'[SIMKL Scrobbler] rating.py v{__version__} - Rating service module loading', level=xbmc.LOGINFO)
@@ -184,7 +184,11 @@ class RatingDialog(xbmcgui.WindowXMLDialog):
             self.close()
     
     def onFocus(self, controlId):
-        """Handle focus changes - preview stars and update description as user hovers"""
+        """Handle focus changes - preview stars and update description as user hovers.
+        
+        Shows gold stars up to hovered position as a preview.
+        Does NOT change selected_rating - that only happens on click.
+        """
         if 1 <= controlId <= 10:
             self._update_description(controlId)
             self._highlight_stars(controlId)
@@ -196,19 +200,22 @@ class RatingDialog(xbmcgui.WindowXMLDialog):
             description = get_rating_description(rating)
             desc_label.setLabel(getString(RATING_DESC_FORMAT).format(rating, description))
         except Exception as e:
-            utils.log("[rating v7.4.4] RatingDialog._update_description() Error updating description: {}".format(str(e)), xbmc.LOGERROR)
+            utils.log("[rating v7.4.7] RatingDialog._update_description() Error: {}".format(str(e)), xbmc.LOGERROR)
     
     def _highlight_stars(self, rating):
-        """Visual feedback - highlight stars 1 through rating as gold, rest as grey.
+        """Set star visuals - gold for 1..rating, grey for (rating+1)..10.
         
-        Uses radiobutton setSelected() - selected = gold star, unselected = grey star.
+        Uses paired image controls:
+        - IDs 301-310: gold star images (shown when active)
+        - IDs 201-210: grey star images (always visible as background)
+        Gold images are layered on top of grey. We toggle gold visibility.
         """
         try:
             for i in range(1, 11):
-                star = self.getControl(i)
-                star.setSelected(i <= rating)
+                gold_star = self.getControl(300 + i)
+                gold_star.setVisible(i <= rating)
         except Exception as e:
-            utils.log("[rating v7.4.5] RatingDialog._highlight_stars() Error highlighting stars: {}".format(str(e)), xbmc.LOGERROR)
+            utils.log("[rating v7.4.7] RatingDialog._highlight_stars() Error: {}".format(str(e)), xbmc.LOGERROR)
 
 
 class RatingService:
