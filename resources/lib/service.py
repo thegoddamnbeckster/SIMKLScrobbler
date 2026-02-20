@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """
 SIMKL Service - The Main Event Loop
-Version: 7.3.4
-Last Modified: 2026-02-14
+Version: 7.4.9
+Last Modified: 2026-02-20
 
 This is the background service that makes scrobbling actually work.
 Monitors playback events and sends data to SIMKL in real-time.
@@ -45,7 +45,7 @@ from resources.lib.strings import (
 )
 
 # Module version
-__version__ = '7.4.4'
+__version__ = '7.4.9'
 
 # Log module initialization
 xbmc.log(f'[SIMKL Scrobbler] service.py v{__version__} - Main service module loading', level=xbmc.LOGINFO)
@@ -337,8 +337,12 @@ class SimklService:
         """
         sync_manager = None
         try:
-            # Mark sync as in progress
+            # Mark sync as in progress (instance var + window property for cross-process visibility)
             self._sync_in_progress = True
+            xbmcgui.Window(10000).setProperty('simkl.sync_in_progress', 'true')
+            
+            # Clear any stale cancel request
+            xbmcgui.Window(10000).clearProperty('simkl.sync_cancel')
             
             log(f"[service v7.4.4] SimklService._run_sync_thread() Running full bidirectional sync in background...")
             
@@ -351,11 +355,21 @@ class SimklService:
             sync_manager = SyncManager(show_progress=False, silent=True)
             
             # Run bidirectional sync and capture stats
+            # Check if manual sync has requested cancellation
+            if xbmcgui.Window(10000).getProperty('simkl.sync_cancel') == 'true':
+                log("[service v7.4.4] SimklService._run_sync_thread() Cancel requested by manual sync - aborting background sync")
+                return
+            
             # Sync TO SIMKL (export Kodi watched items)
             sync_manager.sync_to_simkl(
                 sync_movies=get_setting_bool('sync_movies_from_kodi'),
                 sync_episodes=get_setting_bool('sync_episodes_from_kodi')
             )
+            
+            # Check cancel again between export and import
+            if xbmcgui.Window(10000).getProperty('simkl.sync_cancel') == 'true':
+                log("[service v7.4.4] SimklService._run_sync_thread() Cancel requested by manual sync - aborting after export")
+                return
             
             # Sync FROM SIMKL (import SIMKL watched items)
             sync_manager.sync_from_simkl(
@@ -408,6 +422,8 @@ class SimklService:
                 log(f"[service v7.4.4] SimklService._run_sync_thread() Sync manager closed")
             self._sync_in_progress = False
             self._sync_thread = None
+            xbmcgui.Window(10000).clearProperty('simkl.sync_in_progress')
+            xbmcgui.Window(10000).clearProperty('simkl.sync_cancel')
             log(f"[service v7.4.4] SimklService._run_sync_thread() Sync thread finished")
     
     def run(self):

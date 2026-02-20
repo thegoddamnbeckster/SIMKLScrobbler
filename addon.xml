@@ -1,10 +1,18 @@
 ﻿<?xml version="1.0" encoding="UTF-8"?>
 <!--
 SIMKL Scrobbler for Kodi
-Version: 7.4.8
+Version: 7.4.9
 Last Modified: 2026-02-20
 
 CHANGELOG:
+7.4.9 - Fix manual sync crash + add sync preemption
+        - FIXED: sync_to_simkl() returns dict, not tuple (caused unpack crash)
+        - Manual sync now preempts background sync via window property signaling
+        - Uses xbmcgui.Window(10000) properties for cross-process communication
+        - Background sync checks simkl.sync_cancel before each phase and aborts
+        - Manual sync waits up to 5s for background to finish, then proceeds
+        - Added proper finally cleanup (sync_manager.close + property clearing)
+        - Added full traceback logging on manual sync failure
 7.4.8 - Fix addon click behavior + rating star visibility
         - Clicking addon in Programs now triggers manual sync (like Trakt)
         - Previously opened settings; now runs bidirectional sync with progress
@@ -105,7 +113,7 @@ CHANGELOG:
 -->
 <addon id="script.simkl.scrobbler" 
        name="SIMKL Scrobbler" 
-       version="7.4.8" 
+       version="7.4.9" 
        provider-name="Claude.ai with assistance from Michael Beck">
     
     <requires>

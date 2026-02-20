@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 SIMKL Scrobbler - Script Entry Point
-Version: 7.4.8
+Version: 7.4.9
 Last Modified: 2026-02-20
 
 This file handles script calls from settings buttons and normal addon launches.
@@ -17,7 +17,7 @@ from resources.lib.auth import SimklAuth
 from resources.lib.utils import log, log_error
 
 # Version constant
-VERSION = "7.4.8"
+VERSION = "7.4.9"
 
 # Get addon instance
 addon = xbmcaddon.Addon()
@@ -502,6 +502,11 @@ def handle_manual_sync():
     Handle manual sync triggered by clicking the addon in Programs.
     Runs a full bidirectional sync with a progress dialog.
     This mimics what Trakt does when you click their addon.
+    
+    If a background sync is already running (from service.py), this will
+    signal it to cancel and wait for it to finish before proceeding.
+    Uses Kodi window properties for cross-process communication since
+    service and scripts run in separate Python interpreters.
     """
     log(f"[default.py v{VERSION}] ========== handle_manual_sync() START ==========")
     
@@ -513,6 +518,27 @@ def handle_manual_sync():
         addon.openSettings()
         return
     
+    import time
+    home_window = xbmcgui.Window(10000)
+    
+    # Check if a background sync is already running
+    if home_window.getProperty('simkl.sync_in_progress') == 'true':
+        log(f"[default.py v{VERSION}] Background sync in progress - requesting cancellation")
+        home_window.setProperty('simkl.sync_cancel', 'true')
+        
+        # Wait up to 5 seconds for background sync to finish
+        for i in range(25):
+            if home_window.getProperty('simkl.sync_in_progress') != 'true':
+                log(f"[default.py v{VERSION}] Background sync finished after {(i + 1) * 0.2:.1f}s")
+                break
+            xbmc.sleep(200)
+        else:
+            log(f"[default.py v{VERSION}] Background sync did not finish in 5s - proceeding anyway")
+    
+    # Mark manual sync as in progress
+    home_window.setProperty('simkl.sync_in_progress', 'true')
+    home_window.clearProperty('simkl.sync_cancel')
+    
     # Show notification that sync is starting
     xbmcgui.Dialog().notification(
         "SIMKL",
@@ -521,24 +547,25 @@ def handle_manual_sync():
         3000
     )
     
+    sync_manager = None
     try:
         from resources.lib.sync import SyncManager
-        from resources.lib.api import SimklAPI
         
-        api = SimklAPI()
         sync_manager = SyncManager(show_progress=True, silent=False)
         
         log(f"[default.py v{VERSION}] Running full bidirectional sync...")
         
-        # Export to SIMKL
-        export_movies, export_episodes, export_errors = sync_manager.sync_to_simkl()
+        # Export to SIMKL (returns self.stats dict)
+        sync_manager.sync_to_simkl()
         
-        # Import from SIMKL
-        import_movies, import_episodes, import_errors = sync_manager.sync_from_simkl()
+        # Import from SIMKL (returns self.stats dict, same object)
+        sync_manager.sync_from_simkl()
         
-        total_exported = export_movies + export_episodes
-        total_imported = import_movies + import_episodes
-        total_errors = export_errors + import_errors
+        # Read final stats from the manager
+        stats = sync_manager.stats
+        total_exported = stats['movies_exported'] + stats['episodes_exported']
+        total_imported = stats['movies_imported'] + stats['episodes_imported']
+        total_errors = stats['errors']
         
         # Show completion notification
         if total_errors > 0:
@@ -555,20 +582,24 @@ def handle_manual_sync():
         log(f"[default.py v{VERSION}] Manual sync complete: exported={total_exported}, imported={total_imported}, errors={total_errors}")
         
         # Save last sync time
-        import time
         addon.setSetting('last_sync_time', str(time.time()))
-        
-        # Clean up
-        sync_manager.close()
         
     except Exception as e:
         log_error(f"[default.py v{VERSION}] Manual sync failed: {e}")
+        import traceback
+        log_error(f"[default.py v{VERSION}] Traceback: {traceback.format_exc()}")
         xbmcgui.Dialog().notification(
             "SIMKL",
             "Sync failed - check log for details",
             xbmcgui.NOTIFICATION_ERROR,
             5000
         )
+    finally:
+        # Always clean up
+        if sync_manager:
+            sync_manager.close()
+        home_window.clearProperty('simkl.sync_in_progress')
+        home_window.clearProperty('simkl.sync_cancel')
     
     log(f"[default.py v{VERSION}] ========== handle_manual_sync() END ==========")
 
