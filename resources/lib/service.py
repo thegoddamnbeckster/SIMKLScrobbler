@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 SIMKL Service - The Main Event Loop
-Version: 7.4.9
+Version: 7.5.0
 Last Modified: 2026-02-20
 
 This is the background service that makes scrobbling actually work.
@@ -45,7 +45,7 @@ from resources.lib.strings import (
 )
 
 # Module version
-__version__ = '7.4.9'
+__version__ = '7.5.0'
 
 # Log module initialization
 xbmc.log(f'[SIMKL Scrobbler] service.py v{__version__} - Main service module loading', level=xbmc.LOGINFO)
@@ -299,6 +299,25 @@ class SimklService:
         """
         show_notifications = False
         try:
+            # Check if any sync (manual or background) is already in progress
+            # Uses window property for cross-process visibility (manual sync in scripts sets this too)
+            if xbmcgui.Window(10000).getProperty('simkl.sync_in_progress') == 'true':
+                log("[service v7.4.9] SimklService._trigger_library_sync() Sync already in progress (window property) - skipping")
+                return
+            
+            # Check if a sync completed very recently (within 30s) to avoid redundant syncs
+            # This prevents onScanFinished from re-syncing right after startup/manual sync
+            import time
+            last_completed = xbmcgui.Window(10000).getProperty('simkl.sync_completed_at')
+            if last_completed:
+                try:
+                    elapsed = time.time() - float(last_completed)
+                    if elapsed < 30:
+                        log(f"[service v7.4.9] SimklService._trigger_library_sync() Sync completed {elapsed:.1f}s ago - skipping redundant sync")
+                        return
+                except (ValueError, TypeError):
+                    pass
+            
             # Check if notifications are enabled
             show_notifications = get_setting_bool('show_library_sync_notifications')
             
@@ -424,6 +443,8 @@ class SimklService:
             self._sync_thread = None
             xbmcgui.Window(10000).clearProperty('simkl.sync_in_progress')
             xbmcgui.Window(10000).clearProperty('simkl.sync_cancel')
+            import time
+            xbmcgui.Window(10000).setProperty('simkl.sync_completed_at', str(time.time()))
             log(f"[service v7.4.4] SimklService._run_sync_thread() Sync thread finished")
     
     def run(self):
@@ -502,11 +523,14 @@ class SimklService:
         self._running = False
         
         # Wait for sync thread to finish (max 3 seconds) so it can clean up
-        if self._sync_thread and self._sync_thread.is_alive():
-            log(f"[service v7.4.4] SimklService.run() Waiting for sync thread to finish...")
-            self._sync_thread.join(timeout=3)
-            if self._sync_thread.is_alive():
-                log_warning(f"[service v7.4.4] SimklService.run() Sync thread did not finish in time")
+        # Capture reference locally to avoid race condition where _run_sync_thread's
+        # finally block sets self._sync_thread = None between join() and is_alive()
+        sync_thread_ref = self._sync_thread
+        if sync_thread_ref and sync_thread_ref.is_alive():
+            log(f"[service v{__version__}] SimklService.run() Waiting for sync thread to finish...")
+            sync_thread_ref.join(timeout=3)
+            if sync_thread_ref.is_alive():
+                log_warning(f"[service v{__version__}] SimklService.run() Sync thread did not finish in time")
         
         # Close API session to free socket connections (prevents file locks on uninstall)
         if hasattr(self, 'scrobbler') and self.scrobbler and hasattr(self.scrobbler, 'api'):
@@ -797,12 +821,12 @@ def main():
     """
     addon = xbmcaddon.Addon('script.simkl.scrobbler')
     
-    log("[service v7.4.4] SimklMonitor.main() =" * 50)
+    log("[service v7.4.4] SimklMonitor.main() " + "=" * 50)
     log(f"[service v7.4.4] SimklMonitor.main() SIMKL Scrobbler Service v{__version__} Starting")
     log(f"[service v7.4.4] SimklMonitor.main() Addon ID: {addon.getAddonInfo('id')}")
     log(f"[service v7.4.4] SimklMonitor.main() Addon Version: {addon.getAddonInfo('version')}")
     log(f"[service v7.4.4] SimklMonitor.main() Addon Path: {addon.getAddonInfo('path')}")
-    log("[service v7.4.4] SimklMonitor.main() =" * 50)
+    log("[service v7.4.4] SimklMonitor.main() " + "=" * 50)
     
     # Log exclusion settings summary
     log(get_exclusion_summary())
@@ -810,9 +834,9 @@ def main():
     service = SimklService()
     service.run()
     
-    log("[service v7.4.4] SimklMonitor.main() =" * 50)
+    log("[service v7.4.4] SimklMonitor.main() " + "=" * 50)
     log("[service v7.4.4] SimklMonitor.main() SIMKL Scrobbler Service Stopped")
-    log("[service v7.4.4] SimklMonitor.main() =" * 50)
+    log("[service v7.4.4] SimklMonitor.main() " + "=" * 50)
 
 
 if __name__ == "__main__":

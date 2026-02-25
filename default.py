@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """
 SIMKL Scrobbler - Script Entry Point
-Version: 7.4.9
-Last Modified: 2026-02-20
+Version: 7.5.2
+Last Modified: 2026-02-25
 
 This file handles script calls from settings buttons and normal addon launches.
 Professional code - Project 4 standards
@@ -17,7 +17,7 @@ from resources.lib.auth import SimklAuth
 from resources.lib.utils import log, log_error
 
 # Version constant
-VERSION = "7.4.9"
+VERSION = "7.5.2"
 
 # Get addon instance
 addon = xbmcaddon.Addon()
@@ -551,7 +551,7 @@ def handle_manual_sync():
     try:
         from resources.lib.sync import SyncManager
         
-        sync_manager = SyncManager(show_progress=True, silent=False)
+        sync_manager = SyncManager(show_progress=True, silent=True, force_full_sync=True)
         
         log(f"[default.py v{VERSION}] Running full bidirectional sync...")
         
@@ -563,23 +563,34 @@ def handle_manual_sync():
         
         # Read final stats from the manager
         stats = sync_manager.stats
-        total_exported = stats['movies_exported'] + stats['episodes_exported']
-        total_imported = stats['movies_imported'] + stats['episodes_imported']
-        total_errors = stats['errors']
         
-        # Show completion notification
-        if total_errors > 0:
-            msg = f"Sync complete: {total_exported} exported, {total_imported} imported, {total_errors} errors"
-            icon = xbmcgui.NOTIFICATION_WARNING
-        elif total_exported + total_imported > 0:
-            msg = f"Sync complete: {total_exported} exported, {total_imported} imported"
-            icon = xbmcgui.NOTIFICATION_INFO
-        else:
-            msg = "Library is up to date with SIMKL"
-            icon = xbmcgui.NOTIFICATION_INFO
+        # Build comprehensive summary
+        lines = []
+        lines.append("[B]Kodi to SIMKL (Export)[/B]")
+        lines.append(f"  Movies:   {stats['movies_exported']}")
+        lines.append(f"  Episodes: {stats['episodes_exported']} ({stats['shows_exported']} shows)")
+        lines.append(f"  Ratings:  {stats['ratings_exported']}")
+        lines.append("")
+        lines.append("[B]SIMKL to Kodi (Import)[/B]")
+        lines.append(f"  Movies:   {stats['movies_imported']}")
+        lines.append(f"  Episodes: {stats['episodes_imported']} ({stats['shows_imported']} shows)")
+        lines.append(f"  Ratings:  {stats['ratings_imported']}")
         
-        xbmcgui.Dialog().notification("SIMKL", msg, icon, 5000)
-        log(f"[default.py v{VERSION}] Manual sync complete: exported={total_exported}, imported={total_imported}, errors={total_errors}")
+        if stats['movies_unmarked'] > 0 or stats['episodes_unmarked'] > 0:
+            lines.append("")
+            lines.append("[B]Unmarked (not on SIMKL)[/B]")
+            if stats['movies_unmarked'] > 0:
+                lines.append(f"  Movies:   {stats['movies_unmarked']}")
+            if stats['episodes_unmarked'] > 0:
+                lines.append(f"  Episodes: {stats['episodes_unmarked']}")
+        
+        summary = "[CR]".join(lines)
+        
+        log(f"[default.py v{VERSION}] Manual sync complete - showing summary dialog")
+        log(f"[default.py v{VERSION}] Stats: {stats}")
+        
+        # Show summary dialog with OK button - stays until user dismisses
+        xbmcgui.Dialog().ok("SIMKL Sync Complete", summary)
         
         # Save last sync time
         addon.setSetting('last_sync_time', str(time.time()))
@@ -600,6 +611,7 @@ def handle_manual_sync():
             sync_manager.close()
         home_window.clearProperty('simkl.sync_in_progress')
         home_window.clearProperty('simkl.sync_cancel')
+        home_window.setProperty('simkl.sync_completed_at', str(time.time()))
     
     log(f"[default.py v{VERSION}] ========== handle_manual_sync() END ==========")
 

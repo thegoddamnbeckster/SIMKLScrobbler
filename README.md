@@ -4,7 +4,7 @@ Automatically track your Kodi watching activity to your [SIMKL](https://simkl.co
 
 This addon aims to provide the same quality of experience that the popular Trakt addon offers, but for SIMKL users.
 
-**Current Version:** 7.4.0
+**Current Version:** 7.5.2
 
 ## Features
 
@@ -17,10 +17,12 @@ This addon aims to provide the same quality of experience that the popular Trakt
 - Periodic progress updates every 15 minutes during long playback
 
 ### Bidirectional Library Sync
-- **Export to SIMKL:** Send your Kodi watched history to SIMKL
-- **Import from SIMKL:** Mark items as watched in Kodi based on your SIMKL history
+- **Export to SIMKL:** Send your Kodi watched history and ratings to SIMKL
+- **Import from SIMKL:** Mark items as watched in Kodi and import ratings based on your SIMKL history
+- **Bidirectional rating sync:** Kodi userratings (1-10) sync to and from SIMKL ratings, with delta detection to skip unchanged items
 - Sync triggers: on startup, on library update, or on a scheduled interval (1h, 6h, 12h, 24h)
 - Delta sync detects changes since last sync to minimize API calls
+- Manual sync shows a comprehensive summary dialog with export/import/unmark counts
 - Optional dangerous mode to unmark items not found on SIMKL
 - Per-type toggles for movies and TV shows in both directions
 
@@ -28,6 +30,7 @@ This addon aims to provide the same quality of experience that the popular Trakt
 - 1-10 star rating dialog after watching movies
 - Rating descriptions from "Train Wreck" (1) to "Legendary" (10)
 - Displays your current SIMKL rating if the item was previously rated
+- Toggle a selected star to deselect and remove your rating from SIMKL
 - Ratings submitted via the SIMKL `/sync/ratings` endpoint
 - Episode rating support is coded but disabled until SIMKL adds API support
 
@@ -128,7 +131,7 @@ The background service uses a dispatch queue pattern: `SimklPlayer` detects play
 - Authentication uses SIMKL's PIN-based OAuth flow (`/oauth/pin`)
 - Scrobbling uses the `/scrobble/start`, `/scrobble/pause`, `/scrobble/stop` endpoints
 - Watch history is managed via `/sync/history`
-- Ratings use `/sync/ratings`
+- Ratings use `/sync/ratings` and `/sync/ratings/remove`
 - SIMKL does not currently support rating individual episodes (only movies and shows)
 - SIMKL does not store progress percentages for completed items (only for items under 80%)
 

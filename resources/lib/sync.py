@@ -72,13 +72,14 @@ class SyncManager:
     your Kodi library and SIMKL account are saying the same things.
     """
     
-    def __init__(self, show_progress=False, silent=False):
+    def __init__(self, show_progress=False, silent=False, force_full_sync=False):
         """
         Initialize the sync manager.
         
         Args:
             show_progress (bool): Show progress dialog during sync
             silent (bool): Suppress notifications (for background sync)
+            force_full_sync (bool): Skip delta detection, sync ALL watched items
         """
         # Create API with fresh token read to avoid stale cache on background threads
         import xbmcaddon
@@ -99,6 +100,7 @@ class SyncManager:
         
         self.show_progress = show_progress
         self.silent = silent
+        self.force_full_sync = force_full_sync
         self.progress_dialog = None
         self.cancelled = False
         
@@ -106,8 +108,14 @@ class SyncManager:
         self.stats = {
             'movies_exported': 0,
             'episodes_exported': 0,
+            'shows_exported': 0,
             'movies_imported': 0,
             'episodes_imported': 0,
+            'shows_imported': 0,
+            'movies_unmarked': 0,
+            'episodes_unmarked': 0,
+            'ratings_exported': 0,
+            'ratings_imported': 0,
             'errors': 0
         }
     
@@ -356,7 +364,8 @@ class SyncManager:
                 "playcount",
                 "lastplayed",
                 "file",
-                "runtime"
+                "runtime",
+                "userrating"
             ]
         })
         
@@ -389,7 +398,8 @@ class SyncManager:
                 "lastplayed",
                 "file",
                 "runtime",
-                "tvshowid"
+                "tvshowid",
+                "userrating"
             ]
         })
         
@@ -416,7 +426,8 @@ class SyncManager:
                 "title",
                 "year",
                 "imdbnumber",
-                "uniqueid"
+                "uniqueid",
+                "userrating"
             ]
         })
         
@@ -500,9 +511,13 @@ class SyncManager:
             log("[sync v7.4.4] SyncManager.export_movies_to_simkl() No movies to export")
             return 0
         
-        # Load last sync state and find changes
-        last_state = self._load_sync_state('movies')
-        changed_movies = self._find_changed_movies(kodi_movies, last_state)
+        # Load last sync state and find changes (or use all if forced full sync)
+        if self.force_full_sync:
+            log("[sync v7.4.4] SyncManager.export_movies_to_simkl() FULL SYNC forced - skipping delta detection")
+            changed_movies = kodi_movies
+        else:
+            last_state = self._load_sync_state('movies')
+            changed_movies = self._find_changed_movies(kodi_movies, last_state)
         
         # Filter to watched movies only
         watched_movies = [m for m in changed_movies if m.get("playcount", 0) > 0]
@@ -609,9 +624,13 @@ class SyncManager:
             log("[sync v7.4.4] SyncManager.export_episodes_to_simkl() No episodes to export")
             return 0
         
-        # Load last sync state and find changes
-        last_state = self._load_sync_state('episodes')
-        changed_episodes = self._find_changed_episodes(kodi_episodes, last_state)
+        # Load last sync state and find changes (or use all if forced full sync)
+        if self.force_full_sync:
+            log("[sync v7.4.4] SyncManager.export_episodes_to_simkl() FULL SYNC forced - skipping delta detection")
+            changed_episodes = kodi_episodes
+        else:
+            last_state = self._load_sync_state('episodes')
+            changed_episodes = self._find_changed_episodes(kodi_episodes, last_state)
         
         # Filter to watched episodes
         watched_episodes = [e for e in changed_episodes if e.get("playcount", 0) > 0]
@@ -706,6 +725,7 @@ class SyncManager:
             self.stats['errors'] += 1
         
         self.stats['episodes_exported'] = total_sent
+        self.stats['shows_exported'] = len(shows_data)
         
         # Save current sync state after successful export
         current_state = self._build_episode_state(kodi_episodes)
@@ -771,9 +791,19 @@ class SyncManager:
                 
                 self.export_episodes_to_simkl()
             
+            # Export ratings
+            if self.show_progress:
+                self.progress_dialog.update(80, "Exporting ratings to SIMKL...")
+                if self.progress_dialog.iscanceled():
+                    self.cancelled = True
+                    self._notify("SIMKL Sync", "Sync cancelled")
+                    return self.stats
+            
+            self.export_ratings_to_simkl()
+            
             # Done!
             if self.show_progress:
-                self.progress_dialog.update(100, "Sync complete!")
+                self.progress_dialog.update(100, "Export complete!")
             
         except Exception as e:
             log_error(f"[sync v7.4.4] SyncManager.sync_to_simkl() Sync failed with exception: {e}")
@@ -1063,6 +1093,7 @@ class SyncManager:
         # Check if we should unmark items not on SIMKL
         if get_setting_bool('unmark_not_on_simkl'):
             unmarked = self._unmark_movies_not_on_simkl(kodi_movies, simkl_movie_ids)
+            self.stats['movies_unmarked'] = unmarked
             log(f"[sync v7.4.4] SyncManager.import_movies_from_simkl() Unmarked {unmarked} movies not found on SIMKL")
         
         self.stats['movies_imported'] = imported
@@ -1164,6 +1195,7 @@ class SyncManager:
         already_watched = 0
         not_found_shows = 0
         not_found_eps = 0
+        matched_shows = set()
         
         for simkl_show in all_shows:
             show_data = simkl_show.get("show", {})
@@ -1218,6 +1250,7 @@ class SyncManager:
                     if self._set_episode_playcount(ep_id, 1):
                         log_debug(f"[sync v7.4.4] SyncManager.import_episodes_from_simkl() Marked: {show_title} S{season_num:02d}E{ep_num:02d}")
                         imported += 1
+                        matched_shows.add(kodi_tvshowid)
                     else:
                         log_error(f"[sync v7.4.4] SyncManager.import_episodes_from_simkl() Failed: {show_title} S{season_num:02d}E{ep_num:02d}")
                         self.stats['errors'] += 1
@@ -1230,9 +1263,11 @@ class SyncManager:
             # Build set of watched episodes on SIMKL for checking
             simkl_episodes = self._build_simkl_episode_set(all_shows, show_index)
             unmarked = self._unmark_episodes_not_on_simkl(kodi_episodes, simkl_episodes)
+            self.stats['episodes_unmarked'] = unmarked
             log(f"[sync v7.4.4] SyncManager.import_episodes_from_simkl() Unmarked {unmarked} episodes not found on SIMKL")
         
         self.stats['episodes_imported'] = imported
+        self.stats['shows_imported'] = len(matched_shows)
         
         log(f"[sync v7.4.4] SyncManager.import_episodes_from_simkl() === Episode Import Complete: {imported} episodes marked as watched ===")
         return imported
@@ -1310,6 +1345,341 @@ class SyncManager:
         
         return unmarked
     
+    # ========== Rating Sync ==========
+    
+    def _set_movie_rating(self, movie_id, rating):
+        """
+        Update a movie's user rating in Kodi.
+        
+        Args:
+            movie_id (int): Kodi movie database ID
+            rating (int): Rating value 0-10 (0 = unrated)
+            
+        Returns:
+            bool: Success
+        """
+        result = self._kodi_rpc("VideoLibrary.SetMovieDetails", {
+            "movieid": movie_id,
+            "userrating": rating
+        })
+        return result is not None
+    
+    def _set_show_rating(self, tvshowid, rating):
+        """
+        Update a TV show's user rating in Kodi.
+        
+        Args:
+            tvshowid (int): Kodi TV show database ID
+            rating (int): Rating value 0-10 (0 = unrated)
+            
+        Returns:
+            bool: Success
+        """
+        result = self._kodi_rpc("VideoLibrary.SetTVShowDetails", {
+            "tvshowid": tvshowid,
+            "userrating": rating
+        })
+        return result is not None
+    
+    def export_ratings_to_simkl(self):
+        """
+        Export user ratings from Kodi to SIMKL (delta sync).
+        
+        Fetches current SIMKL ratings first, then only sends ratings
+        that differ between Kodi and SIMKL. Skips items where the
+        rating already matches.
+        
+        Returns:
+            int: Number of ratings actually changed on SIMKL
+        """
+        log("[sync v7.4.4] SyncManager.export_ratings_to_simkl() === Starting Rating Export to SIMKL ===")
+        
+        exported = 0
+        
+        # --- Movie Ratings ---
+        # Fetch current SIMKL movie ratings for comparison
+        simkl_movie_ratings = {}
+        try:
+            simkl_movies = self.api.get_user_ratings("movies")
+            if simkl_movies:
+                for item in simkl_movies:
+                    movie = item.get("movie", {})
+                    ids = movie.get("ids", {})
+                    rating = item.get("rating", 0)
+                    # Index by imdb for matching
+                    imdb = ids.get("imdb")
+                    tmdb = ids.get("tmdb")
+                    if imdb:
+                        simkl_movie_ratings[("imdb", str(imdb))] = rating
+                    if tmdb:
+                        simkl_movie_ratings[("tmdb", str(tmdb))] = rating
+                log(f"[sync v7.4.4] SyncManager.export_ratings_to_simkl() Fetched {len(simkl_movies)} existing SIMKL movie ratings for comparison")
+        except Exception as e:
+            log_error(f"[sync v7.4.4] SyncManager.export_ratings_to_simkl() Failed to fetch SIMKL movie ratings: {e}")
+        
+        kodi_movies = self.get_kodi_movies()
+        changed_movies = []
+        
+        for movie in kodi_movies:
+            rating = movie.get("userrating", 0)
+            ids = self._extract_ids(movie)
+            if not ids or rating == 0:
+                continue
+            
+            # Check if SIMKL already has this exact rating
+            imdb = ids.get("imdb")
+            tmdb = ids.get("tmdb")
+            simkl_rating = None
+            if imdb:
+                simkl_rating = simkl_movie_ratings.get(("imdb", str(imdb)))
+            if simkl_rating is None and tmdb:
+                simkl_rating = simkl_movie_ratings.get(("tmdb", str(tmdb)))
+            
+            if simkl_rating == rating:
+                continue  # Already matches, skip
+            
+            movie_obj = {
+                "title": movie.get("title", "Unknown"),
+                "year": movie.get("year"),
+                "ids": ids,
+                "rating": rating
+            }
+            changed_movies.append(movie_obj)
+        
+        if changed_movies:
+            log(f"[sync v7.4.4] SyncManager.export_ratings_to_simkl() Exporting {len(changed_movies)} changed movie ratings (skipped {len([m for m in kodi_movies if m.get('userrating', 0) > 0]) - len(changed_movies)} unchanged)")
+            result = self.api._request("POST", "/sync/ratings", data={"movies": changed_movies})
+            if result:
+                added = result.get("added", {}).get("movies", 0)
+                exported += added
+                log(f"[sync v7.4.4] SyncManager.export_ratings_to_simkl() Movie ratings exported: {added}")
+            else:
+                log_error("[sync v7.4.4] SyncManager.export_ratings_to_simkl() Failed to export movie ratings")
+                self.stats['errors'] += 1
+        else:
+            log("[sync v7.4.4] SyncManager.export_ratings_to_simkl() No changed movie ratings to export")
+        
+        # --- Show Ratings ---
+        # Fetch current SIMKL show ratings for comparison
+        simkl_show_ratings = {}
+        try:
+            simkl_shows = self.api.get_user_ratings("shows")
+            if simkl_shows:
+                for item in simkl_shows:
+                    show = item.get("show", {})
+                    ids = show.get("ids", {})
+                    rating = item.get("rating", 0)
+                    imdb = ids.get("imdb")
+                    tmdb = ids.get("tmdb")
+                    tvdb = ids.get("tvdb")
+                    if imdb:
+                        simkl_show_ratings[("imdb", str(imdb))] = rating
+                    if tmdb:
+                        simkl_show_ratings[("tmdb", str(tmdb))] = rating
+                    if tvdb:
+                        simkl_show_ratings[("tvdb", str(tvdb))] = rating
+                log(f"[sync v7.4.4] SyncManager.export_ratings_to_simkl() Fetched {len(simkl_shows)} existing SIMKL show ratings for comparison")
+        except Exception as e:
+            log_error(f"[sync v7.4.4] SyncManager.export_ratings_to_simkl() Failed to fetch SIMKL show ratings: {e}")
+        
+        kodi_shows = self.get_kodi_tvshows()
+        changed_shows = []
+        
+        for tvshowid, show in kodi_shows.items():
+            rating = show.get("userrating", 0)
+            ids = self._extract_ids(show)
+            if not ids or rating == 0:
+                continue
+            
+            # Check if SIMKL already has this exact rating
+            imdb = ids.get("imdb")
+            tmdb = ids.get("tmdb")
+            tvdb = ids.get("tvdb")
+            simkl_rating = None
+            if imdb:
+                simkl_rating = simkl_show_ratings.get(("imdb", str(imdb)))
+            if simkl_rating is None and tmdb:
+                simkl_rating = simkl_show_ratings.get(("tmdb", str(tmdb)))
+            if simkl_rating is None and tvdb:
+                simkl_rating = simkl_show_ratings.get(("tvdb", str(tvdb)))
+            
+            if simkl_rating == rating:
+                continue  # Already matches, skip
+            
+            show_obj = {
+                "title": show.get("title", "Unknown"),
+                "year": show.get("year"),
+                "ids": ids,
+                "rating": rating
+            }
+            changed_shows.append(show_obj)
+        
+        if changed_shows:
+            log(f"[sync v7.4.4] SyncManager.export_ratings_to_simkl() Exporting {len(changed_shows)} changed show ratings (skipped {len([s for s in kodi_shows.values() if s.get('userrating', 0) > 0]) - len(changed_shows)} unchanged)")
+            result = self.api._request("POST", "/sync/ratings", data={"shows": changed_shows})
+            if result:
+                added = result.get("added", {}).get("shows", 0)
+                exported += added
+                log(f"[sync v7.4.4] SyncManager.export_ratings_to_simkl() Show ratings exported: {added}")
+            else:
+                log_error("[sync v7.4.4] SyncManager.export_ratings_to_simkl() Failed to export show ratings")
+                self.stats['errors'] += 1
+        else:
+            log("[sync v7.4.4] SyncManager.export_ratings_to_simkl() No changed show ratings to export")
+        
+        self.stats['ratings_exported'] = exported
+        log(f"[sync v7.4.4] SyncManager.export_ratings_to_simkl() === Rating Export Complete: {exported} ratings changed ===")
+        return exported
+    
+    def import_ratings_from_simkl(self):
+        """
+        Import user ratings from SIMKL to Kodi.
+        
+        Fetches all user ratings from SIMKL and writes them to Kodi's
+        userrating field. Items rated in Kodi but not on SIMKL get cleared to 0.
+        
+        Returns:
+            int: Number of ratings updated
+        """
+        log("[sync v7.4.4] SyncManager.import_ratings_from_simkl() === Starting Rating Import from SIMKL ===")
+        
+        imported = 0
+        
+        # --- Movie Ratings ---
+        simkl_movie_ratings = self.api.get_user_ratings("movies")
+        kodi_movies = self.get_kodi_movies()
+        kodi_movie_index = self._build_kodi_movie_index(kodi_movies)
+        
+        # Track which Kodi movies have SIMKL ratings (for clearing unrated)
+        simkl_rated_movie_ids = set()
+        
+        if simkl_movie_ratings:
+            log(f"[sync v7.4.4] SyncManager.import_ratings_from_simkl() Found {len(simkl_movie_ratings)} movie ratings on SIMKL")
+            
+            for item in simkl_movie_ratings:
+                movie_data = item.get("movie", item)
+                ids = movie_data.get("ids", {})
+                rating = item.get("user_rating", item.get("rating", 0))
+                
+                if not rating or rating == 0:
+                    continue
+                
+                # Track this movie as rated on SIMKL
+                if ids.get("imdb"):
+                    simkl_rated_movie_ids.add(("imdb", ids["imdb"]))
+                if ids.get("tmdb"):
+                    simkl_rated_movie_ids.add(("tmdb", str(ids["tmdb"])))
+                
+                # Find in Kodi
+                kodi_movie = self._match_movie_to_kodi(item, kodi_movie_index)
+                if not kodi_movie:
+                    continue
+                
+                kodi_rating = kodi_movie.get("userrating", 0)
+                simkl_rating = int(rating)
+                
+                if kodi_rating != simkl_rating:
+                    movie_id = kodi_movie.get("movieid")
+                    if self._set_movie_rating(movie_id, simkl_rating):
+                        title = kodi_movie.get("title", "Unknown")
+                        log_debug(f"[sync v7.4.4] SyncManager.import_ratings_from_simkl() Movie rating: {title} -> {simkl_rating}/10")
+                        imported += 1
+                    else:
+                        self.stats['errors'] += 1
+        
+        # Clear ratings for Kodi movies not rated on SIMKL
+        for movie in kodi_movies:
+            if movie.get("userrating", 0) == 0:
+                continue
+            
+            uniqueid = movie.get("uniqueid", {})
+            found_on_simkl = False
+            
+            if uniqueid.get("imdb"):
+                if ("imdb", uniqueid["imdb"]) in simkl_rated_movie_ids:
+                    found_on_simkl = True
+            if not found_on_simkl and uniqueid.get("tmdb"):
+                if ("tmdb", str(uniqueid["tmdb"])) in simkl_rated_movie_ids:
+                    found_on_simkl = True
+            
+            if not found_on_simkl:
+                movie_id = movie.get("movieid")
+                if self._set_movie_rating(movie_id, 0):
+                    title = movie.get("title", "Unknown")
+                    log_debug(f"[sync v7.4.4] SyncManager.import_ratings_from_simkl() Cleared movie rating: {title}")
+                    imported += 1
+        
+        # --- Show Ratings ---
+        simkl_show_ratings = self.api.get_user_ratings("shows")
+        kodi_shows = self.get_kodi_tvshows()
+        kodi_show_index = self._build_kodi_show_index(kodi_shows)
+        
+        simkl_rated_show_ids = set()
+        
+        if simkl_show_ratings:
+            log(f"[sync v7.4.4] SyncManager.import_ratings_from_simkl() Found {len(simkl_show_ratings)} show ratings on SIMKL")
+            
+            for item in simkl_show_ratings:
+                show_data = item.get("show", item)
+                ids = show_data.get("ids", {})
+                rating = item.get("user_rating", item.get("rating", 0))
+                
+                if not rating or rating == 0:
+                    continue
+                
+                # Track this show as rated on SIMKL
+                if ids.get("imdb"):
+                    simkl_rated_show_ids.add(("imdb", ids["imdb"]))
+                if ids.get("tvdb"):
+                    simkl_rated_show_ids.add(("tvdb", str(ids["tvdb"])))
+                if ids.get("tmdb"):
+                    simkl_rated_show_ids.add(("tmdb", str(ids["tmdb"])))
+                
+                # Find in Kodi
+                kodi_show = self._match_show_to_kodi(ids, kodi_show_index)
+                if not kodi_show:
+                    continue
+                
+                kodi_rating = kodi_show.get("userrating", 0)
+                simkl_rating = int(rating)
+                
+                if kodi_rating != simkl_rating:
+                    tvshowid = kodi_show.get("tvshowid")
+                    if self._set_show_rating(tvshowid, simkl_rating):
+                        title = kodi_show.get("title", "Unknown")
+                        log_debug(f"[sync v7.4.4] SyncManager.import_ratings_from_simkl() Show rating: {title} -> {simkl_rating}/10")
+                        imported += 1
+                    else:
+                        self.stats['errors'] += 1
+        
+        # Clear ratings for Kodi shows not rated on SIMKL
+        for tvshowid, show in kodi_shows.items():
+            if show.get("userrating", 0) == 0:
+                continue
+            
+            uniqueid = show.get("uniqueid", {})
+            found_on_simkl = False
+            
+            if uniqueid.get("imdb"):
+                if ("imdb", uniqueid["imdb"]) in simkl_rated_show_ids:
+                    found_on_simkl = True
+            if not found_on_simkl and uniqueid.get("tvdb"):
+                if ("tvdb", str(uniqueid["tvdb"])) in simkl_rated_show_ids:
+                    found_on_simkl = True
+            if not found_on_simkl and uniqueid.get("tmdb"):
+                if ("tmdb", str(uniqueid["tmdb"])) in simkl_rated_show_ids:
+                    found_on_simkl = True
+            
+            if not found_on_simkl:
+                if self._set_show_rating(tvshowid, 0):
+                    title = show.get("title", "Unknown")
+                    log_debug(f"[sync v7.4.4] SyncManager.import_ratings_from_simkl() Cleared show rating: {title}")
+                    imported += 1
+        
+        self.stats['ratings_imported'] = imported
+        log(f"[sync v7.4.4] SyncManager.import_ratings_from_simkl() === Rating Import Complete: {imported} ratings updated ===")
+        return imported
+    
     def sync_from_simkl(self, sync_movies=True, sync_episodes=True):
         """
         Import watch history from SIMKL to Kodi.
@@ -1363,6 +1733,16 @@ class SyncManager:
                         return self.stats
                 
                 self.import_episodes_from_simkl()
+            
+            # Import ratings
+            if self.show_progress:
+                self.progress_dialog.update(80, "Importing ratings from SIMKL...")
+                if self.progress_dialog.iscanceled():
+                    self.cancelled = True
+                    self._notify("SIMKL Sync", "Import cancelled")
+                    return self.stats
+            
+            self.import_ratings_from_simkl()
             
             # Done!
             if self.show_progress:

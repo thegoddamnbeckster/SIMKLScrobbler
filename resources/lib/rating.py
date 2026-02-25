@@ -145,6 +145,7 @@ class RatingDialog(xbmcgui.WindowXMLDialog):
             
             # Set initial description and star state
             if self.current_rating:
+                self.selected_rating = self.current_rating
                 desc_label = self.getControl(101)
                 rating_desc = get_rating_description(self.current_rating)
                 desc_label.setLabel(getString(CURRENT_RATING).format(
@@ -165,17 +166,24 @@ class RatingDialog(xbmcgui.WindowXMLDialog):
         """Handle button clicks"""
         # Star buttons are IDs 1-10
         if 1 <= controlId <= 10:
-            self.selected_rating = controlId
-            self._update_description(controlId)
-            self._highlight_stars(controlId)
+            if self.selected_rating == controlId:
+                # Clicking the same star again deselects (unrate)
+                self.selected_rating = 0
+                self._highlight_stars(0)
+                desc_label = self.getControl(101)
+                desc_label.setLabel(getString(CLICK_STAR))
+            else:
+                self.selected_rating = controlId
+                self._update_description(controlId)
+                self._highlight_stars(controlId)
             
         # Submit button
         elif controlId == 9010:
-            if self.selected_rating:
+            if self.selected_rating is not None:
                 self.submitted = True
                 self.close()
             else:
-                # No rating selected yet
+                # No rating selected yet (first open, never clicked anything)
                 xbmcgui.Dialog().notification(
                     getString(SIMKL),
                     getString(SELECT_RATING_FIRST),
@@ -376,33 +384,54 @@ class RatingService:
             dialog.doModal()
             
             # Check if user submitted a rating
-            if dialog.submitted and dialog.selected_rating:
-                # Submit rating to SIMKL
-                success = self.submit_rating(media_info, dialog.selected_rating)
-                
-                if success:
-                    # Get the localized rating description
-                    desc = get_rating_description(dialog.selected_rating)
+            if dialog.submitted and dialog.selected_rating is not None:
+                if dialog.selected_rating == 0:
+                    # Unrate - remove rating from SIMKL
+                    success = self.remove_rating_from_simkl(media_info)
                     
-                    xbmcgui.Dialog().notification(
-                        getString(SIMKL),
-                        getString(RATED_AS).format(
-                            title,
-                            dialog.selected_rating,
-                            desc
-                        ),
-                        xbmcgui.NOTIFICATION_INFO,
-                        3000
-                    )
-                    return True
+                    if success:
+                        xbmcgui.Dialog().notification(
+                            getString(SIMKL),
+                            f"Rating removed: {title}",
+                            xbmcgui.NOTIFICATION_INFO,
+                            3000
+                        )
+                        return True
+                    else:
+                        xbmcgui.Dialog().notification(
+                            getString(SIMKL),
+                            getString(SUBMIT_RATING_FAILED),
+                            xbmcgui.NOTIFICATION_ERROR,
+                            3000
+                        )
+                        return False
                 else:
-                    xbmcgui.Dialog().notification(
-                        getString(SIMKL),
-                        getString(SUBMIT_RATING_FAILED),
-                        xbmcgui.NOTIFICATION_ERROR,
-                        3000
-                    )
-                    return False
+                    # Submit rating to SIMKL
+                    success = self.submit_rating(media_info, dialog.selected_rating)
+                    
+                    if success:
+                        # Get the localized rating description
+                        desc = get_rating_description(dialog.selected_rating)
+                        
+                        xbmcgui.Dialog().notification(
+                            getString(SIMKL),
+                            getString(RATED_AS).format(
+                                title,
+                                dialog.selected_rating,
+                                desc
+                            ),
+                            xbmcgui.NOTIFICATION_INFO,
+                            3000
+                        )
+                        return True
+                    else:
+                        xbmcgui.Dialog().notification(
+                            getString(SIMKL),
+                            getString(SUBMIT_RATING_FAILED),
+                            xbmcgui.NOTIFICATION_ERROR,
+                            3000
+                        )
+                        return False
             
             # User cancelled
             return False
@@ -411,6 +440,50 @@ class RatingService:
             utils.log("[rating v7.4.4] RatingService.prompt_for_rating() Error prompting for rating: {}".format(str(e)), xbmc.LOGERROR)
             return False
     
+    def remove_rating_from_simkl(self, media_info):
+        """
+        Remove rating from SIMKL API
+        
+        Args:
+            media_info (dict): Media information with IDs
+            
+        Returns:
+            bool: True if successful
+        """
+        try:
+            media_type = media_info.get('media_type')
+            
+            api_media_info = {
+                'ids': {},
+                'title': media_info.get('title', 'Unknown')
+            }
+            
+            if media_info.get('simkl_id'):
+                api_media_info['ids']['simkl'] = media_info['simkl_id']
+            if media_info.get('imdb_id'):
+                api_media_info['ids']['imdb'] = media_info['imdb_id']
+            if media_info.get('tmdb_id'):
+                api_media_info['ids']['tmdb'] = media_info['tmdb_id']
+            if media_info.get('tvdb_id'):
+                api_media_info['ids']['tvdb'] = media_info['tvdb_id']
+            
+            utils.log("[rating v7.4.4] RatingService.remove_rating_from_simkl() Removing rating for '{}'".format(
+                media_info.get('title', 'Unknown')
+            ))
+            
+            response = self.api.remove_rating(media_type, api_media_info)
+            
+            if response:
+                utils.log("[rating v7.4.4] RatingService.remove_rating_from_simkl() Rating removed successfully")
+                return True
+            else:
+                utils.log("[rating v7.4.4] RatingService.remove_rating_from_simkl() Failed to remove rating", xbmc.LOGWARNING)
+                return False
+                
+        except Exception as e:
+            utils.log("[rating v7.4.4] RatingService.remove_rating_from_simkl() Error: {}".format(str(e)), xbmc.LOGERROR)
+            return False
+
     def submit_rating(self, media_info, rating):
         """
         Submit rating to SIMKL API
