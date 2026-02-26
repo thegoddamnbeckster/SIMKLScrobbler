@@ -1405,7 +1405,7 @@ class SyncManager:
                 for item in simkl_movies:
                     movie = item.get("movie", {})
                     ids = movie.get("ids", {})
-                    rating = item.get("rating", 0)
+                    rating = item.get("user_rating", item.get("rating", 0))
                     # Index by imdb for matching
                     imdb = ids.get("imdb")
                     tmdb = ids.get("tmdb")
@@ -1468,7 +1468,7 @@ class SyncManager:
                 for item in simkl_shows:
                     show = item.get("show", {})
                     ids = show.get("ids", {})
-                    rating = item.get("rating", 0)
+                    rating = item.get("user_rating", item.get("rating", 0))
                     imdb = ids.get("imdb")
                     tmdb = ids.get("tmdb")
                     tvdb = ids.get("tvdb")

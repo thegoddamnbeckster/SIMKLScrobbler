@@ -113,7 +113,7 @@ CHANGELOG:
 -->
 <addon id="script.simkl.scrobbler" 
        name="SIMKL Scrobbler" 
-       version="7.5.2" 
+       version="7.5.3" 
        provider-name="Claude.ai with assistance from Michael Beck">
     
     <requires>
