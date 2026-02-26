@@ -24,6 +24,14 @@
         <setting id="scrobble_movie" type="bool" label="32202" default="true"/>
         <setting id="scrobble_episode" type="bool" label="32203" default="true"/>
         <setting id="scrobble_threshold" type="slider" label="32204" default="70" range="50,5,90" option="int"/>
+        
+        <!-- Periodic progress update: re-sends scrobble/start every 15 minutes -->
+        <!-- Per SIMKL team feedback (Ennergizer, 2026-02-25): this is not needed -->
+        <!-- by default since Kodi already handles playback events (pause/stop) -->
+        <!-- which update SIMKL. Only useful for specific Kodi setups where -->
+        <!-- playback events may not fire reliably. Disabled by default to -->
+        <!-- reduce unnecessary API requests. -->
+        <setting id="periodic_progress_update" type="bool" label="32205" default="false"/>
     </category>
 
     <!-- ============================================================================ -->

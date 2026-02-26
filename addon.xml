@@ -1,10 +1,32 @@
 ﻿<?xml version="1.0" encoding="UTF-8"?>
 <!--
 SIMKL Scrobbler for Kodi
-Version: 7.4.9
-Last Modified: 2026-02-20
+Version: 7.5.5
+Last Modified: 2026-02-26
 
 CHANGELOG:
+7.5.5 - SIMKL API optimizations (staff feedback from Ennergizer)
+        Issue 1: Incremental sync via /sync/activities + ?date_from=
+        - Background syncs check /sync/activities for change timestamps
+        - Only fetches categories (movies/shows) that actually changed
+        - Uses ?date_from= parameter to get only new/changed items
+        - First sync does full fetch, subsequent syncs are incremental
+        - Manual syncs always do full fetch for user confidence
+        - Stores activity timestamps in addon settings between syncs
+        - Unmark logic disabled during incremental sync (partial data safety)
+        Issue 2: 15-minute progress updates now optional (default OFF)
+        - New setting: periodic_progress_update in Scrobbling category
+        - SIMKL already tracks progress via start scrobble; updates redundant
+        Issue 3: Removed redundant double API call in movie identification
+        - Removed retry-without-year fallback in _identify_movie()
+        - SIMKL handles year matching server-side; second call was wasteful
+        Issue 4: Rate limiting with exponential backoff
+        - API _request() now retries on 429/5xx/timeout/connection errors
+        - Respects Retry-After header on 429 responses
+        - Exponential backoff: 2s, 4s, 8s (capped at 30s), max 3 retries
+        - Uses xbmc.sleep() to keep Kodi responsive during waits
+        - Extracted helper methods: _execute_request, _handle_401,
+          _calculate_backoff, _get_retry_after
 7.4.9 - Fix manual sync crash + add sync preemption
         - FIXED: sync_to_simkl() returns dict, not tuple (caused unpack crash)
         - Manual sync now preempts background sync via window property signaling
@@ -113,7 +135,7 @@ CHANGELOG:
 -->
 <addon id="script.simkl.scrobbler" 
        name="SIMKL Scrobbler" 
-       version="7.5.3" 
+       version="7.5.5" 
        provider-name="Claude.ai with assistance from Michael Beck">
     
     <requires>

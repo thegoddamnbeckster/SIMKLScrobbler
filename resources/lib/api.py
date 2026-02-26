@@ -27,12 +27,13 @@ Attribution: Claude.ai with assistance from Michael Beck
 
 import requests
 import json
+import time
 import xbmc
 import xbmcaddon
 from resources.lib.utils import log, log_error, log_debug, log_warning, log_module_init, get_setting
 
 # Module version
-__version__ = '7.4.4'
+__version__ = '7.5.5'
 
 # Log module initialization
 log_module_init('api.py', __version__)
@@ -72,17 +73,39 @@ class SimklAPI:
                 "Authorization": f"Bearer {self.access_token}"
             })
         
-        log(f"[api v7.4.4] SimklAPI.__init__() SimklAPI initialized | token={token_preview} | thread={tid}")
+        log(f"[api v{__version__}] SimklAPI.__init__() SimklAPI initialized | token={token_preview} | thread={tid}")
     
     def close(self):
         """Close the requests session to free socket connections."""
         if self.session:
             self.session.close()
-            log_debug("[api v7.4.4] SimklAPI.close() API session closed")
+            log_debug(f"[api v{__version__}] SimklAPI.close() API session closed")
     
+    # ========== Retry / Backoff Configuration ==========
+    # Per SIMKL team feedback (Ennergizer, 2026-02-25): the addon had no
+    # rate-limiting or exponential backoff. Fixed-interval polling (auth,
+    # periodic progress updates) could hammer the server during outages,
+    # and 429 responses were silently dropped with no retry.
+    #
+    # Strategy:
+    #   - Max 3 retries (4 total attempts) for retryable errors
+    #   - Exponential backoff: 2s, 4s, 8s (base * 2^attempt)
+    #   - 429 responses: respect Retry-After header if present, else backoff
+    #   - 5xx server errors: backoff (server is struggling)
+    #   - Connection errors / timeouts: backoff (network issue)
+    #   - 401/404/409 and other client errors: NO retry (not transient)
+    #   - Uses xbmc.sleep() so Kodi stays responsive during waits
+    MAX_RETRIES = 3          # Number of retries after initial attempt
+    BACKOFF_BASE = 2         # Base delay in seconds (doubles each retry)
+    BACKOFF_MAX = 30         # Maximum delay cap in seconds
+
     def _request(self, method, endpoint, data=None, params=None, timeout=30):
         """
-        Make an HTTP request to the SIMKL API.
+        Make an HTTP request to the SIMKL API with exponential backoff.
+        
+        Retries on transient failures (429 rate limit, 5xx server errors,
+        connection errors, timeouts) with exponential backoff. Non-retryable
+        errors (401, 404, 409, other 4xx) are handled immediately.
         
         Args:
             method: HTTP method (GET, POST, DELETE)
@@ -100,95 +123,277 @@ class SimklAPI:
         has_auth = 'Authorization' in self.session.headers
         token_preview = self.access_token[:8] + '...' if self.access_token else 'NONE'
         
-        log(f"[api v7.4.4] SimklAPI._request() {method} {endpoint} | thread={tid} | has_auth_header={has_auth} | token={token_preview}")
+        log(f"[api v{__version__}] SimklAPI._request() {method} {endpoint} | thread={tid} | has_auth_header={has_auth} | token={token_preview}")
         
-        try:
-            if data:
-                log_debug(f"[api v7.4.4] SimklAPI._request() Request body: {json.dumps(data)[:500]}")
+        if data:
+            log_debug(f"[api v{__version__}] SimklAPI._request() Request body: {json.dumps(data)[:500]}")
+        
+        # Retry loop: attempt 0 is the initial request, attempts 1-MAX_RETRIES are retries
+        for attempt in range(self.MAX_RETRIES + 1):
+            if attempt > 0:
+                log(f"[api v{__version__}] SimklAPI._request() Retry attempt {attempt}/{self.MAX_RETRIES} for {method} {endpoint}")
             
-            if method == "GET":
-                response = self.session.get(url, params=params, timeout=timeout)
-            elif method == "POST":
-                response = self.session.post(url, json=data, timeout=timeout)
-            elif method == "DELETE":
-                response = self.session.delete(url, timeout=timeout)
-            else:
-                log_error(f"[api v7.4.4] SimklAPI._request() Unsupported HTTP method: {method}")
-                return None
-            
-            log(f"[api v7.4.4] SimklAPI._request() {method} {endpoint} -> HTTP {response.status_code} | thread={tid}")
-            
-            # Handle specific status codes
-            if response.status_code == 204:
-                # No content - success
-                return {"success": True}
-            
-            if response.status_code == 401:
-                log_error(f"[api v7.4.4] SimklAPI._request() 401 Unauthorized on {method} {endpoint} | token_was={token_preview} | thread={tid}")
-                # Try refreshing token once before giving up
-                old_token = self.access_token
-                log(f"[api v7.4.4] SimklAPI._request() Calling refresh_token() to get latest from settings...")
-                self.refresh_token()
-                new_token_preview = self.access_token[:8] + '...' if self.access_token else 'NONE'
-                token_changed = self.access_token and self.access_token != old_token
-                log(f"[api v7.4.4] SimklAPI._request() After refresh: token={new_token_preview} | changed={token_changed}")
-                
-                if token_changed:
-                    log(f"[api v7.4.4] SimklAPI._request() Retrying {method} {endpoint} with refreshed token...")
-                    # Retry the request with new token
-                    if method == "GET":
-                        response = self.session.get(url, params=params, timeout=timeout)
-                    elif method == "POST":
-                        response = self.session.post(url, json=data, timeout=timeout)
-                    elif method == "DELETE":
-                        response = self.session.delete(url, timeout=timeout)
-                    
-                    log(f"[api v7.4.4] SimklAPI._request() Retry result: HTTP {response.status_code} | thread={tid}")
-                    
-                    if response.status_code == 401:
-                        log_error(f"[api v7.4.4] SimklAPI._request() 401 STILL after token refresh - token is truly invalid")
-                        return None
-                    # Fall through to normal response handling
-                else:
-                    log_error(f"[api v7.4.4] SimklAPI._request() Token unchanged after refresh (was={token_preview}, now={new_token_preview}) - cannot retry")
+            try:
+                # Execute the HTTP request
+                response = self._execute_request(method, url, data, params, timeout)
+                if response is None:
+                    # _execute_request returns None for unsupported methods
                     return None
-            
-            if response.status_code == 404:
-                log_error("[api v7.4.4] SimklAPI._request() 404 Not Found - content not found on SIMKL")
+                
+                log(f"[api v{__version__}] SimklAPI._request() {method} {endpoint} -> HTTP {response.status_code} | attempt={attempt} | thread={tid}")
+                
+                # ---- Handle non-retryable status codes first ----
+                
+                if response.status_code == 204:
+                    # 204 No Content - success with no body
+                    return {"success": True}
+                
+                if response.status_code == 401:
+                    # 401 Unauthorized - try token refresh (not a backoff scenario)
+                    return self._handle_401(method, url, endpoint, data, params, timeout, token_preview, tid)
+                
+                if response.status_code == 404:
+                    log_error(f"[api v{__version__}] SimklAPI._request() 404 Not Found on {method} {endpoint} - content not found on SIMKL")
+                    return None
+                
+                if response.status_code == 409:
+                    # 409 Conflict - already scrobbled recently, not an error
+                    log(f"[api v{__version__}] SimklAPI._request() 409 Conflict on {method} {endpoint} - already scrobbled recently")
+                    try:
+                        return response.json()
+                    except Exception:
+                        return {"conflict": True}
+                
+                # ---- Handle retryable status codes ----
+                
+                if response.status_code == 429:
+                    # 429 Rate Limited - respect Retry-After header if present
+                    retry_after = self._get_retry_after(response, attempt)
+                    log_warning(f"[api v{__version__}] SimklAPI._request() 429 Rate Limited on {method} {endpoint} | "
+                                f"attempt={attempt}/{self.MAX_RETRIES} | waiting {retry_after:.1f}s before retry")
+                    
+                    if attempt < self.MAX_RETRIES:
+                        # Wait and retry
+                        xbmc.sleep(int(retry_after * 1000))  # xbmc.sleep takes milliseconds
+                        continue  # Go to next attempt
+                    else:
+                        # Exhausted all retries
+                        log_error(f"[api v{__version__}] SimklAPI._request() 429 Rate Limited - exhausted all {self.MAX_RETRIES} retries on {method} {endpoint}")
+                        return None
+                
+                if response.status_code >= 500:
+                    # 5xx Server Error - transient, worth retrying
+                    backoff_delay = self._calculate_backoff(attempt)
+                    log_warning(f"[api v{__version__}] SimklAPI._request() {response.status_code} Server Error on {method} {endpoint} | "
+                                f"attempt={attempt}/{self.MAX_RETRIES} | waiting {backoff_delay:.1f}s before retry")
+                    
+                    if attempt < self.MAX_RETRIES:
+                        xbmc.sleep(int(backoff_delay * 1000))
+                        continue
+                    else:
+                        log_error(f"[api v{__version__}] SimklAPI._request() {response.status_code} Server Error - exhausted all {self.MAX_RETRIES} retries on {method} {endpoint}")
+                        return None
+                
+                # ---- Handle other 4xx client errors (not retryable) ----
+                if 400 <= response.status_code < 500:
+                    log_error(f"[api v{__version__}] SimklAPI._request() {response.status_code} Client Error on {method} {endpoint} - not retryable")
+                    try:
+                        error_body = response.text[:500]
+                        log_debug(f"[api v{__version__}] SimklAPI._request() Error body: {error_body}")
+                    except Exception:
+                        pass
+                    return None
+                
+                # ---- Success (2xx) - parse JSON response ----
+                response.raise_for_status()  # Catch any other non-2xx we missed
+                
+                try:
+                    result = response.json()
+                    log_debug(f"[api v{__version__}] SimklAPI._request() Response body: {json.dumps(result)[:500]}")
+                    return result
+                except json.JSONDecodeError:
+                    log_error(f"[api v{__version__}] SimklAPI._request() Failed to parse JSON response from {method} {endpoint}")
+                    return None
+                
+            except requests.exceptions.Timeout:
+                # Timeout - transient, worth retrying with backoff
+                backoff_delay = self._calculate_backoff(attempt)
+                log_error(f"[api v{__version__}] SimklAPI._request() Timeout on {method} {endpoint} | "
+                          f"attempt={attempt}/{self.MAX_RETRIES} | waiting {backoff_delay:.1f}s")
+                
+                if attempt < self.MAX_RETRIES:
+                    xbmc.sleep(int(backoff_delay * 1000))
+                    continue
+                else:
+                    log_error(f"[api v{__version__}] SimklAPI._request() Timeout - exhausted all {self.MAX_RETRIES} retries on {method} {endpoint}")
+                    return None
+                    
+            except requests.exceptions.ConnectionError:
+                # Connection error - transient, worth retrying with backoff
+                backoff_delay = self._calculate_backoff(attempt)
+                log_error(f"[api v{__version__}] SimklAPI._request() Connection error on {method} {endpoint} | "
+                          f"attempt={attempt}/{self.MAX_RETRIES} | waiting {backoff_delay:.1f}s")
+                
+                if attempt < self.MAX_RETRIES:
+                    xbmc.sleep(int(backoff_delay * 1000))
+                    continue
+                else:
+                    log_error(f"[api v{__version__}] SimklAPI._request() Connection error - exhausted all {self.MAX_RETRIES} retries on {method} {endpoint}")
+                    return None
+                    
+            except requests.exceptions.RequestException as e:
+                # Other request errors - log and give up (likely not transient)
+                log_error(f"[api v{__version__}] SimklAPI._request() Request failed on {method} {endpoint}: {e}")
                 return None
+        
+        # Should not reach here, but safety net
+        log_error(f"[api v{__version__}] SimklAPI._request() Unexpected exit from retry loop on {method} {endpoint}")
+        return None
+    
+    def _execute_request(self, method, url, data, params, timeout):
+        """
+        Execute a single HTTP request. Factored out of _request() to keep
+        the retry loop clean and avoid duplicating dispatch logic.
+        
+        Args:
+            method: HTTP method string (GET, POST, DELETE)
+            url: Full URL (base + endpoint)
+            data: JSON body dict or None
+            params: URL params dict or None
+            timeout: Timeout in seconds
             
-            if response.status_code == 409:
-                # Conflict - already watched recently
-                log("[api v7.4.4] SimklAPI._request() 409 Conflict - already scrobbled recently")
+        Returns:
+            requests.Response object, or None for unsupported methods
+        """
+        if method == "GET":
+            return self.session.get(url, params=params, timeout=timeout)
+        elif method == "POST":
+            return self.session.post(url, json=data, timeout=timeout)
+        elif method == "DELETE":
+            return self.session.delete(url, timeout=timeout)
+        else:
+            log_error(f"[api v{__version__}] SimklAPI._execute_request() Unsupported HTTP method: {method}")
+            return None
+    
+    def _handle_401(self, method, url, endpoint, data, params, timeout, token_preview, tid):
+        """
+        Handle 401 Unauthorized by refreshing the token and retrying once.
+        
+        This is NOT part of the exponential backoff system - 401 is an auth
+        issue, not a transient server problem. We try refreshing the cached
+        token from Kodi's settings (in case auth completed in another process)
+        and retry exactly once.
+        
+        Args:
+            method: HTTP method
+            url: Full request URL
+            endpoint: API endpoint (for logging)
+            data: Request body
+            params: URL params
+            timeout: Timeout
+            token_preview: Truncated token string for logs
+            tid: Thread name for logs
+            
+        Returns:
+            Response JSON dict, or None on error
+        """
+        log_error(f"[api v{__version__}] SimklAPI._handle_401() 401 Unauthorized on {method} {endpoint} | token_was={token_preview} | thread={tid}")
+        
+        # Try refreshing token once before giving up
+        old_token = self.access_token
+        log(f"[api v{__version__}] SimklAPI._handle_401() Calling refresh_token() to get latest from settings...")
+        self.refresh_token()
+        new_token_preview = self.access_token[:8] + '...' if self.access_token else 'NONE'
+        token_changed = self.access_token and self.access_token != old_token
+        log(f"[api v{__version__}] SimklAPI._handle_401() After refresh: token={new_token_preview} | changed={token_changed}")
+        
+        if token_changed:
+            log(f"[api v{__version__}] SimklAPI._handle_401() Retrying {method} {endpoint} with refreshed token...")
+            
+            try:
+                response = self._execute_request(method, url, data, params, timeout)
+                if response is None:
+                    return None
+                
+                log(f"[api v{__version__}] SimklAPI._handle_401() Retry result: HTTP {response.status_code} | thread={tid}")
+                
+                if response.status_code == 401:
+                    log_error(f"[api v{__version__}] SimklAPI._handle_401() 401 STILL after token refresh - token is truly invalid")
+                    return None
+                
+                # Handle success
+                if response.status_code == 204:
+                    return {"success": True}
+                
+                response.raise_for_status()
+                
                 try:
                     return response.json()
-                except:
-                    return {"conflict": True}
-            
-            if response.status_code == 429:
-                log_error("[api v7.4.4] SimklAPI._request() 429 Rate Limited - slow down!")
+                except json.JSONDecodeError:
+                    log_error(f"[api v{__version__}] SimklAPI._handle_401() Failed to parse JSON on retry")
+                    return None
+                    
+            except requests.exceptions.RequestException as e:
+                log_error(f"[api v{__version__}] SimklAPI._handle_401() Retry request failed: {e}")
                 return None
+        else:
+            log_error(f"[api v{__version__}] SimklAPI._handle_401() Token unchanged after refresh (was={token_preview}, now={new_token_preview}) - cannot retry")
+            return None
+    
+    def _calculate_backoff(self, attempt):
+        """
+        Calculate exponential backoff delay for a given retry attempt.
+        
+        Formula: min(BACKOFF_BASE * 2^attempt, BACKOFF_MAX)
+        
+        Example with defaults (base=2, max=30):
+            attempt 0 (first retry):  2 * 2^0 = 2s
+            attempt 1 (second retry): 2 * 2^1 = 4s
+            attempt 2 (third retry):  2 * 2^2 = 8s
+        
+        Args:
+            attempt: Current attempt number (0-based)
             
-            response.raise_for_status()
+        Returns:
+            Delay in seconds (float)
+        """
+        delay = self.BACKOFF_BASE * (2 ** attempt)
+        delay = min(delay, self.BACKOFF_MAX)
+        return float(delay)
+    
+    def _get_retry_after(self, response, attempt):
+        """
+        Get the delay to wait before retrying a 429 response.
+        
+        Checks the Retry-After header first. If not present or not parseable,
+        falls back to exponential backoff. The Retry-After header may contain
+        either a number of seconds or an HTTP-date, but SIMKL typically sends
+        seconds (if at all).
+        
+        Args:
+            response: The 429 HTTP response
+            attempt: Current attempt number (for backoff fallback)
             
-            # Parse JSON response
+        Returns:
+            Delay in seconds (float)
+        """
+        retry_after = response.headers.get('Retry-After')
+        
+        if retry_after:
             try:
-                result = response.json()
-                log_debug(f"[api v7.4.4] SimklAPI._request() Response body: {json.dumps(result)}")
-                return result
-            except json.JSONDecodeError:
-                log_error("[api v7.4.4] SimklAPI._request() Failed to parse JSON response")
-                return None
-                
-        except requests.exceptions.Timeout:
-            log_error(f"[api v7.4.4] SimklAPI._request() Request timeout: {endpoint}")
-            return None
-        except requests.exceptions.ConnectionError:
-            log_error(f"[api v7.4.4] SimklAPI._request() Connection error: {endpoint}")
-            return None
-        except requests.exceptions.RequestException as e:
-            log_error(f"[api v7.4.4] SimklAPI._request() Request failed: {endpoint} - {e}")
-            return None
+                # Try parsing as integer seconds (most common for APIs)
+                delay = float(retry_after)
+                # Sanity check - clamp to 0-60 second range
+                # A negative value from a malicious/broken Retry-After header
+                # could cause immediate tight retry loops, so floor at 0
+                delay = max(0.0, min(delay, 60.0))
+                log(f"[api v{__version__}] SimklAPI._get_retry_after() Using Retry-After header: {delay:.1f}s")
+                return delay
+            except (ValueError, TypeError):
+                log_warning(f"[api v{__version__}] SimklAPI._get_retry_after() Could not parse Retry-After header: '{retry_after}' - using exponential backoff")
+        
+        # No Retry-After header or couldn't parse it - use exponential backoff
+        return self._calculate_backoff(attempt)
     
     # ========== Scrobbling Endpoints ==========
     
@@ -353,17 +558,28 @@ class SimklAPI:
         
         return self._request("POST", "/sync/history", data=data)
     
-    def get_all_items(self, media_type="movies", status="completed", extended=False):
+    def get_all_items(self, media_type="movies", status="completed", extended=False, date_from=None):
         """
-        Get all items from user's SIMKL watchlist.
+        Get items from user's SIMKL watchlist, optionally filtered by date.
         
         Retrieves the user's watched items from SIMKL.
         Used for importing watch history FROM SIMKL to Kodi.
+        
+        Per SIMKL team feedback (Ennergizer, 2026-02-25): use the date_from
+        parameter for incremental sync instead of fetching ALL items every time.
+        The recommended flow is:
+          1. First sync: call without date_from (full fetch)
+          2. Before subsequent syncs: call get_last_activity() to check timestamps
+          3. If activity timestamps changed: call with date_from=last_sync_timestamp
+          4. Store new timestamps after successful sync
         
         Args:
             media_type: "movies", "shows", or "anime"
             status: "completed", "watching", "plantowatch", "hold", "dropped"
             extended: Include extended info (runtime, genres, etc.)
+            date_from: ISO 8601 timestamp string (e.g. "2026-01-15T00:00:00Z").
+                       If provided, only returns items added/changed after this date.
+                       If None, returns ALL items (full sync).
             
         Returns:
             List of items or empty list on error
@@ -374,20 +590,27 @@ class SimklAPI:
         if extended:
             params["extended"] = "full"
         
-        log(f"[api v7.4.4] SimklAPI.get_all_items() Fetching {status} {media_type} from SIMKL...")
+        # date_from parameter enables incremental sync - only fetch items
+        # that changed since the given timestamp, dramatically reducing
+        # API payload size and server load for subsequent syncs
+        if date_from:
+            params["date_from"] = date_from
+            log(f"[api v{__version__}] SimklAPI.get_all_items() Fetching {status} {media_type} from SIMKL (incremental, date_from={date_from})")
+        else:
+            log(f"[api v{__version__}] SimklAPI.get_all_items() Fetching {status} {media_type} from SIMKL (FULL fetch, no date_from)")
         
         response = self._request("GET", endpoint, params=params if params else None)
         
         if response and isinstance(response, list):
-            log(f"[api v7.4.4] SimklAPI.get_all_items() Retrieved {len(response)} {media_type} from SIMKL")
+            log(f"[api v{__version__}] SimklAPI.get_all_items() Retrieved {len(response)} {media_type} from SIMKL")
             return response
         elif response and isinstance(response, dict) and media_type in response:
             # Some endpoints return {"movies": [...]} format
             items = response[media_type]
-            log(f"[api v7.4.4] SimklAPI.get_all_items() Retrieved {len(items)} {media_type} from SIMKL")
+            log(f"[api v{__version__}] SimklAPI.get_all_items() Retrieved {len(items)} {media_type} from SIMKL")
             return items
         
-        log_warning(f"[api v7.4.4] SimklAPI.get_all_items() No {status} {media_type} found on SIMKL")
+        log_warning(f"[api v{__version__}] SimklAPI.get_all_items() No {status} {media_type} found on SIMKL")
         return []
     
     def get_last_activity(self):

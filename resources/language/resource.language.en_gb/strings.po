@@ -74,6 +74,14 @@ msgctxt "#32204"
 msgid "Watched threshold (%)"
 msgstr "Watched threshold (%)"
 
+msgctxt "#32205"
+msgid "Send periodic progress updates"
+msgstr "Send periodic progress updates"
+
+msgctxt "#32206"
+msgid "Re-sends scrobble start every 15 minutes during playback to keep SIMKL sessions alive. Only needed for specific Kodi setups. Increases API requests when enabled."
+msgstr "Re-sends scrobble start every 15 minutes during playback to keep SIMKL sessions alive. Only needed for specific Kodi setups. Increases API requests when enabled."
+
 # ============================================================================
 # Notifications Category (32300-32399)
 # ============================================================================

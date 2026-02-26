@@ -31,7 +31,7 @@ from resources.lib.utils import (
 from resources.lib.api import SimklAPI
 
 # Module version
-__version__ = '7.4.4'
+__version__ = '7.5.5'
 
 # Log module initialization
 xbmc.log(f'[SIMKL Scrobbler] sync.py v{__version__} - Sync manager module loading', level=xbmc.LOGINFO)
@@ -130,7 +130,162 @@ class SyncManager:
             self.api.close()
             log_debug("[sync v7.4.4] SyncManager.close() SyncManager API session closed")
     
-    # ========== Delta Sync Tracking ==========
+    # ========== SIMKL Activity Tracking (Incremental Sync) ==========
+    # Per SIMKL team feedback (Ennergizer, 2026-02-25): instead of fetching
+    # ALL items from /sync/all-items/ on every sync, we should:
+    #   1. Call /sync/activities to get timestamps of last changes
+    #   2. Compare to stored timestamps from last successful sync
+    #   3. Only call /sync/all-items/?date_from= when changes are detected
+    # This dramatically reduces API payload size and server load.
+    
+    def _load_activity_timestamps(self):
+        """
+        Load the last-known SIMKL activity timestamps from addon settings.
+        
+        These are the timestamps returned by /sync/activities at the end
+        of the last successful import sync. Used to detect whether SIMKL
+        has new data since we last checked.
+        
+        Returns:
+            dict: Stored activity timestamps, or empty dict if first sync.
+                  Keys are dotted paths like 'movies.watched_at',
+                  'tv_shows.watched_at', etc.
+        """
+        try:
+            import xbmcaddon
+            addon = xbmcaddon.Addon('script.simkl.scrobbler')
+            timestamps_json = addon.getSetting('simkl_activity_timestamps')
+            
+            if timestamps_json:
+                result = json.loads(timestamps_json)
+                log(f"[sync v{__version__}] SyncManager._load_activity_timestamps() Loaded stored activity timestamps: {result}")
+                return result
+            
+            log(f"[sync v{__version__}] SyncManager._load_activity_timestamps() No stored activity timestamps (first sync)")
+            return {}
+        except Exception as e:
+            log_warning(f"[sync v{__version__}] SyncManager._load_activity_timestamps() Could not load activity timestamps: {e}")
+            return {}
+    
+    def _save_activity_timestamps(self, timestamps):
+        """
+        Save SIMKL activity timestamps to addon settings after successful sync.
+        
+        Args:
+            timestamps (dict): Activity timestamps to store. Should contain
+                               keys like 'movies_watched_at', 'tv_shows_watched_at',
+                               'movies_rated_at', 'tv_shows_rated_at'.
+        """
+        try:
+            import xbmcaddon
+            addon = xbmcaddon.Addon('script.simkl.scrobbler')
+            timestamps_json = json.dumps(timestamps)
+            addon.setSetting('simkl_activity_timestamps', timestamps_json)
+            log(f"[sync v{__version__}] SyncManager._save_activity_timestamps() Saved activity timestamps: {timestamps}")
+        except Exception as e:
+            log_error(f"[sync v{__version__}] SyncManager._save_activity_timestamps() Failed to save activity timestamps: {e}")
+    
+    def _check_simkl_activity(self):
+        """
+        Check SIMKL's /sync/activities endpoint to detect changes.
+        
+        Compares current activity timestamps against stored values from
+        the last successful sync. Returns a dict indicating which categories
+        have changed and what date_from value to use for incremental fetch.
+        
+        Returns:
+            dict with keys:
+                'movies_changed': bool - True if movies have new activity
+                'shows_changed': bool - True if TV shows have new activity  
+                'ratings_changed': bool - True if ratings have new activity
+                'movies_date_from': str or None - ISO timestamp for incremental movie fetch
+                'shows_date_from': str or None - ISO timestamp for incremental show fetch
+                'current_activities': dict - Raw response from /sync/activities
+                'is_first_sync': bool - True if no stored timestamps exist
+        """
+        log(f"[sync v{__version__}] SyncManager._check_simkl_activity() Checking SIMKL for changes since last sync...")
+        
+        # Load stored timestamps from last successful sync
+        stored = self._load_activity_timestamps()
+        is_first_sync = not stored
+        
+        # Fetch current activity timestamps from SIMKL
+        activities = self.api.get_last_activity()
+        
+        if not activities:
+            log_warning(f"[sync v{__version__}] SyncManager._check_simkl_activity() Failed to fetch /sync/activities - falling back to full sync")
+            return {
+                'movies_changed': True,
+                'shows_changed': True,
+                'ratings_changed': True,
+                'movies_date_from': None,
+                'shows_date_from': None,
+                'current_activities': None,
+                'is_first_sync': True
+            }
+        
+        log(f"[sync v{__version__}] SyncManager._check_simkl_activity() Current SIMKL activities: {activities}")
+        
+        # Extract relevant timestamps from the response
+        # SIMKL /sync/activities returns nested objects like:
+        # {"movies": {"watched_at": "...", "rated_at": "..."},
+        #  "tv_shows": {"watched_at": "...", "rated_at": "..."}}
+        movies_activity = activities.get('movies', {})
+        shows_activity = activities.get('tv_shows', {})
+        
+        current_movies_watched = movies_activity.get('watched_at', '')
+        current_shows_watched = shows_activity.get('watched_at', '')
+        current_movies_rated = movies_activity.get('rated_at', '')
+        current_shows_rated = shows_activity.get('rated_at', '')
+        
+        # Compare against stored timestamps
+        stored_movies_watched = stored.get('movies_watched_at', '')
+        stored_shows_watched = stored.get('tv_shows_watched_at', '')
+        stored_movies_rated = stored.get('movies_rated_at', '')
+        stored_shows_rated = stored.get('tv_shows_rated_at', '')
+        
+        movies_changed = (current_movies_watched != stored_movies_watched)
+        shows_changed = (current_shows_watched != stored_shows_watched)
+        ratings_changed = (current_movies_rated != stored_movies_rated or
+                          current_shows_rated != stored_shows_rated)
+        
+        # For incremental fetch, use the stored timestamp as date_from.
+        # If first sync (no stored timestamps), date_from stays None for full fetch.
+        movies_date_from = stored_movies_watched if stored_movies_watched and not is_first_sync else None
+        shows_date_from = stored_shows_watched if stored_shows_watched and not is_first_sync else None
+        
+        log(f"[sync v{__version__}] SyncManager._check_simkl_activity() Changes detected: "
+            f"movies={movies_changed}, shows={shows_changed}, ratings={ratings_changed}, "
+            f"is_first_sync={is_first_sync}")
+        
+        if movies_changed:
+            log(f"[sync v{__version__}] SyncManager._check_simkl_activity() Movie activity changed: "
+                f"stored='{stored_movies_watched}' -> current='{current_movies_watched}' | "
+                f"date_from={movies_date_from}")
+        if shows_changed:
+            log(f"[sync v{__version__}] SyncManager._check_simkl_activity() Show activity changed: "
+                f"stored='{stored_shows_watched}' -> current='{current_shows_watched}' | "
+                f"date_from={shows_date_from}")
+        
+        # Build the new timestamps dict to save after successful sync
+        new_timestamps = {
+            'movies_watched_at': current_movies_watched,
+            'tv_shows_watched_at': current_shows_watched,
+            'movies_rated_at': current_movies_rated,
+            'tv_shows_rated_at': current_shows_rated
+        }
+        
+        return {
+            'movies_changed': movies_changed,
+            'shows_changed': shows_changed,
+            'ratings_changed': ratings_changed,
+            'movies_date_from': movies_date_from,
+            'shows_date_from': shows_date_from,
+            'current_activities': new_timestamps,
+            'is_first_sync': is_first_sync
+        }
+    
+    # ========== Kodi-Side Delta Sync Tracking ==========
     
     def _get_sync_state_key(self, category):
         """
@@ -1013,7 +1168,7 @@ class SyncManager:
         
         return index
     
-    def import_movies_from_simkl(self):
+    def import_movies_from_simkl(self, date_from=None):
         """
         Import watched movies from SIMKL to Kodi.
         
@@ -1023,13 +1178,21 @@ class SyncManager:
         If 'unmark_not_on_simkl' setting is enabled, also unmarks
         items that are watched in Kodi but not on SIMKL.
         
+        Args:
+            date_from: Optional ISO 8601 timestamp for incremental fetch.
+                       If provided, only fetches movies changed after this date.
+                       If None, fetches ALL completed movies (full sync).
+                       Per SIMKL team feedback: use /sync/activities timestamps
+                       to determine this value.
+        
         Returns:
             int: Number of movies marked as watched
         """
-        log("[sync v7.4.4] SyncManager.import_movies_from_simkl() === Starting Movie Import from SIMKL ===")
+        sync_mode = f"incremental from {date_from}" if date_from else "FULL"
+        log(f"[sync v{__version__}] SyncManager.import_movies_from_simkl() === Starting Movie Import from SIMKL ({sync_mode}) ===")
         
-        # Get completed movies from SIMKL
-        simkl_movies = self.api.get_all_items("movies", "completed")
+        # Get completed movies from SIMKL (with optional date filter)
+        simkl_movies = self.api.get_all_items("movies", "completed", date_from=date_from)
         
         if not simkl_movies:
             log("[sync v7.4.4] SyncManager.import_movies_from_simkl() No completed movies on SIMKL")
@@ -1091,14 +1254,22 @@ class SyncManager:
         log(f"[sync v7.4.4] SyncManager.import_movies_from_simkl() Import results: {imported} marked, {already_watched} already watched, {not_found} not in Kodi")
         
         # Check if we should unmark items not on SIMKL
+        # IMPORTANT: Only unmark during FULL sync (no date_from filter).
+        # During incremental sync, we only fetched a subset of items from SIMKL,
+        # so the absence of an item does NOT mean it's not on SIMKL - it just
+        # means it wasn't changed since date_from. Unmarking during incremental
+        # sync would incorrectly remove valid watched status.
         if get_setting_bool('unmark_not_on_simkl'):
-            unmarked = self._unmark_movies_not_on_simkl(kodi_movies, simkl_movie_ids)
-            self.stats['movies_unmarked'] = unmarked
-            log(f"[sync v7.4.4] SyncManager.import_movies_from_simkl() Unmarked {unmarked} movies not found on SIMKL")
+            if date_from:
+                log(f"[sync v{__version__}] SyncManager.import_movies_from_simkl() Skipping unmark check - incremental sync only has partial data")
+            else:
+                unmarked = self._unmark_movies_not_on_simkl(kodi_movies, simkl_movie_ids)
+                self.stats['movies_unmarked'] = unmarked
+                log(f"[sync v{__version__}] SyncManager.import_movies_from_simkl() Unmarked {unmarked} movies not found on SIMKL")
         
         self.stats['movies_imported'] = imported
         
-        log(f"[sync v7.4.4] SyncManager.import_movies_from_simkl() === Movie Import Complete: {imported} movies marked as watched ===")
+        log(f"[sync v{__version__}] SyncManager.import_movies_from_simkl() === Movie Import Complete: {imported} movies marked as watched ===")
         return imported
     
     def _unmark_movies_not_on_simkl(self, kodi_movies, simkl_movie_ids):
@@ -1148,23 +1319,31 @@ class SyncManager:
         
         return unmarked
 
-    def import_episodes_from_simkl(self):
+    def import_episodes_from_simkl(self, date_from=None):
         """
         Import watched TV episodes from SIMKL to Kodi.
         
         Fetches completed shows from SIMKL, matches them to Kodi,
         and marks individual episodes as watched.
         
+        Args:
+            date_from: Optional ISO 8601 timestamp for incremental fetch.
+                       If provided, only fetches shows changed after this date.
+                       If None, fetches ALL shows (full sync).
+                       Per SIMKL team feedback: use /sync/activities timestamps
+                       to determine this value.
+        
         Returns:
             int: Number of episodes marked as watched
         """
-        log("[sync v7.4.4] SyncManager.import_episodes_from_simkl() === Starting Episode Import from SIMKL ===")
+        sync_mode = f"incremental from {date_from}" if date_from else "FULL"
+        log(f"[sync v{__version__}] SyncManager.import_episodes_from_simkl() === Starting Episode Import from SIMKL ({sync_mode}) ===")
         
-        # Get completed shows from SIMKL (includes episode info)
-        simkl_shows = self.api.get_all_items("shows", "completed")
+        # Get completed shows from SIMKL (includes episode info, with optional date filter)
+        simkl_shows = self.api.get_all_items("shows", "completed", date_from=date_from)
         
         # Also get "watching" shows - they have watched episodes too!
-        simkl_watching = self.api.get_all_items("shows", "watching")
+        simkl_watching = self.api.get_all_items("shows", "watching", date_from=date_from)
         
         all_shows = (simkl_shows or []) + (simkl_watching or [])
         
@@ -1259,12 +1438,18 @@ class SyncManager:
         log(f"[sync v7.4.4] SyncManager.import_episodes_from_simkl() Not found: {not_found_shows} shows, {not_found_eps} episodes")
         
         # Check if we should unmark episodes not on SIMKL
+        # IMPORTANT: Only unmark during FULL sync (no date_from filter).
+        # During incremental sync, we only fetched shows changed since date_from,
+        # so the absence of an episode does NOT mean it's not on SIMKL.
         if get_setting_bool('unmark_not_on_simkl'):
-            # Build set of watched episodes on SIMKL for checking
-            simkl_episodes = self._build_simkl_episode_set(all_shows, show_index)
-            unmarked = self._unmark_episodes_not_on_simkl(kodi_episodes, simkl_episodes)
-            self.stats['episodes_unmarked'] = unmarked
-            log(f"[sync v7.4.4] SyncManager.import_episodes_from_simkl() Unmarked {unmarked} episodes not found on SIMKL")
+            if date_from:
+                log(f"[sync v{__version__}] SyncManager.import_episodes_from_simkl() Skipping unmark check - incremental sync only has partial data")
+            else:
+                # Build set of watched episodes on SIMKL for checking
+                simkl_episodes = self._build_simkl_episode_set(all_shows, show_index)
+                unmarked = self._unmark_episodes_not_on_simkl(kodi_episodes, simkl_episodes)
+                self.stats['episodes_unmarked'] = unmarked
+                log(f"[sync v{__version__}] SyncManager.import_episodes_from_simkl() Unmarked {unmarked} episodes not found on SIMKL")
         
         self.stats['episodes_imported'] = imported
         self.stats['shows_imported'] = len(matched_shows)
@@ -1686,6 +1871,15 @@ class SyncManager:
         
         This pulls your SIMKL watched items and marks them as watched in Kodi.
         
+        Uses SIMKL's /sync/activities endpoint to detect whether anything has
+        changed since the last successful sync. If no changes are detected,
+        the import is skipped entirely (saving API calls and server load).
+        When changes ARE detected, uses ?date_from= to only fetch items that
+        changed since the last sync timestamp.
+        
+        Per SIMKL team feedback (Ennergizer, 2026-02-25): this is the recommended
+        approach instead of fetching ALL items every sync.
+        
         Args:
             sync_movies (bool): Import movies
             sync_episodes (bool): Import TV episodes
@@ -1693,13 +1887,13 @@ class SyncManager:
         Returns:
             dict: Sync statistics
         """
-        log("[sync v7.4.4] SyncManager.sync_from_simkl() ========================================")
-        log("[sync v7.4.4] SyncManager.sync_from_simkl() SIMKL SYNC: Importing from SIMKL")
-        log("[sync v7.4.4] SyncManager.sync_from_simkl() ========================================")
+        log(f"[sync v{__version__}] SyncManager.sync_from_simkl() ========================================")
+        log(f"[sync v{__version__}] SyncManager.sync_from_simkl() SIMKL SYNC: Importing from SIMKL")
+        log(f"[sync v{__version__}] SyncManager.sync_from_simkl() ========================================")
         
         # Check authentication
         if not self.api.access_token:
-            log_error("[sync v7.4.4] SyncManager.sync_from_simkl() Not authenticated - cannot sync")
+            log_error(f"[sync v{__version__}] SyncManager.sync_from_simkl() Not authenticated - cannot sync")
             self._notify("SIMKL Sync", "Please authenticate first!")
             return self.stats
         
@@ -1712,6 +1906,46 @@ class SyncManager:
             self.progress_dialog.create("SIMKL Sync", "Importing from SIMKL...")
         
         try:
+            # ---- Incremental sync: check /sync/activities first ----
+            # Unless force_full_sync is set (manual sync), we check whether
+            # SIMKL has any new activity before fetching data. This avoids
+            # pulling the entire watch history when nothing has changed.
+            movies_date_from = None
+            shows_date_from = None
+            activity_data = None
+            
+            if self.force_full_sync:
+                # Manual sync: always do full fetch (no date_from)
+                # This gives users confidence that everything is synchronized
+                log(f"[sync v{__version__}] SyncManager.sync_from_simkl() FULL SYNC forced - skipping activity check, fetching all items")
+            else:
+                # Background/automatic sync: check activities for delta detection
+                activity_data = self._check_simkl_activity()
+                
+                # If nothing has changed on SIMKL, skip the entire import
+                if (not activity_data['movies_changed'] and 
+                    not activity_data['shows_changed'] and 
+                    not activity_data['ratings_changed']):
+                    log(f"[sync v{__version__}] SyncManager.sync_from_simkl() No changes detected on SIMKL since last sync - skipping import")
+                    
+                    if self.show_progress:
+                        self.progress_dialog.update(100, "Already in sync - no changes on SIMKL")
+                    
+                    self._notify("SIMKL Sync", "Already in sync")
+                    
+                    # Still save timestamps even though nothing changed
+                    # (confirms we checked successfully)
+                    if activity_data.get('current_activities'):
+                        self._save_activity_timestamps(activity_data['current_activities'])
+                    
+                    return self.stats
+                
+                # Set date_from for incremental fetch where changes were detected
+                if activity_data['movies_changed']:
+                    movies_date_from = activity_data.get('movies_date_from')
+                if activity_data['shows_changed']:
+                    shows_date_from = activity_data.get('shows_date_from')
+            
             # Import movies
             if sync_movies:
                 if self.show_progress:
@@ -1721,7 +1955,12 @@ class SyncManager:
                         self._notify("SIMKL Sync", "Import cancelled")
                         return self.stats
                 
-                self.import_movies_from_simkl()
+                # Skip movie import if activity check showed no movie changes
+                # (only applies to background sync, not force_full_sync)
+                if not self.force_full_sync and activity_data and not activity_data['movies_changed']:
+                    log(f"[sync v{__version__}] SyncManager.sync_from_simkl() No movie changes on SIMKL - skipping movie import")
+                else:
+                    self.import_movies_from_simkl(date_from=movies_date_from)
             
             # Import episodes
             if sync_episodes:
@@ -1732,7 +1971,11 @@ class SyncManager:
                         self._notify("SIMKL Sync", "Import cancelled")
                         return self.stats
                 
-                self.import_episodes_from_simkl()
+                # Skip episode import if activity check showed no show changes
+                if not self.force_full_sync and activity_data and not activity_data['shows_changed']:
+                    log(f"[sync v{__version__}] SyncManager.sync_from_simkl() No show changes on SIMKL - skipping episode import")
+                else:
+                    self.import_episodes_from_simkl(date_from=shows_date_from)
             
             # Import ratings
             if self.show_progress:
@@ -1742,14 +1985,38 @@ class SyncManager:
                     self._notify("SIMKL Sync", "Import cancelled")
                     return self.stats
             
-            self.import_ratings_from_simkl()
+            # Skip rating import if activity check showed no rating changes
+            if not self.force_full_sync and activity_data and not activity_data['ratings_changed']:
+                log(f"[sync v{__version__}] SyncManager.sync_from_simkl() No rating changes on SIMKL - skipping rating import")
+            else:
+                self.import_ratings_from_simkl()
             
             # Done!
             if self.show_progress:
                 self.progress_dialog.update(100, "Import complete!")
             
+            # Save activity timestamps after successful sync
+            # This ensures the next sync can use these timestamps for delta detection
+            if activity_data and activity_data.get('current_activities'):
+                self._save_activity_timestamps(activity_data['current_activities'])
+            elif self.force_full_sync:
+                # After a forced full sync, fetch and save current activity timestamps
+                # so subsequent background syncs can use incremental mode
+                log(f"[sync v{__version__}] SyncManager.sync_from_simkl() Full sync complete - fetching activity timestamps for future incremental syncs")
+                fresh_activities = self.api.get_last_activity()
+                if fresh_activities:
+                    movies_activity = fresh_activities.get('movies', {})
+                    shows_activity = fresh_activities.get('tv_shows', {})
+                    new_timestamps = {
+                        'movies_watched_at': movies_activity.get('watched_at', ''),
+                        'tv_shows_watched_at': shows_activity.get('watched_at', ''),
+                        'movies_rated_at': movies_activity.get('rated_at', ''),
+                        'tv_shows_rated_at': shows_activity.get('rated_at', '')
+                    }
+                    self._save_activity_timestamps(new_timestamps)
+            
         except Exception as e:
-            log_error(f"[sync v7.4.4] SyncManager.sync_from_simkl() Import failed with exception: {e}")
+            log_error(f"[sync v{__version__}] SyncManager.sync_from_simkl() Import failed with exception: {e}")
             import traceback
             log_error(traceback.format_exc())
             self.stats['errors'] += 1
@@ -1771,12 +2038,12 @@ class SyncManager:
             self._notify("SIMKL Import Complete", 
                    f"Marked {movies} movies, {episodes} episodes ({errors} errors)")
         
-        log("[sync v7.4.4] SyncManager.sync_from_simkl() ========================================")
-        log(f"[sync v7.4.4] SyncManager.sync_from_simkl() IMPORT COMPLETE")
-        log(f"[sync v7.4.4] SyncManager.sync_from_simkl() Movies: {self.stats['movies_imported']}")
-        log(f"[sync v7.4.4] SyncManager.sync_from_simkl() Episodes: {self.stats['episodes_imported']}")
-        log(f"[sync v7.4.4] SyncManager.sync_from_simkl() Errors: {self.stats['errors']}")
-        log("[sync v7.4.4] SyncManager.sync_from_simkl() ========================================")
+        log(f"[sync v{__version__}] SyncManager.sync_from_simkl() ========================================")
+        log(f"[sync v{__version__}] SyncManager.sync_from_simkl() IMPORT COMPLETE")
+        log(f"[sync v{__version__}] SyncManager.sync_from_simkl() Movies: {self.stats['movies_imported']}")
+        log(f"[sync v{__version__}] SyncManager.sync_from_simkl() Episodes: {self.stats['episodes_imported']}")
+        log(f"[sync v{__version__}] SyncManager.sync_from_simkl() Errors: {self.stats['errors']}")
+        log(f"[sync v{__version__}] SyncManager.sync_from_simkl() ========================================")
         
         return self.stats
 
@@ -1804,7 +2071,11 @@ def run_sync_to_simkl(silent=False):
     # Show progress dialog unless silent mode
     show_progress = not silent
     
-    manager = SyncManager(show_progress=show_progress, silent=False)
+    # Manual syncs always use force_full_sync=True to bypass delta detection
+    # and give users confidence that everything is being synchronized.
+    # Background syncs in service.py use force_full_sync=False (the default)
+    # to benefit from incremental sync via /sync/activities.
+    manager = SyncManager(show_progress=show_progress, silent=False, force_full_sync=True)
     try:
         manager.sync_to_simkl(sync_movies=sync_movies, sync_episodes=sync_episodes)
     finally:
@@ -1816,6 +2087,8 @@ def run_sync_from_simkl(silent=False):
     Run import sync with progress dialog.
     
     Called from default.py when user triggers manual import.
+    Uses force_full_sync=True to always fetch ALL items from SIMKL
+    instead of using incremental /sync/activities delta detection.
     
     Args:
         silent (bool): If True, don't show progress dialog (toasts still appear)
@@ -1831,7 +2104,8 @@ def run_sync_from_simkl(silent=False):
     # Show progress dialog unless silent mode
     show_progress = not silent
     
-    manager = SyncManager(show_progress=show_progress, silent=False)
+    # Manual imports always do full sync for user confidence
+    manager = SyncManager(show_progress=show_progress, silent=False, force_full_sync=True)
     try:
         manager.sync_from_simkl(sync_movies=sync_movies, sync_episodes=sync_episodes)
     finally:

@@ -30,7 +30,7 @@ from resources.lib.exclusions import check_exclusion, get_exclusion_summary
 from resources.lib.strings import getString, NOW_SCROBBLING, MARKED_AS_WATCHED
 
 # Module version
-__version__ = '7.4.4'
+__version__ = '7.5.5'
 
 # Log module initialization
 xbmc.log(f'[SIMKL Scrobbler] scrobbler.py v{__version__} - Core scrobbler engine loading', level=xbmc.LOGINFO)
@@ -422,12 +422,24 @@ class SimklScrobbler:
                 progress = self._calculate_watched_percent()
                 log(f"[scrobbler v7.4.4] SimklScrobbler.transition_check() Scrobble progress: {progress:.1f}%")
             
-            # Send periodic progress update to SIMKL every 15 minutes
-            # SIMKL recommends these to keep the session alive and track progress
-            if now - self.last_progress_update >= 900:  # 900 seconds = 15 minutes
+            # Send periodic progress update to SIMKL every 15 minutes.
+            # This re-sends a "start" scrobble to keep the SIMKL session alive
+            # and update the server-side progress percentage.
+            #
+            # Per SIMKL team feedback (Ennergizer, 2026-02-25): this is NOT needed
+            # by default. Kodi already sends pause/stop events which update SIMKL,
+            # and the transition_check() loop calls this every second already to
+            # detect multi-episode transitions. The periodic re-send is only useful
+            # for specific Kodi setups where playback events may not fire reliably.
+            #
+            # This is gated behind the "periodic_progress_update" setting (default: OFF)
+            # to avoid unnecessary API requests. Users who need it can enable it
+            # in Settings > Scrobbling > "Send periodic progress updates".
+            if get_setting_bool("periodic_progress_update") and now - self.last_progress_update >= 900:  # 900 seconds = 15 minutes
                 self.last_progress_update = now
-                log("[scrobbler v7.4.4] SimklScrobbler.transition_check() Sending periodic progress update to SIMKL")
-                self._scrobble("start")  # Re-sending "start" updates the progress
+                progress = self._calculate_watched_percent()
+                log(f"[scrobbler v{__version__}] SimklScrobbler.transition_check() Periodic progress update enabled - sending scrobble/start to SIMKL at {progress:.1f}%")
+                self._scrobble("start")  # Re-sending "start" updates the progress on SIMKL
                     
         except Exception as e:
             # This happens normally when playback stops
@@ -507,28 +519,31 @@ class SimklScrobbler:
                 "ids": ids
             }
         
-        # Otherwise, search SIMKL
-        log(f"[scrobbler v7.4.4] SimklScrobbler._identify_movie() No IDs available, searching SIMKL for: {title} ({year})")
-        log(f"[scrobbler v7.4.4] SimklScrobbler._identify_movie() Searching SIMKL for movie: {title} ({year})")
+        # Otherwise, search SIMKL by title+year
+        # NOTE: We do NOT retry without year if no results are found.
+        # Per SIMKL team feedback (Ennergizer, 2026-02-25): SIMKL's server-side
+        # detection already tries multiple matching strategies internally:
+        #   1. Match by any provided IDs (imdb, tmdb, etc.)
+        #   2. Match by title+year
+        #   3. Match by unique title alone (if no duplicates exist)
+        # Retrying without year would double API calls for ambiguous titles
+        # with no benefit, since SIMKL already handles that fallback.
+        log(f"[scrobbler v{__version__}] SimklScrobbler._identify_movie() No IDs available, searching SIMKL for: {title} ({year})")
         results = self.api.search_movie(title, year)
         
-        if not results:
-            log_warning(f"[scrobbler v7.4.4] SimklScrobbler._identify_movie() No SIMKL results for movie: {title}")
-            # Try without year
-            results = self.api.search_movie(title)
-            
         if results:
             movie = results[0]
-            log(f"[scrobbler v7.4.4] SimklScrobbler._identify_movie() Found movie on SIMKL: {movie.get('title')}")
+            log(f"[scrobbler v{__version__}] SimklScrobbler._identify_movie() Found movie on SIMKL: {movie.get('title')}")
             return {
                 "title": movie.get("title"),
                 "year": movie.get("year"),
                 "ids": movie.get("ids", {})
             }
         
-        # Last resort - use title/year + filename for SIMKL's file-based matching
-        # This helps with ambiguous titles like "Crash" where title+year isn't enough
-        log_warning(f"[scrobbler v7.4.4] SimklScrobbler._identify_movie() Using title-only fallback for: {title} (file: {filename})")
+        # No search results - fall back to title/year + filename for SIMKL's
+        # file-based matching. This sends the raw data in the scrobble body and
+        # lets SIMKL's server-side logic attempt to resolve it.
+        log_warning(f"[scrobbler v{__version__}] SimklScrobbler._identify_movie() No SIMKL search results, using title/file fallback for: {title} (file: {filename})")
         result = {"title": title, "year": year}
         if filename:
             result["file"] = filename

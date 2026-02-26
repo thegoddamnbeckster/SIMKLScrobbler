@@ -1,4 +1,30 @@
 
+[7.5.5] - 2026-02-26
+SIMKL API optimizations based on staff feedback from Ennergizer
+- NEW: Incremental sync via /sync/activities endpoint + ?date_from= parameter
+  Background syncs now check SIMKL activity timestamps before fetching data.
+  Only fetches categories (movies/shows) that actually changed since last sync.
+  Uses ?date_from= to retrieve only new/changed items, dramatically reducing
+  bandwidth and server load. First sync does full fetch; subsequent syncs are
+  incremental. Manual syncs always do full fetch for user confidence.
+  Activity timestamps stored in addon settings between syncs.
+  Unmark logic safely disabled during incremental sync (partial data guard).
+- NEW: 15-minute progress updates now optional (default OFF)
+  Added periodic_progress_update toggle in Scrobbling settings category.
+  SIMKL already tracks progress from the initial start scrobble; periodic
+  updates are redundant for most users per SIMKL team feedback.
+- FIX: Removed redundant double API call in movie identification
+  Removed retry-without-year fallback in _identify_movie(). SIMKL handles
+  year matching server-side; the second call was wasteful.
+- NEW: Rate limiting with exponential backoff on all API calls
+  API _request() now retries on 429, 5xx, timeout, and connection errors.
+  Respects Retry-After header on 429 responses. Exponential backoff with
+  2s base, capped at 30s, max 3 retries. Uses xbmc.sleep() to keep Kodi
+  responsive during waits. Extracted helper methods for clean architecture.
+- Manual sync entry points now pass force_full_sync=True for comprehensive
+  synchronization; background syncs use incremental mode by default.
+- All module versions bumped to 7.5.5
+
 [7.4.3] - 2026-02-16
 FIX: Toast timing, rating dialog layout, existing rating lookup
 - FIXED: Toast notification invisible because Kodi UI transition after stopping

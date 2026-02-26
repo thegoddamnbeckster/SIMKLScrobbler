@@ -3,7 +3,7 @@
 # For lazy piggies who can't follow multi-step instructions
 
 param(
-    [string]$Version = "6.9.0",
+    [string]$Version = "7.5.5",
     [switch]$SkipKodiKill = $false
 )
 

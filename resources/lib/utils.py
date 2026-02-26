@@ -19,7 +19,7 @@ import xbmcgui
 import xbmcvfs
 
 # Module version
-__version__ = '7.4.3'
+__version__ = '7.5.5'
 
 # Log module initialization
 xbmc.log(f'[SIMKL Scrobbler] utils.py v{__version__} - Utility module loading', level=xbmc.LOGINFO)

@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 SIMKL Scrobbler - Background Service Entry Point
-Version: 7.4.3
+Version: 7.5.5
 Last Modified: 2026-02-14
 
 This file is the entry point for Kodi's service extension.
