@@ -12,11 +12,14 @@ Professional code - Project 4 standards
 
 import xbmc
 
+# Module version
+__version__ = '7.5.5'
+
 # Log module initialization
-xbmc.log('[SIMKL Scrobbler] service.py v7.4.3 - Entry point loading', level=xbmc.LOGINFO)
+xbmc.log(f'[SIMKL Scrobbler] service.py v{__version__} - Entry point loading', level=xbmc.LOGINFO)
 
 from resources.lib.service import main
 
 if __name__ == "__main__":
-    xbmc.log('[SIMKL Scrobbler] service.py v7.4.3 - Starting main service', level=xbmc.LOGINFO)
+    xbmc.log(f'[SIMKL Scrobbler] service.py v{__version__} - Starting main service', level=xbmc.LOGINFO)
     main()
