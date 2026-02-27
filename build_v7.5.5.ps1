@@ -8,7 +8,7 @@ $projectRoot = "W:\Scripts\SIMKL_Scrobbler"
 $buildTemp = "$projectRoot\build_temp"
 $addonFolder = "script.simkl"
 $sourcePath = "$buildTemp\$addonFolder"
-$outputZip = "C:\Temp\script.simkl-v7.5.5.zip"
+$outputZip = "C:\Temp\script.simkl.scrobbler-7.5.5.zip"
 
 Write-Host "======================================"
 Write-Host " SIMKL Scrobbler v7.5.5 - Build"

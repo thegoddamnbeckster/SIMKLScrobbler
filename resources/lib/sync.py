@@ -60,7 +60,7 @@ def _kodi_time_to_utc_iso(kodi_timestamp):
         # Format as ISO 8601 with Z suffix
         return utc_dt.strftime("%Y-%m-%dT%H:%M:%SZ")
     except Exception as e:
-        log_warning(f"[sync v7.4.4] _kodi_time_to_utc_iso() Failed to convert timestamp '{kodi_timestamp}': {e}")
+        log_warning(f"[sync v{__version__}] _kodi_time_to_utc_iso() Failed to convert timestamp '{kodi_timestamp}': {e}")
         return None
 
 
@@ -96,7 +96,7 @@ class SyncManager:
             self.api.session.headers.update({
                 "Authorization": f"Bearer {token}"
             })
-            log(f"[sync v7.4.4] SyncManager.__init__() Injected fresh token into SyncManager API (len={len(token)})")
+            log(f"[sync v{__version__}] SyncManager.__init__() Injected fresh token into SyncManager API (len={len(token)})")
         
         self.show_progress = show_progress
         self.silent = silent
@@ -128,7 +128,7 @@ class SyncManager:
         """Close the API session to free socket connections."""
         if self.api:
             self.api.close()
-            log_debug("[sync v7.4.4] SyncManager.close() SyncManager API session closed")
+            log_debug(f"[sync v{__version__}] SyncManager.close() SyncManager API session closed")
     
     # ========== SIMKL Activity Tracking (Incremental Sync) ==========
     # Per SIMKL team feedback (Ennergizer, 2026-02-25): instead of fetching
@@ -319,7 +319,7 @@ class SyncManager:
                 return json.loads(state_json)
             return {}
         except Exception as e:
-            log_debug(f"[sync v7.4.4] SyncManager._load_sync_state() Could not load sync state for {category}: {e}")
+            log_debug(f"[sync v{__version__}] SyncManager._load_sync_state() Could not load sync state for {category}: {e}")
             return {}
     
     def _save_sync_state(self, category, state):
@@ -336,9 +336,9 @@ class SyncManager:
             key = self._get_sync_state_key(category)
             state_json = json.dumps(state)
             addon.setSetting(key, state_json)
-            log_debug(f"[sync v7.4.4] SyncManager._save_sync_state() Saved sync state for {category}")
+            log_debug(f"[sync v{__version__}] SyncManager._save_sync_state() Saved sync state for {category}")
         except Exception as e:
-            log_error(f"[sync v7.4.4] SyncManager._save_sync_state() Failed to save sync state for {category}: {e}")
+            log_error(f"[sync v{__version__}] SyncManager._save_sync_state() Failed to save sync state for {category}: {e}")
     
     def _build_movie_state(self, movies):
         """
@@ -398,7 +398,7 @@ class SyncManager:
             list: Movies that have changed
         """
         if not last_state:
-            log("[sync v7.4.4] SyncManager._find_changed_movies() No previous sync state - syncing all movies")
+            log(f"[sync v{__version__}] SyncManager._find_changed_movies() No previous sync state - syncing all movies")
             return current_movies
         
         changed = []
@@ -421,7 +421,7 @@ class SyncManager:
             if last_playcount == -1 or current_playcount != last_playcount:
                 changed.append(movie)
         
-        log(f"[sync v7.4.4] SyncManager._find_changed_movies() Delta sync: {len(changed)} of {len(current_movies)} movies changed")
+        log(f"[sync v{__version__}] SyncManager._find_changed_movies() Delta sync: {len(changed)} of {len(current_movies)} movies changed")
         return changed
     
     def _find_changed_episodes(self, current_episodes, last_state):
@@ -436,7 +436,7 @@ class SyncManager:
             list: Episodes that have changed
         """
         if not last_state:
-            log("[sync v7.4.4] SyncManager._find_changed_episodes() No previous sync state - syncing all episodes")
+            log(f"[sync v{__version__}] SyncManager._find_changed_episodes() No previous sync state - syncing all episodes")
             return current_episodes
         
         changed = []
@@ -458,7 +458,7 @@ class SyncManager:
             if last_playcount == -1 or current_playcount != last_playcount:
                 changed.append(ep)
         
-        log(f"[sync v7.4.4] SyncManager._find_changed_episodes() Delta sync: {len(changed)} of {len(current_episodes)} episodes changed")
+        log(f"[sync v{__version__}] SyncManager._find_changed_episodes() Delta sync: {len(changed)} of {len(current_episodes)} episodes changed")
         return changed
     
     # ========== Kodi JSON-RPC Methods ==========
@@ -489,16 +489,16 @@ class SyncManager:
             response = json.loads(xbmc.executeJSONRPC(json.dumps(request)))
             
             if "error" in response:
-                log_error(f"[sync v7.4.4] SyncManager._kodi_rpc() JSON-RPC error: {response['error']}")
+                log_error(f"[sync v{__version__}] SyncManager._kodi_rpc() JSON-RPC error: {response['error']}")
                 return None
             
             return response.get("result")
             
         except json.JSONDecodeError as e:
-            log_error(f"[sync v7.4.4] SyncManager._kodi_rpc() JSON-RPC parse error: {e}")
+            log_error(f"[sync v{__version__}] SyncManager._kodi_rpc() JSON-RPC parse error: {e}")
             return None
         except Exception as e:
-            log_error(f"[sync v7.4.4] SyncManager._kodi_rpc() JSON-RPC exception: {e}")
+            log_error(f"[sync v{__version__}] SyncManager._kodi_rpc() JSON-RPC exception: {e}")
             return None
     
     def get_kodi_movies(self):
@@ -508,7 +508,7 @@ class SyncManager:
         Returns:
             list: List of movie dicts with IDs and playcount
         """
-        log("[sync v7.4.4] SyncManager.get_kodi_movies() Fetching movies from Kodi library...")
+        log(f"[sync v{__version__}] SyncManager.get_kodi_movies() Fetching movies from Kodi library...")
         
         result = self._kodi_rpc("VideoLibrary.GetMovies", {
             "properties": [
@@ -525,11 +525,11 @@ class SyncManager:
         })
         
         if not result or "movies" not in result:
-            log_warning("[sync v7.4.4] SyncManager.get_kodi_movies() No movies found in Kodi library")
+            log_warning(f"[sync v{__version__}] SyncManager.get_kodi_movies() No movies found in Kodi library")
             return []
         
         movies = result["movies"]
-        log(f"[sync v7.4.4] SyncManager.get_kodi_movies() Found {len(movies)} movies in Kodi library")
+        log(f"[sync v{__version__}] SyncManager.get_kodi_movies() Found {len(movies)} movies in Kodi library")
         
         return movies
     
@@ -540,7 +540,7 @@ class SyncManager:
         Returns:
             list: List of episode dicts with IDs and playcount
         """
-        log("[sync v7.4.4] SyncManager.get_kodi_episodes() Fetching TV episodes from Kodi library...")
+        log(f"[sync v{__version__}] SyncManager.get_kodi_episodes() Fetching TV episodes from Kodi library...")
         
         result = self._kodi_rpc("VideoLibrary.GetEpisodes", {
             "properties": [
@@ -559,11 +559,11 @@ class SyncManager:
         })
         
         if not result or "episodes" not in result:
-            log_warning("[sync v7.4.4] SyncManager.get_kodi_episodes() No TV episodes found in Kodi library")
+            log_warning(f"[sync v{__version__}] SyncManager.get_kodi_episodes() No TV episodes found in Kodi library")
             return []
         
         episodes = result["episodes"]
-        log(f"[sync v7.4.4] SyncManager.get_kodi_episodes() Found {len(episodes)} episodes in Kodi library")
+        log(f"[sync v{__version__}] SyncManager.get_kodi_episodes() Found {len(episodes)} episodes in Kodi library")
         
         return episodes
     
@@ -574,7 +574,7 @@ class SyncManager:
         Returns:
             dict: Map of tvshowid -> show info
         """
-        log("[sync v7.4.4] SyncManager.get_kodi_tvshows() Fetching TV shows from Kodi library...")
+        log(f"[sync v{__version__}] SyncManager.get_kodi_tvshows() Fetching TV shows from Kodi library...")
         
         result = self._kodi_rpc("VideoLibrary.GetTVShows", {
             "properties": [
@@ -587,7 +587,7 @@ class SyncManager:
         })
         
         if not result or "tvshows" not in result:
-            log_warning("[sync v7.4.4] SyncManager.get_kodi_tvshows() No TV shows found in Kodi library")
+            log_warning(f"[sync v{__version__}] SyncManager.get_kodi_tvshows() No TV shows found in Kodi library")
             return {}
         
         # Create lookup by tvshowid
@@ -595,7 +595,7 @@ class SyncManager:
         for show in result["tvshows"]:
             shows[show["tvshowid"]] = show
         
-        log(f"[sync v7.4.4] SyncManager.get_kodi_tvshows() Found {len(shows)} TV shows in Kodi library")
+        log(f"[sync v{__version__}] SyncManager.get_kodi_tvshows() Found {len(shows)} TV shows in Kodi library")
         
         return shows
     
@@ -657,18 +657,18 @@ class SyncManager:
         Returns:
             int: Number of movies exported
         """
-        log("[sync v7.4.4] SyncManager.export_movies_to_simkl() === Starting Movie Export to SIMKL ===")
+        log(f"[sync v{__version__}] SyncManager.export_movies_to_simkl() === Starting Movie Export to SIMKL ===")
         
         # Get Kodi movies
         kodi_movies = self.get_kodi_movies()
         
         if not kodi_movies:
-            log("[sync v7.4.4] SyncManager.export_movies_to_simkl() No movies to export")
+            log(f"[sync v{__version__}] SyncManager.export_movies_to_simkl() No movies to export")
             return 0
         
         # Load last sync state and find changes (or use all if forced full sync)
         if self.force_full_sync:
-            log("[sync v7.4.4] SyncManager.export_movies_to_simkl() FULL SYNC forced - skipping delta detection")
+            log(f"[sync v{__version__}] SyncManager.export_movies_to_simkl() FULL SYNC forced - skipping delta detection")
             changed_movies = kodi_movies
         else:
             last_state = self._load_sync_state('movies')
@@ -676,10 +676,10 @@ class SyncManager:
         
         # Filter to watched movies only
         watched_movies = [m for m in changed_movies if m.get("playcount", 0) > 0]
-        log(f"[sync v7.4.4] SyncManager.export_movies_to_simkl() Found {len(watched_movies)} watched movies (changed since last sync)")
+        log(f"[sync v{__version__}] SyncManager.export_movies_to_simkl() Found {len(watched_movies)} watched movies (changed since last sync)")
         
         if not watched_movies:
-            log("[sync v7.4.4] SyncManager.export_movies_to_simkl() No changed watched movies to export")
+            log(f"[sync v{__version__}] SyncManager.export_movies_to_simkl() No changed watched movies to export")
             # Still update sync state to track current state
             current_state = self._build_movie_state(kodi_movies)
             self._save_sync_state('movies', current_state)
@@ -693,7 +693,7 @@ class SyncManager:
             ids = self._extract_ids(movie)
             
             if not ids:
-                log_debug(f"[sync v7.4.4] SyncManager.export_movies_to_simkl() Skipping '{movie.get('title')}' - no valid IDs")
+                log_debug(f"[sync v{__version__}] SyncManager.export_movies_to_simkl() Skipping '{movie.get('title')}' - no valid IDs")
                 skipped += 1
                 continue
             
@@ -714,13 +714,13 @@ class SyncManager:
                         movie_obj["watched_at"] = utc_timestamp
             
             movies_to_send.append(movie_obj)
-            log_debug(f"[sync v7.4.4] SyncManager.export_movies_to_simkl() Prepared: {movie_obj['title']} ({movie_obj.get('year', '?')})")
+            log_debug(f"[sync v{__version__}] SyncManager.export_movies_to_simkl() Prepared: {movie_obj['title']} ({movie_obj.get('year', '?')})")
         
         if skipped > 0:
-            log_warning(f"[sync v7.4.4] SyncManager.export_movies_to_simkl() Skipped {skipped} movies without valid IDs")
+            log_warning(f"[sync v{__version__}] SyncManager.export_movies_to_simkl() Skipped {skipped} movies without valid IDs")
         
         if not movies_to_send:
-            log("[sync v7.4.4] SyncManager.export_movies_to_simkl() No movies with valid IDs to export")
+            log(f"[sync v{__version__}] SyncManager.export_movies_to_simkl() No movies with valid IDs to export")
             # Update sync state
             current_state = self._build_movie_state(kodi_movies)
             self._save_sync_state('movies', current_state)
@@ -733,16 +733,16 @@ class SyncManager:
         for i in range(0, len(movies_to_send), batch_size):
             batch = movies_to_send[i:i + batch_size]
             
-            log(f"[sync v7.4.4] SyncManager.export_movies_to_simkl() Sending batch {i // batch_size + 1}: {len(batch)} movies")
+            log(f"[sync v{__version__}] SyncManager.export_movies_to_simkl() Sending batch {i // batch_size + 1}: {len(batch)} movies")
             
             result = self.api.add_to_history(movies=batch)
             
             if result:
                 added = result.get("added", {}).get("movies", 0)
                 total_sent += added
-                log(f"[sync v7.4.4] SyncManager.export_movies_to_simkl() Batch complete: {added} movies added to SIMKL")
+                log(f"[sync v{__version__}] SyncManager.export_movies_to_simkl() Batch complete: {added} movies added to SIMKL")
             else:
-                log_error("[sync v7.4.4] SyncManager.export_movies_to_simkl() Failed to send batch to SIMKL")
+                log_error(f"[sync v{__version__}] SyncManager.export_movies_to_simkl() Failed to send batch to SIMKL")
                 self.stats['errors'] += 1
         
         self.stats['movies_exported'] = total_sent
@@ -751,7 +751,7 @@ class SyncManager:
         current_state = self._build_movie_state(kodi_movies)
         self._save_sync_state('movies', current_state)
         
-        log(f"[sync v7.4.4] SyncManager.export_movies_to_simkl() === Movie Export Complete: {total_sent} movies sent to SIMKL ===")
+        log(f"[sync v{__version__}] SyncManager.export_movies_to_simkl() === Movie Export Complete: {total_sent} movies sent to SIMKL ===")
         
         return total_sent
     
@@ -767,7 +767,7 @@ class SyncManager:
         Returns:
             int: Number of episodes exported
         """
-        log("[sync v7.4.4] SyncManager.export_episodes_to_simkl() === Starting TV Episode Export to SIMKL ===")
+        log(f"[sync v{__version__}] SyncManager.export_episodes_to_simkl() === Starting TV Episode Export to SIMKL ===")
         
         # Get TV shows for ID lookup
         tv_shows = self.get_kodi_tvshows()
@@ -776,12 +776,12 @@ class SyncManager:
         kodi_episodes = self.get_kodi_episodes()
         
         if not kodi_episodes:
-            log("[sync v7.4.4] SyncManager.export_episodes_to_simkl() No episodes to export")
+            log(f"[sync v{__version__}] SyncManager.export_episodes_to_simkl() No episodes to export")
             return 0
         
         # Load last sync state and find changes (or use all if forced full sync)
         if self.force_full_sync:
-            log("[sync v7.4.4] SyncManager.export_episodes_to_simkl() FULL SYNC forced - skipping delta detection")
+            log(f"[sync v{__version__}] SyncManager.export_episodes_to_simkl() FULL SYNC forced - skipping delta detection")
             changed_episodes = kodi_episodes
         else:
             last_state = self._load_sync_state('episodes')
@@ -789,10 +789,10 @@ class SyncManager:
         
         # Filter to watched episodes
         watched_episodes = [e for e in changed_episodes if e.get("playcount", 0) > 0]
-        log(f"[sync v7.4.4] SyncManager.export_episodes_to_simkl() Found {len(watched_episodes)} watched episodes (changed since last sync)")
+        log(f"[sync v{__version__}] SyncManager.export_episodes_to_simkl() Found {len(watched_episodes)} watched episodes (changed since last sync)")
         
         if not watched_episodes:
-            log("[sync v7.4.4] SyncManager.export_episodes_to_simkl() No changed watched episodes to export")
+            log(f"[sync v{__version__}] SyncManager.export_episodes_to_simkl() No changed watched episodes to export")
             # Still update sync state
             current_state = self._build_episode_state(kodi_episodes)
             self._save_sync_state('episodes', current_state)
@@ -814,7 +814,7 @@ class SyncManager:
                 show_ids = self._extract_ids(ep)
             
             if not show_ids:
-                log_debug(f"[sync v7.4.4] SyncManager.export_episodes_to_simkl() Skipping '{ep.get('showtitle')}' S{ep.get('season')}E{ep.get('episode')} - no show IDs")
+                log_debug(f"[sync v{__version__}] SyncManager.export_episodes_to_simkl() Skipping '{ep.get('showtitle')}' S{ep.get('season')}E{ep.get('episode')} - no show IDs")
                 skipped += 1
                 continue
             
@@ -856,16 +856,16 @@ class SyncManager:
             season["episodes"].append(ep_obj)
         
         if skipped > 0:
-            log_warning(f"[sync v7.4.4] SyncManager.export_episodes_to_simkl() Skipped {skipped} episodes without valid show IDs")
+            log_warning(f"[sync v{__version__}] SyncManager.export_episodes_to_simkl() Skipped {skipped} episodes without valid show IDs")
         
         if not shows_data:
-            log("[sync v7.4.4] SyncManager.export_episodes_to_simkl() No episodes with valid IDs to export")
+            log(f"[sync v{__version__}] SyncManager.export_episodes_to_simkl() No episodes with valid IDs to export")
             return 0
         
         # Convert to list for API
         shows_to_send = list(shows_data.values())
         
-        log(f"[sync v7.4.4] SyncManager.export_episodes_to_simkl() Prepared {len(shows_to_send)} shows with episodes for export")
+        log(f"[sync v{__version__}] SyncManager.export_episodes_to_simkl() Prepared {len(shows_to_send)} shows with episodes for export")
         
         # Send to SIMKL
         result = self.api.add_to_history(shows=shows_to_send)
@@ -874,9 +874,9 @@ class SyncManager:
         if result:
             added = result.get("added", {}).get("episodes", 0)
             total_sent = added
-            log(f"[sync v7.4.4] SyncManager.export_episodes_to_simkl() Episodes added to SIMKL: {added}")
+            log(f"[sync v{__version__}] SyncManager.export_episodes_to_simkl() Episodes added to SIMKL: {added}")
         else:
-            log_error("[sync v7.4.4] SyncManager.export_episodes_to_simkl() Failed to send episodes to SIMKL")
+            log_error(f"[sync v{__version__}] SyncManager.export_episodes_to_simkl() Failed to send episodes to SIMKL")
             self.stats['errors'] += 1
         
         self.stats['episodes_exported'] = total_sent
@@ -886,7 +886,7 @@ class SyncManager:
         current_state = self._build_episode_state(kodi_episodes)
         self._save_sync_state('episodes', current_state)
         
-        log(f"[sync v7.4.4] SyncManager.export_episodes_to_simkl() === Episode Export Complete: {total_sent} episodes sent to SIMKL ===")
+        log(f"[sync v{__version__}] SyncManager.export_episodes_to_simkl() === Episode Export Complete: {total_sent} episodes sent to SIMKL ===")
         
         return total_sent
     
@@ -905,13 +905,13 @@ class SyncManager:
         Returns:
             dict: Sync statistics
         """
-        log("[sync v7.4.4] SyncManager.sync_to_simkl() ========================================")
-        log("[sync v7.4.4] SyncManager.sync_to_simkl() SIMKL SYNC: Exporting to SIMKL")
-        log("[sync v7.4.4] SyncManager.sync_to_simkl() ========================================")
+        log(f"[sync v{__version__}] SyncManager.sync_to_simkl() ========================================")
+        log(f"[sync v{__version__}] SyncManager.sync_to_simkl() SIMKL SYNC: Exporting to SIMKL")
+        log(f"[sync v{__version__}] SyncManager.sync_to_simkl() ========================================")
         
         # Check authentication
         if not self.api.access_token:
-            log_error("[sync v7.4.4] SyncManager.sync_to_simkl() Not authenticated - cannot sync")
+            log_error(f"[sync v{__version__}] SyncManager.sync_to_simkl() Not authenticated - cannot sync")
             self._notify("SIMKL Sync", "Please authenticate first!")
             return self.stats
         
@@ -961,7 +961,7 @@ class SyncManager:
                 self.progress_dialog.update(100, "Export complete!")
             
         except Exception as e:
-            log_error(f"[sync v7.4.4] SyncManager.sync_to_simkl() Sync failed with exception: {e}")
+            log_error(f"[sync v{__version__}] SyncManager.sync_to_simkl() Sync failed with exception: {e}")
             self.stats['errors'] += 1
             self._notify("SIMKL Sync", f"Sync failed: {e}")
         
@@ -981,12 +981,12 @@ class SyncManager:
             self._notify("SIMKL Sync Complete", 
                    f"Exported {movies} movies, {episodes} episodes ({errors} errors)")
         
-        log("[sync v7.4.4] SyncManager.sync_to_simkl() ========================================")
-        log(f"[sync v7.4.4] SyncManager.sync_to_simkl() SYNC COMPLETE")
-        log(f"[sync v7.4.4] SyncManager.sync_to_simkl() Movies: {self.stats['movies_exported']}")
-        log(f"[sync v7.4.4] SyncManager.sync_to_simkl() Episodes: {self.stats['episodes_exported']}")
-        log(f"[sync v7.4.4] SyncManager.sync_to_simkl() Errors: {self.stats['errors']}")
-        log("[sync v7.4.4] SyncManager.sync_to_simkl() ========================================")
+        log(f"[sync v{__version__}] SyncManager.sync_to_simkl() ========================================")
+        log(f"[sync v{__version__}] SyncManager.sync_to_simkl() SYNC COMPLETE")
+        log(f"[sync v{__version__}] SyncManager.sync_to_simkl() Movies: {self.stats['movies_exported']}")
+        log(f"[sync v{__version__}] SyncManager.sync_to_simkl() Episodes: {self.stats['episodes_exported']}")
+        log(f"[sync v{__version__}] SyncManager.sync_to_simkl() Errors: {self.stats['errors']}")
+        log(f"[sync v{__version__}] SyncManager.sync_to_simkl() ========================================")
         
         return self.stats
 
@@ -1195,16 +1195,16 @@ class SyncManager:
         simkl_movies = self.api.get_all_items("movies", "completed", date_from=date_from)
         
         if not simkl_movies:
-            log("[sync v7.4.4] SyncManager.import_movies_from_simkl() No completed movies on SIMKL")
+            log(f"[sync v{__version__}] SyncManager.import_movies_from_simkl() No completed movies on SIMKL")
             simkl_movies = []  # Empty list for unmark logic
         else:
-            log(f"[sync v7.4.4] SyncManager.import_movies_from_simkl() Found {len(simkl_movies)} completed movies on SIMKL")
+            log(f"[sync v{__version__}] SyncManager.import_movies_from_simkl() Found {len(simkl_movies)} completed movies on SIMKL")
         
         # Get Kodi movies
         kodi_movies = self.get_kodi_movies()
         
         if not kodi_movies:
-            log("[sync v7.4.4] SyncManager.import_movies_from_simkl() No movies in Kodi library to match")
+            log(f"[sync v{__version__}] SyncManager.import_movies_from_simkl() No movies in Kodi library to match")
             return 0
         
         # Build index for fast lookup
@@ -1231,7 +1231,7 @@ class SyncManager:
             
             if not kodi_movie:
                 movie_info = simkl_movie.get("movie", {})
-                log_debug(f"[sync v7.4.4] SyncManager.import_movies_from_simkl() Not in Kodi: {movie_info.get('title', 'Unknown')}")
+                log_debug(f"[sync v{__version__}] SyncManager.import_movies_from_simkl() Not in Kodi: {movie_info.get('title', 'Unknown')}")
                 not_found += 1
                 continue
             
@@ -1245,13 +1245,13 @@ class SyncManager:
             title = kodi_movie.get("title", "Unknown")
             
             if self._set_movie_playcount(movie_id, 1):
-                log(f"[sync v7.4.4] SyncManager.import_movies_from_simkl() Marked as watched: {title}")
+                log(f"[sync v{__version__}] SyncManager.import_movies_from_simkl() Marked as watched: {title}")
                 imported += 1
             else:
-                log_error(f"[sync v7.4.4] SyncManager.import_movies_from_simkl() Failed to update: {title}")
+                log_error(f"[sync v{__version__}] SyncManager.import_movies_from_simkl() Failed to update: {title}")
                 self.stats['errors'] += 1
         
-        log(f"[sync v7.4.4] SyncManager.import_movies_from_simkl() Import results: {imported} marked, {already_watched} already watched, {not_found} not in Kodi")
+        log(f"[sync v{__version__}] SyncManager.import_movies_from_simkl() Import results: {imported} marked, {already_watched} already watched, {not_found} not in Kodi")
         
         # Check if we should unmark items not on SIMKL
         # IMPORTANT: Only unmark during FULL sync (no date_from filter).
@@ -1283,7 +1283,7 @@ class SyncManager:
         Returns:
             int: Number of movies unmarked
         """
-        log("[sync v7.4.4] SyncManager._unmark_movies_not_on_simkl() Checking for movies to unmark (not on SIMKL)...")
+        log(f"[sync v{__version__}] SyncManager._unmark_movies_not_on_simkl() Checking for movies to unmark (not on SIMKL)...")
         unmarked = 0
         
         for movie in kodi_movies:
@@ -1311,10 +1311,10 @@ class SyncManager:
                 title = movie.get("title", "Unknown")
                 
                 if self._set_movie_playcount(movie_id, 0):
-                    log(f"[sync v7.4.4] SyncManager._unmark_movies_not_on_simkl() Unmarked (not on SIMKL): {title}")
+                    log(f"[sync v{__version__}] SyncManager._unmark_movies_not_on_simkl() Unmarked (not on SIMKL): {title}")
                     unmarked += 1
                 else:
-                    log_error(f"[sync v7.4.4] SyncManager._unmark_movies_not_on_simkl() Failed to unmark: {title}")
+                    log_error(f"[sync v{__version__}] SyncManager._unmark_movies_not_on_simkl() Failed to unmark: {title}")
                     self.stats['errors'] += 1
         
         return unmarked
@@ -1348,21 +1348,21 @@ class SyncManager:
         all_shows = (simkl_shows or []) + (simkl_watching or [])
         
         if not all_shows:
-            log("[sync v7.4.4] SyncManager.import_episodes_from_simkl() No shows with watched episodes on SIMKL")
+            log(f"[sync v{__version__}] SyncManager.import_episodes_from_simkl() No shows with watched episodes on SIMKL")
             return 0
         
-        log(f"[sync v7.4.4] SyncManager.import_episodes_from_simkl() Found {len(all_shows)} shows on SIMKL ({len(simkl_shows or [])} completed, {len(simkl_watching or [])} watching)")
+        log(f"[sync v{__version__}] SyncManager.import_episodes_from_simkl() Found {len(all_shows)} shows on SIMKL ({len(simkl_shows or [])} completed, {len(simkl_watching or [])} watching)")
         
         # Get Kodi shows and episodes
         kodi_shows = self.get_kodi_tvshows()
         kodi_episodes = self.get_kodi_episodes()
         
         if not kodi_shows:
-            log("[sync v7.4.4] SyncManager.import_episodes_from_simkl() No TV shows in Kodi library")
+            log(f"[sync v{__version__}] SyncManager.import_episodes_from_simkl() No TV shows in Kodi library")
             return 0
         
         if not kodi_episodes:
-            log("[sync v7.4.4] SyncManager.import_episodes_from_simkl() No episodes in Kodi library")
+            log(f"[sync v{__version__}] SyncManager.import_episodes_from_simkl() No episodes in Kodi library")
             return 0
         
         # Build indexes
@@ -1385,7 +1385,7 @@ class SyncManager:
             kodi_show = self._match_show_to_kodi(show_ids, show_index)
             
             if not kodi_show:
-                log_debug(f"[sync v7.4.4] SyncManager.import_episodes_from_simkl() Show not in Kodi: {show_title}")
+                log_debug(f"[sync v{__version__}] SyncManager.import_episodes_from_simkl() Show not in Kodi: {show_title}")
                 not_found_shows += 1
                 continue
             
@@ -1397,7 +1397,7 @@ class SyncManager:
             
             if not seasons:
                 # Sometimes it's just episode count, no detailed seasons
-                log_debug(f"[sync v7.4.4] SyncManager.import_episodes_from_simkl() No detailed season info for {show_title}")
+                log_debug(f"[sync v{__version__}] SyncManager.import_episodes_from_simkl() No detailed season info for {show_title}")
                 continue
             
             # Process each season
@@ -1427,15 +1427,15 @@ class SyncManager:
                     ep_id = kodi_ep.get("episodeid")
                     
                     if self._set_episode_playcount(ep_id, 1):
-                        log_debug(f"[sync v7.4.4] SyncManager.import_episodes_from_simkl() Marked: {show_title} S{season_num:02d}E{ep_num:02d}")
+                        log_debug(f"[sync v{__version__}] SyncManager.import_episodes_from_simkl() Marked: {show_title} S{season_num:02d}E{ep_num:02d}")
                         imported += 1
                         matched_shows.add(kodi_tvshowid)
                     else:
-                        log_error(f"[sync v7.4.4] SyncManager.import_episodes_from_simkl() Failed: {show_title} S{season_num:02d}E{ep_num:02d}")
+                        log_error(f"[sync v{__version__}] SyncManager.import_episodes_from_simkl() Failed: {show_title} S{season_num:02d}E{ep_num:02d}")
                         self.stats['errors'] += 1
         
-        log(f"[sync v7.4.4] SyncManager.import_episodes_from_simkl() Import results: {imported} marked, {already_watched} already watched")
-        log(f"[sync v7.4.4] SyncManager.import_episodes_from_simkl() Not found: {not_found_shows} shows, {not_found_eps} episodes")
+        log(f"[sync v{__version__}] SyncManager.import_episodes_from_simkl() Import results: {imported} marked, {already_watched} already watched")
+        log(f"[sync v{__version__}] SyncManager.import_episodes_from_simkl() Not found: {not_found_shows} shows, {not_found_eps} episodes")
         
         # Check if we should unmark episodes not on SIMKL
         # IMPORTANT: Only unmark during FULL sync (no date_from filter).
@@ -1454,7 +1454,7 @@ class SyncManager:
         self.stats['episodes_imported'] = imported
         self.stats['shows_imported'] = len(matched_shows)
         
-        log(f"[sync v7.4.4] SyncManager.import_episodes_from_simkl() === Episode Import Complete: {imported} episodes marked as watched ===")
+        log(f"[sync v{__version__}] SyncManager.import_episodes_from_simkl() === Episode Import Complete: {imported} episodes marked as watched ===")
         return imported
     
     def _build_simkl_episode_set(self, simkl_shows, kodi_show_index):
@@ -1503,7 +1503,7 @@ class SyncManager:
         Returns:
             int: Number of episodes unmarked
         """
-        log("[sync v7.4.4] SyncManager._unmark_episodes_not_on_simkl() Checking for episodes to unmark (not on SIMKL)...")
+        log(f"[sync v{__version__}] SyncManager._unmark_episodes_not_on_simkl() Checking for episodes to unmark (not on SIMKL)...")
         unmarked = 0
         
         for episode in kodi_episodes:
@@ -1522,10 +1522,10 @@ class SyncManager:
                 title = episode.get("showtitle", "Unknown")
                 
                 if self._set_episode_playcount(episode_id, 0):
-                    log(f"[sync v7.4.4] SyncManager._unmark_episodes_not_on_simkl() Unmarked (not on SIMKL): {title} S{season:02d}E{episode_num:02d}")
+                    log(f"[sync v{__version__}] SyncManager._unmark_episodes_not_on_simkl() Unmarked (not on SIMKL): {title} S{season:02d}E{episode_num:02d}")
                     unmarked += 1
                 else:
-                    log_error(f"[sync v7.4.4] SyncManager._unmark_episodes_not_on_simkl() Failed to unmark: {title} S{season:02d}E{episode_num:02d}")
+                    log_error(f"[sync v{__version__}] SyncManager._unmark_episodes_not_on_simkl() Failed to unmark: {title} S{season:02d}E{episode_num:02d}")
                     self.stats['errors'] += 1
         
         return unmarked
@@ -1577,7 +1577,7 @@ class SyncManager:
         Returns:
             int: Number of ratings actually changed on SIMKL
         """
-        log("[sync v7.4.4] SyncManager.export_ratings_to_simkl() === Starting Rating Export to SIMKL ===")
+        log(f"[sync v{__version__}] SyncManager.export_ratings_to_simkl() === Starting Rating Export to SIMKL ===")
         
         exported = 0
         
@@ -1598,9 +1598,9 @@ class SyncManager:
                         simkl_movie_ratings[("imdb", str(imdb))] = rating
                     if tmdb:
                         simkl_movie_ratings[("tmdb", str(tmdb))] = rating
-                log(f"[sync v7.4.4] SyncManager.export_ratings_to_simkl() Fetched {len(simkl_movies)} existing SIMKL movie ratings for comparison")
+                log(f"[sync v{__version__}] SyncManager.export_ratings_to_simkl() Fetched {len(simkl_movies)} existing SIMKL movie ratings for comparison")
         except Exception as e:
-            log_error(f"[sync v7.4.4] SyncManager.export_ratings_to_simkl() Failed to fetch SIMKL movie ratings: {e}")
+            log_error(f"[sync v{__version__}] SyncManager.export_ratings_to_simkl() Failed to fetch SIMKL movie ratings: {e}")
         
         kodi_movies = self.get_kodi_movies()
         changed_movies = []
@@ -1632,17 +1632,17 @@ class SyncManager:
             changed_movies.append(movie_obj)
         
         if changed_movies:
-            log(f"[sync v7.4.4] SyncManager.export_ratings_to_simkl() Exporting {len(changed_movies)} changed movie ratings (skipped {len([m for m in kodi_movies if m.get('userrating', 0) > 0]) - len(changed_movies)} unchanged)")
+            log(f"[sync v{__version__}] SyncManager.export_ratings_to_simkl() Exporting {len(changed_movies)} changed movie ratings (skipped {len([m for m in kodi_movies if m.get('userrating', 0) > 0]) - len(changed_movies)} unchanged)")
             result = self.api._request("POST", "/sync/ratings", data={"movies": changed_movies})
             if result:
                 added = result.get("added", {}).get("movies", 0)
                 exported += added
-                log(f"[sync v7.4.4] SyncManager.export_ratings_to_simkl() Movie ratings exported: {added}")
+                log(f"[sync v{__version__}] SyncManager.export_ratings_to_simkl() Movie ratings exported: {added}")
             else:
-                log_error("[sync v7.4.4] SyncManager.export_ratings_to_simkl() Failed to export movie ratings")
+                log_error(f"[sync v{__version__}] SyncManager.export_ratings_to_simkl() Failed to export movie ratings")
                 self.stats['errors'] += 1
         else:
-            log("[sync v7.4.4] SyncManager.export_ratings_to_simkl() No changed movie ratings to export")
+            log(f"[sync v{__version__}] SyncManager.export_ratings_to_simkl() No changed movie ratings to export")
         
         # --- Show Ratings ---
         # Fetch current SIMKL show ratings for comparison
@@ -1663,9 +1663,9 @@ class SyncManager:
                         simkl_show_ratings[("tmdb", str(tmdb))] = rating
                     if tvdb:
                         simkl_show_ratings[("tvdb", str(tvdb))] = rating
-                log(f"[sync v7.4.4] SyncManager.export_ratings_to_simkl() Fetched {len(simkl_shows)} existing SIMKL show ratings for comparison")
+                log(f"[sync v{__version__}] SyncManager.export_ratings_to_simkl() Fetched {len(simkl_shows)} existing SIMKL show ratings for comparison")
         except Exception as e:
-            log_error(f"[sync v7.4.4] SyncManager.export_ratings_to_simkl() Failed to fetch SIMKL show ratings: {e}")
+            log_error(f"[sync v{__version__}] SyncManager.export_ratings_to_simkl() Failed to fetch SIMKL show ratings: {e}")
         
         kodi_shows = self.get_kodi_tvshows()
         changed_shows = []
@@ -1700,20 +1700,20 @@ class SyncManager:
             changed_shows.append(show_obj)
         
         if changed_shows:
-            log(f"[sync v7.4.4] SyncManager.export_ratings_to_simkl() Exporting {len(changed_shows)} changed show ratings (skipped {len([s for s in kodi_shows.values() if s.get('userrating', 0) > 0]) - len(changed_shows)} unchanged)")
+            log(f"[sync v{__version__}] SyncManager.export_ratings_to_simkl() Exporting {len(changed_shows)} changed show ratings (skipped {len([s for s in kodi_shows.values() if s.get('userrating', 0) > 0]) - len(changed_shows)} unchanged)")
             result = self.api._request("POST", "/sync/ratings", data={"shows": changed_shows})
             if result:
                 added = result.get("added", {}).get("shows", 0)
                 exported += added
-                log(f"[sync v7.4.4] SyncManager.export_ratings_to_simkl() Show ratings exported: {added}")
+                log(f"[sync v{__version__}] SyncManager.export_ratings_to_simkl() Show ratings exported: {added}")
             else:
-                log_error("[sync v7.4.4] SyncManager.export_ratings_to_simkl() Failed to export show ratings")
+                log_error(f"[sync v{__version__}] SyncManager.export_ratings_to_simkl() Failed to export show ratings")
                 self.stats['errors'] += 1
         else:
-            log("[sync v7.4.4] SyncManager.export_ratings_to_simkl() No changed show ratings to export")
+            log(f"[sync v{__version__}] SyncManager.export_ratings_to_simkl() No changed show ratings to export")
         
         self.stats['ratings_exported'] = exported
-        log(f"[sync v7.4.4] SyncManager.export_ratings_to_simkl() === Rating Export Complete: {exported} ratings changed ===")
+        log(f"[sync v{__version__}] SyncManager.export_ratings_to_simkl() === Rating Export Complete: {exported} ratings changed ===")
         return exported
     
     def import_ratings_from_simkl(self):
@@ -1726,7 +1726,7 @@ class SyncManager:
         Returns:
             int: Number of ratings updated
         """
-        log("[sync v7.4.4] SyncManager.import_ratings_from_simkl() === Starting Rating Import from SIMKL ===")
+        log(f"[sync v{__version__}] SyncManager.import_ratings_from_simkl() === Starting Rating Import from SIMKL ===")
         
         imported = 0
         
@@ -1739,7 +1739,7 @@ class SyncManager:
         simkl_rated_movie_ids = set()
         
         if simkl_movie_ratings:
-            log(f"[sync v7.4.4] SyncManager.import_ratings_from_simkl() Found {len(simkl_movie_ratings)} movie ratings on SIMKL")
+            log(f"[sync v{__version__}] SyncManager.import_ratings_from_simkl() Found {len(simkl_movie_ratings)} movie ratings on SIMKL")
             
             for item in simkl_movie_ratings:
                 movie_data = item.get("movie", item)
@@ -1767,7 +1767,7 @@ class SyncManager:
                     movie_id = kodi_movie.get("movieid")
                     if self._set_movie_rating(movie_id, simkl_rating):
                         title = kodi_movie.get("title", "Unknown")
-                        log_debug(f"[sync v7.4.4] SyncManager.import_ratings_from_simkl() Movie rating: {title} -> {simkl_rating}/10")
+                        log_debug(f"[sync v{__version__}] SyncManager.import_ratings_from_simkl() Movie rating: {title} -> {simkl_rating}/10")
                         imported += 1
                     else:
                         self.stats['errors'] += 1
@@ -1791,7 +1791,7 @@ class SyncManager:
                 movie_id = movie.get("movieid")
                 if self._set_movie_rating(movie_id, 0):
                     title = movie.get("title", "Unknown")
-                    log_debug(f"[sync v7.4.4] SyncManager.import_ratings_from_simkl() Cleared movie rating: {title}")
+                    log_debug(f"[sync v{__version__}] SyncManager.import_ratings_from_simkl() Cleared movie rating: {title}")
                     imported += 1
         
         # --- Show Ratings ---
@@ -1802,7 +1802,7 @@ class SyncManager:
         simkl_rated_show_ids = set()
         
         if simkl_show_ratings:
-            log(f"[sync v7.4.4] SyncManager.import_ratings_from_simkl() Found {len(simkl_show_ratings)} show ratings on SIMKL")
+            log(f"[sync v{__version__}] SyncManager.import_ratings_from_simkl() Found {len(simkl_show_ratings)} show ratings on SIMKL")
             
             for item in simkl_show_ratings:
                 show_data = item.get("show", item)
@@ -1832,7 +1832,7 @@ class SyncManager:
                     tvshowid = kodi_show.get("tvshowid")
                     if self._set_show_rating(tvshowid, simkl_rating):
                         title = kodi_show.get("title", "Unknown")
-                        log_debug(f"[sync v7.4.4] SyncManager.import_ratings_from_simkl() Show rating: {title} -> {simkl_rating}/10")
+                        log_debug(f"[sync v{__version__}] SyncManager.import_ratings_from_simkl() Show rating: {title} -> {simkl_rating}/10")
                         imported += 1
                     else:
                         self.stats['errors'] += 1
@@ -1858,11 +1858,11 @@ class SyncManager:
             if not found_on_simkl:
                 if self._set_show_rating(tvshowid, 0):
                     title = show.get("title", "Unknown")
-                    log_debug(f"[sync v7.4.4] SyncManager.import_ratings_from_simkl() Cleared show rating: {title}")
+                    log_debug(f"[sync v{__version__}] SyncManager.import_ratings_from_simkl() Cleared show rating: {title}")
                     imported += 1
         
         self.stats['ratings_imported'] = imported
-        log(f"[sync v7.4.4] SyncManager.import_ratings_from_simkl() === Rating Import Complete: {imported} ratings updated ===")
+        log(f"[sync v{__version__}] SyncManager.import_ratings_from_simkl() === Rating Import Complete: {imported} ratings updated ===")
         return imported
     
     def sync_from_simkl(self, sync_movies=True, sync_episodes=True):

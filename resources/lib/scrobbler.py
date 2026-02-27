@@ -66,7 +66,7 @@ class SimklScrobbler:
         self.last_progress_update = 0  # timestamp of last SIMKL progress update
         self.paused_at = 0
         
-        log(f"[scrobbler v7.4.4] SimklScrobbler.__init__() SimklScrobbler initialized")
+        log(f"[scrobbler v{__version__}] SimklScrobbler.__init__() SimklScrobbler initialized")
     
     def playback_started(self, data):
         """
@@ -78,7 +78,7 @@ class SimklScrobbler:
         Args:
             data: Dict with video info from player
         """
-        log(f"[scrobbler v7.4.4] SimklScrobbler.playback_started() Playback started: {data}")
+        log(f"[scrobbler v{__version__}] SimklScrobbler.playback_started() Playback started: {data}")
         
         if not data:
             return
@@ -94,21 +94,21 @@ class SimklScrobbler:
         # Note: The player also checks this, but we double-check here as a safety net
         file_path = data.get("file", "")
         if check_exclusion(file_path):
-            log_debug(f"[scrobbler v7.4.4] SimklScrobbler.playback_started() Playback excluded (scrobbler check): {file_path}")
+            log_debug(f"[scrobbler v{__version__}] SimklScrobbler.playback_started() Playback excluded (scrobbler check): {file_path}")
             return
         
         # Check type-specific settings
         media_type = data.get("type", "movie")
         if media_type == "movie" and not get_setting_bool("scrobble_movie"):
-            log("[scrobbler v7.4.4] SimklScrobbler.playback_started() Movie scrobbling is disabled")
+            log(f"[scrobbler v{__version__}] SimklScrobbler.playback_started() Movie scrobbling is disabled")
             return
         elif media_type == "episode" and not get_setting_bool("scrobble_episode"):
-            log("[scrobbler v7.4.4] SimklScrobbler.playback_started() TV show scrobbling is disabled")
+            log(f"[scrobbler v{__version__}] SimklScrobbler.playback_started() TV show scrobbling is disabled")
             return
         
         # Verify we're still playing (user might have stopped)
         if not xbmc.Player().isPlayingVideo():
-            log("[scrobbler v7.4.4] SimklScrobbler.playback_started() Player stopped before we could start scrobbling")
+            log(f"[scrobbler v{__version__}] SimklScrobbler.playback_started() Player stopped before we could start scrobbling")
             return
         
         # Wait for possible silent seek (resume from position)
@@ -126,17 +126,17 @@ class SimklScrobbler:
                     self.video_duration = 90 * 60  # 90 minutes
                 else:
                     self.video_duration = 45 * 60  # 45 minutes
-                log_warning(f"[scrobbler v7.4.4] SimklScrobbler.playback_started() Using fallback duration: {self.video_duration}s")
+                log_warning(f"[scrobbler v{__version__}] SimklScrobbler.playback_started() Using fallback duration: {self.video_duration}s")
                 
         except Exception as e:
-            log_error(f"[scrobbler v7.4.4] SimklScrobbler.playback_started() Error getting playback info: {e}")
+            log_error(f"[scrobbler v{__version__}] SimklScrobbler.playback_started() Error getting playback info: {e}")
             return
         
         # Identify the content on SIMKL
         self.current_video_info = self._identify_content(data)
         
         if not self.current_video_info:
-            log_warning("[scrobbler v7.4.4] SimklScrobbler.playback_started() Could not identify content on SIMKL")
+            log_warning(f"[scrobbler v{__version__}] SimklScrobbler.playback_started() Could not identify content on SIMKL")
             return
         
         # We're officially scrobbling!
@@ -157,20 +157,20 @@ class SimklScrobbler:
                 title = f"{show} S{season:02d}E{episode:02d}"
             
             show_notif = get_setting_bool("show_notifications")
-            log(f"[scrobbler v7.4.4] SimklScrobbler.playback_started() Scrobble start SUCCESS | title={title} | show_notifications={show_notif}")
+            log(f"[scrobbler v{__version__}] SimklScrobbler.playback_started() Scrobble start SUCCESS | title={title} | show_notifications={show_notif}")
             if show_notif:
                 notify(getString(NOW_SCROBBLING), title)
             
-            log(f"[scrobbler v7.4.4] SimklScrobbler.playback_started() Started scrobbling: {title}")
+            log(f"[scrobbler v{__version__}] SimklScrobbler.playback_started() Started scrobbling: {title}")
         else:
-            log_warning(f"[scrobbler v7.4.4] SimklScrobbler.playback_started() Failed to start scrobble - response was None - continuing without")
+            log_warning(f"[scrobbler v{__version__}] SimklScrobbler.playback_started() Failed to start scrobble - response was None - continuing without")
     
     def playback_paused(self):
         """Handle playback paused event."""
         if not self.is_playing:
             return
         
-        log("[scrobbler v7.4.4] SimklScrobbler.playback_paused() Scrobble paused")
+        log(f"[scrobbler v{__version__}] SimklScrobbler.playback_paused() Scrobble paused")
         self.is_paused = True
         self.paused_at = time.time()
         
@@ -182,11 +182,11 @@ class SimklScrobbler:
         if not self.is_playing:
             return
         
-        log("[scrobbler v7.4.4] SimklScrobbler.playback_resumed() Scrobble resumed")
+        log(f"[scrobbler v{__version__}] SimklScrobbler.playback_resumed() Scrobble resumed")
         
         if self.is_paused:
             pause_duration = time.time() - self.paused_at
-            log(f"[scrobbler v7.4.4] SimklScrobbler.playback_resumed() Was paused for {pause_duration:.1f} seconds")
+            log(f"[scrobbler v{__version__}] SimklScrobbler.playback_resumed() Was paused for {pause_duration:.1f} seconds")
         
         self.is_paused = False
         self.paused_at = 0
@@ -199,7 +199,7 @@ class SimklScrobbler:
         if not self.is_playing:
             return
         
-        log("[scrobbler v7.4.4] SimklScrobbler.playback_seek() Seek detected, doing transition check")
+        log(f"[scrobbler v{__version__}] SimklScrobbler.playback_seek() Seek detected, doing transition check")
         self.transition_check(is_seek=True)
     
     def playback_ended(self):
@@ -219,15 +219,15 @@ class SimklScrobbler:
         if not self.is_playing:
             return
         
-        log(f"[scrobbler v7.4.4] SimklScrobbler.playback_ended() Playback ended")
+        log(f"[scrobbler v{__version__}] SimklScrobbler.playback_ended() Playback ended")
         
         # Calculate final progress
         watched_percent = self._calculate_watched_percent()
-        log(f"[scrobbler v7.4.4] SimklScrobbler.playback_ended() Final progress: {watched_percent:.1f}%")
+        log(f"[scrobbler v{__version__}] SimklScrobbler.playback_ended() Final progress: {watched_percent:.1f}%")
         
         # Send stop scrobble (always send this to end the session)
         response = self._scrobble("stop")
-        log(f"[scrobbler v7.4.4] SimklScrobbler.playback_ended() Scrobble stop response: {'OK' if response else 'NONE/FAILED'}")
+        log(f"[scrobbler v{__version__}] SimklScrobbler.playback_ended() Scrobble stop response: {'OK' if response else 'NONE/FAILED'}")
         
         # Determine if content should be marked as watched
         # User's threshold from settings (default 70%)
@@ -244,20 +244,20 @@ class SimklScrobbler:
             if simkl_marked_watched:
                 # SIMKL handled it via /scrobble/stop - we're good
                 was_marked_watched = True
-                log(f"[scrobbler v7.4.4] SimklScrobbler.playback_ended() SIMKL marked as watched via scrobble/stop ({watched_percent:.1f}% >= 80%)")
+                log(f"[scrobbler v{__version__}] SimklScrobbler.playback_ended() SIMKL marked as watched via scrobble/stop ({watched_percent:.1f}% >= 80%)")
             else:
                 # Either scrobble/stop failed, or progress < 80% but user threshold met
                 # Use history API as fallback to explicitly mark watched
                 if response is None:
-                    log(f"[scrobbler v7.4.4] SimklScrobbler.playback_ended() Scrobble/stop failed - using history API fallback to mark watched")
+                    log(f"[scrobbler v{__version__}] SimklScrobbler.playback_ended() Scrobble/stop failed - using history API fallback to mark watched")
                 else:
-                    log(f"[scrobbler v7.4.4] SimklScrobbler.playback_ended() Progress {watched_percent:.1f}% meets user threshold ({threshold}%) but below SIMKL's 80% - using history API fallback")
+                    log(f"[scrobbler v{__version__}] SimklScrobbler.playback_ended() Progress {watched_percent:.1f}% meets user threshold ({threshold}%) but below SIMKL's 80% - using history API fallback")
                 history_result = self._mark_watched_via_history()
                 if history_result:
                     was_marked_watched = True
-                    log(f"[scrobbler v7.4.4] SimklScrobbler.playback_ended() Successfully marked as watched via history API")
+                    log(f"[scrobbler v{__version__}] SimklScrobbler.playback_ended() Successfully marked as watched via history API")
                 else:
-                    log_warning(f"[scrobbler v7.4.4] SimklScrobbler.playback_ended() Failed to mark as watched via history API fallback")
+                    log_warning(f"[scrobbler v{__version__}] SimklScrobbler.playback_ended() Failed to mark as watched via history API fallback")
         
         # Show "Marked as watched" notification
         # Delays ensure visibility during Kodi's UI transition after stop:
@@ -265,10 +265,10 @@ class SimklScrobbler:
         # - 5s after toast: let user read it before rating dialog opens
         if was_marked_watched:
             title = self._get_display_title()
-            log(f"[scrobbler v7.4.4] SimklScrobbler.playback_ended() Marked as watched: {title}")
+            log(f"[scrobbler v{__version__}] SimklScrobbler.playback_ended() Marked as watched: {title}")
             if get_setting_bool("show_notifications"):
                 xbmc.sleep(5000)
-                log(f"[scrobbler v7.4.4] SimklScrobbler.playback_ended() Showing 'marked as watched' notification for: {title}")
+                log(f"[scrobbler v{__version__}] SimklScrobbler.playback_ended() Showing 'marked as watched' notification for: {title}")
                 notify(getString(MARKED_AS_WATCHED), title)
                 xbmc.sleep(5000)  # Let toast be visible before rating dialog
         
@@ -285,7 +285,7 @@ class SimklScrobbler:
         if should_rate:
             rating_media_type = self.current_video.get("type", "movie")
             rating_media_info = self._build_rating_info()
-            log(f"[scrobbler v7.4.4] SimklScrobbler.playback_ended() Rating info built: {rating_media_info}")
+            log(f"[scrobbler v{__version__}] SimklScrobbler.playback_ended() Rating info built: {rating_media_info}")
         
         # Reset state BEFORE showing rating dialog so new playback isn't blocked
         self._reset_state()
@@ -321,7 +321,7 @@ class SimklScrobbler:
                 api=self.api
             )
         except Exception as e:
-            log_error(f"[scrobbler v7.4.4] SimklScrobbler._check_rating() Error checking rating: {e}")
+            log_error(f"[scrobbler v{__version__}] SimklScrobbler._check_rating() Error checking rating: {e}")
     
     def _build_rating_info(self):
         """
@@ -404,7 +404,7 @@ class SimklScrobbler:
                 stored_file = self.current_video.get("file", "") if self.current_video else ""
                 
                 if stored_file and current_file and current_file != stored_file:
-                    log(f"[scrobbler v7.4.4] SimklScrobbler.transition_check() Multi-episode transition detected: {stored_file} -> {current_file}")
+                    log(f"[scrobbler v{__version__}] SimklScrobbler.transition_check() Multi-episode transition detected: {stored_file} -> {current_file}")
                     # Simulate end of previous episode then let onAVStarted handle the new one
                     self.playback_ended()
                     return
@@ -420,7 +420,7 @@ class SimklScrobbler:
             if now - self.last_transition_check >= 60:
                 self.last_transition_check = now
                 progress = self._calculate_watched_percent()
-                log(f"[scrobbler v7.4.4] SimklScrobbler.transition_check() Scrobble progress: {progress:.1f}%")
+                log(f"[scrobbler v{__version__}] SimklScrobbler.transition_check() Scrobble progress: {progress:.1f}%")
             
             # Send periodic progress update to SIMKL every 15 minutes.
             # This re-sends a "start" scrobble to keep the SIMKL session alive
@@ -443,7 +443,7 @@ class SimklScrobbler:
                     
         except Exception as e:
             # This happens normally when playback stops
-            log_debug(f"[scrobbler v7.4.4] SimklScrobbler.transition_check() Transition check exception (normal during stop): {e}")
+            log_debug(f"[scrobbler v{__version__}] SimklScrobbler.transition_check() Transition check exception (normal during stop): {e}")
     
     def _identify_content(self, video_data):
         """
@@ -462,7 +462,7 @@ class SimklScrobbler:
         year = video_data.get("year")
         
         if not title:
-            log_error("[scrobbler v7.4.4] SimklScrobbler._identify_content() No title available for identification")
+            log_error(f"[scrobbler v{__version__}] SimklScrobbler._identify_content() No title available for identification")
             return None
         
         try:
@@ -471,11 +471,11 @@ class SimklScrobbler:
             elif media_type == "episode":
                 return self._identify_episode(video_data)
             else:
-                log_error(f"[scrobbler v7.4.4] SimklScrobbler._identify_content() Unsupported media type: {media_type}")
+                log_error(f"[scrobbler v{__version__}] SimklScrobbler._identify_content() Unsupported media type: {media_type}")
                 return None
                 
         except Exception as e:
-            log_error(f"[scrobbler v7.4.4] SimklScrobbler._identify_content() Error identifying content: {e}")
+            log_error(f"[scrobbler v{__version__}] SimklScrobbler._identify_content() Error identifying content: {e}")
             return None
     
     def _identify_movie(self, video_data):
@@ -512,7 +512,7 @@ class SimklScrobbler:
         
         # If we have IDs, we can use them directly
         if ids:
-            log(f"[scrobbler v7.4.4] SimklScrobbler._identify_movie() Using IDs for movie lookup: {ids}")
+            log(f"[scrobbler v{__version__}] SimklScrobbler._identify_movie() Using IDs for movie lookup: {ids}")
             return {
                 "title": title,
                 "year": year,
@@ -568,7 +568,7 @@ class SimklScrobbler:
         tmdb_id = video_data.get("tmdb_id")
         
         if season is None or episode is None:
-            log_error("[scrobbler v7.4.4] SimklScrobbler._identify_episode() Missing season/episode number")
+            log_error(f"[scrobbler v{__version__}] SimklScrobbler._identify_episode() Missing season/episode number")
             return None
         
         # Build show IDs if we have any
@@ -591,10 +591,10 @@ class SimklScrobbler:
             show_info["year"] = year
         if ids:
             show_info["ids"] = ids
-            log(f"[scrobbler v7.4.4] SimklScrobbler._identify_episode() Using IDs for show lookup: {ids}")
+            log(f"[scrobbler v{__version__}] SimklScrobbler._identify_episode() Using IDs for show lookup: {ids}")
         else:
             # Search for show on SIMKL
-            log(f"[scrobbler v7.4.4] SimklScrobbler._identify_episode() Searching SIMKL for show: {show_title}")
+            log(f"[scrobbler v{__version__}] SimklScrobbler._identify_episode() Searching SIMKL for show: {show_title}")
             results = self.api.search_tv(show_title, year)
             
             if results:
@@ -605,7 +605,7 @@ class SimklScrobbler:
                 }
                 if show.get("year"):
                     show_info["year"] = show.get("year")
-                log(f"[scrobbler v7.4.4] SimklScrobbler._identify_episode() Found show on SIMKL: {show.get('title')}")
+                log(f"[scrobbler v{__version__}] SimklScrobbler._identify_episode() Found show on SIMKL: {show.get('title')}")
         
         # Build episode info
         # SIMKL API requires "number" (not "episode") for the episode number field
@@ -614,7 +614,7 @@ class SimklScrobbler:
             "number": episode
         }
         
-        log(f"[scrobbler v7.4.4] SimklScrobbler._identify_episode() Identified episode: {show_info.get('title')} S{season:02d}E{episode:02d}")
+        log(f"[scrobbler v{__version__}] SimklScrobbler._identify_episode() Identified episode: {show_info.get('title')} S{season:02d}E{episode:02d}")
         
         return {
             "show": show_info,
@@ -632,7 +632,7 @@ class SimklScrobbler:
             API response or None
         """
         if not self.current_video_info:
-            log_debug("[scrobbler v7.4.4] SimklScrobbler._scrobble() No current video info, skipping scrobble")
+            log_debug(f"[scrobbler v{__version__}] SimklScrobbler._scrobble() No current video info, skipping scrobble")
             return None
         
         # Calculate progress
@@ -640,7 +640,7 @@ class SimklScrobbler:
         
         media_type = self.current_video.get("type", "movie")
         
-        log(f"[scrobbler v7.4.4] SimklScrobbler._scrobble() _scrobble('{action}') at {progress:.1f}% | media_type={media_type}")
+        log(f"[scrobbler v{__version__}] SimklScrobbler._scrobble() _scrobble('{action}') at {progress:.1f}% | media_type={media_type}")
         
         try:
             if media_type == "movie":
@@ -657,11 +657,11 @@ class SimklScrobbler:
                     progress=progress
                 )
             else:
-                log_error(f"[scrobbler v7.4.4] SimklScrobbler._scrobble() Unknown media type for scrobble: {media_type}")
+                log_error(f"[scrobbler v{__version__}] SimklScrobbler._scrobble() Unknown media type for scrobble: {media_type}")
                 return None
                 
         except Exception as e:
-            log_error(f"[scrobbler v7.4.4] SimklScrobbler._scrobble() Error sending scrobble: {e}")
+            log_error(f"[scrobbler v{__version__}] SimklScrobbler._scrobble() Error sending scrobble: {e}")
             return None
     
     def _mark_watched_via_history(self):
@@ -705,11 +705,11 @@ class SimklScrobbler:
                 return self.api.add_to_history(shows=[show_obj])
             
             else:
-                log_error(f"[scrobbler v7.4.4] SimklScrobbler._mark_watched_via_history() Unknown media type for history fallback: {media_type}")
+                log_error(f"[scrobbler v{__version__}] SimklScrobbler._mark_watched_via_history() Unknown media type for history fallback: {media_type}")
                 return None
                 
         except Exception as e:
-            log_error(f"[scrobbler v7.4.4] SimklScrobbler._mark_watched_via_history() Error marking watched via history: {e}")
+            log_error(f"[scrobbler v{__version__}] SimklScrobbler._mark_watched_via_history() Error marking watched via history: {e}")
             return None
     
     def _calculate_watched_percent(self):

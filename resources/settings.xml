@@ -14,6 +14,7 @@
         <setting id="simkl_user" type="text" label="32104" visible="false"/>
         <setting id="access_token" type="text" visible="false"/>
         <setting id="username" type="text" visible="false"/>
+        <setting id="simkl_activity_timestamps" type="text" visible="false" default=""/>
     </category>
 
     <!-- ============================================================================ -->

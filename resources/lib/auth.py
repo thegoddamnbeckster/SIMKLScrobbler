@@ -28,7 +28,7 @@ class SimklAuth:
     
     def __init__(self):
         """Initialize auth handler"""
-        log(f"[auth v7.4.4] SimklAuth.__init__() SimklAuth instance created")
+        log(f"[auth v{__version__}] SimklAuth.__init__() SimklAuth instance created")
     
     def authenticate(self):
         """
@@ -37,13 +37,13 @@ class SimklAuth:
         Returns:
             tuple: (success: bool, username: str or None)
         """
-        log(f"[auth v7.4.4] SimklAuth.authenticate() ========== authenticate() START ==========")
-        log(f"[auth v7.4.4] SimklAuth.authenticate() Calling show_auth_dialog()...")
+        log(f"[auth v{__version__}] SimklAuth.authenticate() ========== authenticate() START ==========")
+        log(f"[auth v{__version__}] SimklAuth.authenticate() Calling show_auth_dialog()...")
         
         success, username = show_auth_dialog()
         
-        log(f"[auth v7.4.4] SimklAuth.authenticate() returned: success={success}, username='{username}'")
-        log(f"[auth v7.4.4] SimklAuth.authenticate() ========== authenticate() END ==========")
+        log(f"[auth v{__version__}] SimklAuth.authenticate() returned: success={success}, username='{username}'")
+        log(f"[auth v{__version__}] SimklAuth.authenticate() ========== authenticate() END ==========")
         
         return success, username
     
@@ -57,7 +57,7 @@ class SimklAuth:
         token = get_setting("access_token")
         has_token = bool(token)
         
-        log(f"[auth v7.4.4] SimklAuth.is_authenticated() : {has_token}")
+        log(f"[auth v{__version__}] SimklAuth.is_authenticated() : {has_token}")
         
         return has_token
     
@@ -69,7 +69,7 @@ class SimklAuth:
             Access token string or None
         """
         token = get_setting("access_token")
-        log(f"[auth v7.4.4] SimklAuth.get_access_token() : {'YES (len=' + str(len(token)) + ')' if token else 'NO'}")
+        log(f"[auth v{__version__}] SimklAuth.get_access_token() : {'YES (len=' + str(len(token)) + ')' if token else 'NO'}")
         
         return token
     
@@ -81,36 +81,36 @@ class SimklAuth:
             Username string or None
         """
         username = get_setting("simkl_user")
-        log(f"[auth v7.4.4] SimklAuth.get_username() : '{username}'")
+        log(f"[auth v{__version__}] SimklAuth.get_username() : '{username}'")
         
         return username
     
     def clear_authentication(self):
         """Clear stored authentication"""
-        log(f"[auth v7.4.4] SimklAuth.clear_authentication() ========== clear_authentication() START ==========")
+        log(f"[auth v{__version__}] SimklAuth.clear_authentication() ========== clear_authentication() START ==========")
         
         try:
-            log(f"[auth v7.4.4] SimklAuth.clear_authentication() Clearing access_token...")
+            log(f"[auth v{__version__}] SimklAuth.clear_authentication() Clearing access_token...")
             set_setting("access_token", "")
             
             # Also clear legacy simkl_token for clean state
             set_setting("simkl_token", "")
             
-            log(f"[auth v7.4.4] SimklAuth.clear_authentication() Clearing simkl_user...")
+            log(f"[auth v{__version__}] SimklAuth.clear_authentication() Clearing simkl_user...")
             set_setting("simkl_user", "")
             
-            log(f"[auth v7.4.4] SimklAuth.clear_authentication() Clearing username...")
+            log(f"[auth v{__version__}] SimklAuth.clear_authentication() Clearing username...")
             set_setting("username", "")
             
-            log(f"[auth v7.4.4] SimklAuth.clear_authentication() Clearing simkl_usercode...")
+            log(f"[auth v{__version__}] SimklAuth.clear_authentication() Clearing simkl_usercode...")
             set_setting("simkl_usercode", "")
             
-            log(f"[auth v7.4.4] SimklAuth.clear_authentication() Authentication cleared successfully")
-            log(f"[auth v7.4.4] SimklAuth.clear_authentication() ========== clear_authentication() END ==========")
+            log(f"[auth v{__version__}] SimklAuth.clear_authentication() Authentication cleared successfully")
+            log(f"[auth v{__version__}] SimklAuth.clear_authentication() ========== clear_authentication() END ==========")
             
             return True
         except Exception as e:
-            log(f"[auth v7.4.4] SimklAuth.clear_authentication() EXCEPTION in clear_authentication: {e}", xbmc.LOGERROR)
-            log(f"[auth v7.4.4] SimklAuth.clear_authentication() ========== clear_authentication() FAILED ==========")
+            log(f"[auth v{__version__}] SimklAuth.clear_authentication() EXCEPTION in clear_authentication: {e}", xbmc.LOGERROR)
+            log(f"[auth v{__version__}] SimklAuth.clear_authentication() ========== clear_authentication() FAILED ==========")
             
             return False
