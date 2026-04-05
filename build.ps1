@@ -1,17 +1,28 @@
-# SIMKL Scrobbler v7.5.5 - Build Script
-# Copies source to build_temp, creates ZIP with forward slashes for Kodi
+# SIMKL Scrobbler - Build Script
+# Reads version from addon.xml automatically. Outputs ZIP to C:\Temp\.
+# Usage: powershell -ExecutionPolicy Bypass -File build.ps1
 
 Add-Type -AssemblyName System.IO.Compression
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 
-$projectRoot = "W:\Scripts\SIMKL_Scrobbler"
-$buildTemp = "$projectRoot\build_temp"
+$projectRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
+$addonXml    = Join-Path $projectRoot "addon.xml"
+
+# Read version from addon.xml
+$xml     = [xml](Get-Content $addonXml -Encoding UTF8)
+$version = $xml.addon.version
+if (-not $version) {
+    Write-Error "Could not read version from addon.xml"
+    exit 1
+}
+
+$buildTemp   = Join-Path $projectRoot "build_temp"
 $addonFolder = "script.simkl"
-$sourcePath = "$buildTemp\$addonFolder"
-$outputZip = "C:\Temp\script.simkl.scrobbler-7.5.5.zip"
+$sourcePath  = Join-Path $buildTemp $addonFolder
+$outputZip   = "C:\Temp\script.simkl.scrobbler-$version.zip"
 
 Write-Host "======================================"
-Write-Host " SIMKL Scrobbler v7.5.5 - Build"
+Write-Host " SIMKL Scrobbler v$version - Build"
 Write-Host "======================================"
 
 # Step 1: Prepare build_temp
@@ -36,8 +47,7 @@ foreach ($f in $rootFiles) {
 
 # Copy resources directory (excluding __pycache__)
 Copy-Item "$projectRoot\resources" "$sourcePath\resources" -Recurse -Force
-# Remove __pycache__ from build
-Get-ChildItem -Path "$sourcePath" -Directory -Recurse -Filter "__pycache__" | Remove-Item -Recurse -Force
+Get-ChildItem -Path $sourcePath -Directory -Recurse -Filter "__pycache__" | Remove-Item -Recurse -Force
 Write-Host "  Copied: resources/ (cleaned __pycache__)"
 Write-Host "  build_temp ready."
 
@@ -50,13 +60,13 @@ if (Test-Path $outputZip) {
     Write-Host "  Removed old ZIP"
 }
 
-$zip = [System.IO.Compression.ZipFile]::Open($outputZip, 'Create')
+$zip   = [System.IO.Compression.ZipFile]::Open($outputZip, 'Create')
 $files = Get-ChildItem -Path $sourcePath -Recurse -File
 $count = 0
 
 foreach ($file in $files) {
     $relativePath = $file.FullName.Substring($buildTemp.Length + 1)
-    $entryName = $relativePath.Replace("\", "/")
+    $entryName    = $relativePath.Replace("\", "/")
     [System.IO.Compression.ZipFileExtensions]::CreateEntryFromFile($zip, $file.FullName, $entryName, 'Optimal') | Out-Null
     Write-Host "  + $entryName"
     $count++
@@ -71,7 +81,7 @@ Write-Host ""
 Write-Host "======================================"
 Write-Host " BUILD COMPLETE"
 Write-Host "======================================"
-Write-Host "Version: 7.5.5"
+Write-Host "Version: $version"
 Write-Host "Output:  $outputZip"
 Write-Host "Files:   $count"
 Write-Host "Size:    $zipSize KB"

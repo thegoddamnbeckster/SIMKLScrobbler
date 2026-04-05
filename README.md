@@ -97,7 +97,7 @@ Control what gets scrobbled with granular exclusion settings:
 
 The addon follows the established Kodi service addon pattern used by the Trakt addon:
 
-`
+```
 script.simkl.scrobbler/
 ├── addon.xml              # Addon metadata and dependencies
 ├── default.py             # Script entry point (settings buttons, context menu actions)
@@ -124,18 +124,18 @@ script.simkl.scrobbler/
 ├── context.simkl.rate/    # Context menu: Rate on SIMKL
 ├── context.simkl.watched/ # Context menu: Toggle watched
 └── context.simkl.sync/    # Context menu: Sync to SIMKL
-`
+```
 
 The background service uses a dispatch queue pattern: SimklPlayer detects playback events and queues them, the main SimklService loop processes the queue, and SimklScrobbler handles the SIMKL API communication. SimklMonitor handles library scan awareness via onScanStarted() / onScanFinished() callbacks. Sync operations run in background threads to avoid blocking Kodi.
 
 ## SIMKL API Notes
 
-- Authentication uses SIMKL''s PIN-based OAuth flow (/oauth/pin)
-- Scrobbling uses the /scrobble/start, /scrobble/pause, /scrobble/stop endpoints
-- Watch history is managed via /sync/history
-- Ratings use /sync/ratings and /sync/ratings/remove
-- Activity timestamps checked via /sync/activities before each background sync
-- All API calls include exponential backoff retry logic (2s base, capped at 30s, max 3 retries) with Retry-After header support for 429 responses
+- Authentication uses SIMKL's PIN-based OAuth flow (`/oauth/pin`)
+- Scrobbling uses the `/scrobble/start`, `/scrobble/pause`, `/scrobble/stop` endpoints
+- Watch history is managed via `/sync/history`
+- Ratings use `/sync/ratings` and `/sync/ratings/remove`
+- Activity timestamps checked via `/sync/activities` before each background sync
+- All API calls include exponential backoff retry logic (2s base, capped at 30s, max 3 retries) with `Retry-After` header support for 429 responses
 - SIMKL does not currently support rating individual episodes (only movies and shows)
 - SIMKL does not store progress percentages for completed items (only for items under 80%)
 
