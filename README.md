@@ -1,63 +1,65 @@
-# SIMKL Scrobbler for Kodi
+﻿# SIMKL Scrobbler for Kodi
 
 Automatically track your Kodi watching activity to your [SIMKL](https://simkl.com) account. Movies and TV episodes are scrobbled in real-time as you watch, with bidirectional library sync, a rating system, and context menu integration.
 
 This addon aims to provide the same quality of experience that the popular Trakt addon offers, but for SIMKL users.
 
-**Current Version:** 7.5.2
+**Current Version:** 7.5.6
 
 ## Features
 
 ### Real-Time Scrobbling
 - Automatic detection of movies and TV episodes during playback
 - Content identified via IMDb, TMDb, and TVDB IDs from your Kodi library
-- Configurable watched threshold (default 70%) with automatic fallback to SIMKL's history API for items between 70-79%
+- Configurable watched threshold (default 70%) with automatic fallback to SIMKL history API for items between 70-79%
 - Start, pause, and stop events sent to SIMKL in real-time
 - Multi-episode transition detection for binge-watching sessions
-- Periodic progress updates every 15 minutes during long playback
+- Optional periodic progress updates every 15 minutes during long playback (default OFF — SIMKL already records progress from the start scrobble)
 
 ### Bidirectional Library Sync
 - **Export to SIMKL:** Send your Kodi watched history and ratings to SIMKL
 - **Import from SIMKL:** Mark items as watched in Kodi and import ratings based on your SIMKL history
 - **Bidirectional rating sync:** Kodi userratings (1-10) sync to and from SIMKL ratings, with delta detection to skip unchanged items
+- **Incremental sync:** Background syncs use /sync/activities to check change timestamps before fetching data, only pulling categories that actually changed since last sync — dramatically reducing bandwidth and API load
 - Sync triggers: on startup, on library update, or on a scheduled interval (1h, 6h, 12h, 24h)
-- Delta sync detects changes since last sync to minimize API calls
+- Manual sync always performs a full sync for user confidence; background syncs are incremental
 - Manual sync shows a comprehensive summary dialog with export/import/unmark counts
+- **Scan awareness:** Startup sync defers automatically if Kodi is mid-library-scan and fires once the scan completes, mirroring Trakt addon behaviour
 - Optional dangerous mode to unmark items not found on SIMKL
 - Per-type toggles for movies and TV shows in both directions
 
 ### Rating System
 - 1-10 star rating dialog after watching movies
-- Rating descriptions from "Train Wreck" (1) to "Legendary" (10)
+- Rating descriptions from  Train Wreck (1) to Legendary (10)
 - Displays your current SIMKL rating if the item was previously rated
 - Toggle a selected star to deselect and remove your rating from SIMKL
-- Ratings submitted via the SIMKL `/sync/ratings` endpoint
+- Ratings submitted via the SIMKL /sync/ratings endpoint
 - Episode rating support is coded but disabled until SIMKL adds API support
 
 ### Context Menu Integration
-Three companion addons add SIMKL actions to Kodi's library context menu:
-- **SIMKL - Rating button** (`context.simkl.rate`) - Rate any movie, show, or episode
-- **SIMKL - Toggle Watched** (`context.simkl.watched`) - Mark or unmark items on SIMKL
-- **SIMKL - Sync to SIMKL** (`context.simkl.sync`) - Sync a single item immediately
+Three companion addons add SIMKL actions to Kodi''s library context menu:
+- **SIMKL - Rating button** (context.simkl.rate) — Rate any movie, show, or episode
+- **SIMKL - Toggle Watched** (context.simkl.watched) — Mark or unmark items on SIMKL
+- **SIMKL - Sync to SIMKL** (context.simkl.sync) — Sync a single item immediately
 
 ### Exclusions
 Control what gets scrobbled with granular exclusion settings:
-- Exclude Live TV (`pvr://` sources)
+- Exclude Live TV (pvr:// sources)
 - Exclude HTTP/HTTPS streaming sources
 - Exclude plugin-triggered playback
 - Exclude script-controlled playback
 - Up to 5 custom path exclusions with cascading UI
 
 ### Localization Framework
-- All user-facing strings centralized through `strings.py`
-- Complete English localization in `strings.po`
+- All user-facing strings centralized through strings.py
+- Complete English localization in strings.po
 - Framework ready for community translations
 
 ## Requirements
 
 - **Kodi 19 (Matrix)** or later (Python 3)
 - A free [SIMKL account](https://simkl.com)
-- `script.module.requests` (bundled with Kodi)
+- script.module.requests (bundled with Kodi)
 
 ## Installation
 
@@ -69,7 +71,7 @@ Control what gets scrobbled with granular exclusion settings:
 
 ### From Source
 1. Clone this repository
-2. Copy the `script.simkl` folder to your Kodi addons directory
+2. Copy the script.simkl folder to your Kodi addons directory
 3. Restart Kodi
 
 ## Setup
@@ -85,7 +87,7 @@ Control what gets scrobbled with granular exclusion settings:
 | Category | Key Settings |
 |---|---|
 | **Authentication** | Authenticate / Sign Out, connection status display |
-| **Scrobbling** | Toggle movies/episodes, watched threshold (50-90%) |
+| **Scrobbling** | Toggle movies/episodes, watched threshold (50-90%), optional periodic progress updates |
 | **Notifications** | Toggle scrobble notifications, duration, debug logging |
 | **Exclusions** | Live TV, HTTP, plugin, script, and custom path exclusions |
 | **Sync** | Startup sync, library update sync, scheduled interval, direction toggles |
@@ -95,15 +97,15 @@ Control what gets scrobbled with granular exclusion settings:
 
 The addon follows the established Kodi service addon pattern used by the Trakt addon:
 
-```
-script.simkl/
+`
+script.simkl.scrobbler/
 ├── addon.xml              # Addon metadata and dependencies
 ├── default.py             # Script entry point (settings buttons, context menu actions)
 ├── service.py             # Service entry point (background monitoring)
 ├── resources/
 │   ├── settings.xml       # Kodi settings definition
 │   ├── lib/
-│   │   ├── api.py         # SIMKL API client (all HTTP communication)
+│   │   ├── api.py         # SIMKL API client (all HTTP communication, rate limiting, backoff)
 │   │   ├── auth.py        # Authentication orchestration
 │   │   ├── auth_dialog.py # WindowXMLDialog for PIN/QR auth flow
 │   │   ├── exclusions.py  # Scrobble exclusion logic
@@ -111,7 +113,7 @@ script.simkl/
 │   │   ├── scrobbler.py   # Core scrobbling engine
 │   │   ├── service.py     # Main service loop, player/monitor classes
 │   │   ├── strings.py     # Localization helper
-│   │   ├── sync.py        # Bidirectional sync manager
+│   │   ├── sync.py        # Bidirectional sync manager (incremental + full modes)
 │   │   └── utils.py       # Logging, settings, helpers
 │   ├── skins/default/
 │   │   ├── 720p/          # Dialog XML definitions
@@ -122,24 +124,26 @@ script.simkl/
 ├── context.simkl.rate/    # Context menu: Rate on SIMKL
 ├── context.simkl.watched/ # Context menu: Toggle watched
 └── context.simkl.sync/    # Context menu: Sync to SIMKL
-```
+`
 
-The background service uses a dispatch queue pattern: `SimklPlayer` detects playback events and queues them, the main `SimklService` loop processes the queue, and `SimklScrobbler` handles the SIMKL API communication. Sync operations run in background threads to avoid blocking Kodi.
+The background service uses a dispatch queue pattern: SimklPlayer detects playback events and queues them, the main SimklService loop processes the queue, and SimklScrobbler handles the SIMKL API communication. SimklMonitor handles library scan awareness via onScanStarted() / onScanFinished() callbacks. Sync operations run in background threads to avoid blocking Kodi.
 
 ## SIMKL API Notes
 
-- Authentication uses SIMKL's PIN-based OAuth flow (`/oauth/pin`)
-- Scrobbling uses the `/scrobble/start`, `/scrobble/pause`, `/scrobble/stop` endpoints
-- Watch history is managed via `/sync/history`
-- Ratings use `/sync/ratings` and `/sync/ratings/remove`
+- Authentication uses SIMKL''s PIN-based OAuth flow (/oauth/pin)
+- Scrobbling uses the /scrobble/start, /scrobble/pause, /scrobble/stop endpoints
+- Watch history is managed via /sync/history
+- Ratings use /sync/ratings and /sync/ratings/remove
+- Activity timestamps checked via /sync/activities before each background sync
+- All API calls include exponential backoff retry logic (2s base, capped at 30s, max 3 retries) with Retry-After header support for 429 responses
 - SIMKL does not currently support rating individual episodes (only movies and shows)
 - SIMKL does not store progress percentages for completed items (only for items under 80%)
 
 ## Known Limitations
 
-- Show rating prompts are available but rated as shows (not individual episodes) because SIMKL's API does not support individual episode ratings
+- Show rating prompts are available but rated as shows (not individual episodes) because SIMKL''s API does not support individual episode ratings
 - The QR code in the authentication dialog is generated via a web API (qrserver.com); if the network request fails, only the PIN is shown
-- The `auto_sync_interval` setting uses a `<select>` type which returns option values as strings rather than integers
+- The uto_sync_interval setting uses a <select> type which returns option values as strings rather than integers
 
 ## Contributing
 
