@@ -1,4 +1,66 @@
 
+[7.5.7] - 2026-04-15
+BUG FIX: Cross-device watch status not syncing to other Kodi installs
+
+- FIXED (primary): After scrobbling on Device A, watched episodes were never
+  marked on Devices B/C/D in background/startup syncs.
+
+  Root cause: SIMKL's ?date_from= filter on /sync/all-items/shows/watching
+  filters by the show's watchlist-entry timestamp (when the show was *added*
+  to the list), NOT by when individual episodes were last watched. A show
+  already in "watching" status for weeks does not appear in the filtered
+  response even if new episodes were scrobbled yesterday. Every incremental
+  background sync on other devices silently produced an empty result for
+  in-progress series, leaving them perpetually un-imported.
+
+  Fix: the "watching" shows fetch now always requests the full list (no
+  date_from). The /sync/activities gate is retained — if shows_changed is
+  False the fetch is skipped entirely, so no extra API load when nothing has
+  changed. The date_from optimisation is preserved for "completed" shows
+  where the status-change timestamp is reliable.
+
+- FIXED (secondary): auto_sync_interval defaulted to disabled (0). On
+  always-on devices (Shield TV, Apple TV) that are never rebooted, the
+  startup sync ran once (before any new scrobbles) and no subsequent sync
+  was triggered. Default changed to 6 hours ("2" index) so cross-device
+  sync works out of the box on new installs. Existing users with a stored
+  setting value are unaffected.
+
+- FIXED (bonus): Episode/movie sync state is now refreshed after
+  sync_from_simkl() completes in the background sync thread. Previously the
+  state snapshot was captured during the export phase (before import ran), so
+  freshly imported episodes showed playcount 0 in the snapshot but 1 in
+  Kodi. The next export delta would flag them as "changed" and re-export them
+  to SIMKL on every background cycle (SIMKL returned added:0 — harmless but
+  wasteful). The post-import refresh corrects the snapshot immediately.
+
+
+[7.5.6] - 2026-03-27
+BUG FIX: Rating dialog crash on Android/Shield TV + sync scan awareness
+
+- FIXED: Rating dialog never appeared on Shield TV (Android Kodi).
+  Root cause: rating.py contained mixed f-string / .format() syntax, e.g.
+  f"...Error: {}".format(str(e)). Python raises SyntaxError: "f-string:
+  empty expression not allowed" on parse. On Windows, Kodi uses cached .pyc
+  bytecode files so the parse error is never hit. On Android there is no .pyc
+  cache so Python parses the file fresh every time - instant import failure.
+  The _check_rating() call in scrobbler.py caught the ImportError and logged
+  it, silently swallowing the entire rating flow. Fixed all 9 instances of
+  the mixed-syntax pattern in rating.py with clean f-string expressions.
+
+- FIXED: Library sync fires before Kodi finishes scanning library at boot.
+  Root cause: startup sync was triggered 5 seconds after service launch with
+  no awareness of Kodi's own video library scan. If Kodi was still scanning
+  (common on first boot or after adding sources) the sync would race against
+  the scan and process an incomplete library.
+  Fix: Added onScanStarted() callback to SimklMonitor to set a
+  _library_scan_in_progress flag. Startup sync now checks this flag and defers
+  via _startup_sync_pending if a scan is active. onScanFinished() fires the
+  deferred sync (or the normal sync_on_update sync) once the scan completes.
+  This mirrors the behaviour of the official Trakt Kodi addon.
+
+- All module versions bumped to 7.5.6.
+
 [7.5.5] - 2026-02-26
 SIMKL API optimizations based on staff feedback from Ennergizer
 - NEW: Incremental sync via /sync/activities endpoint + ?date_from= parameter

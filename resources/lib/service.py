@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """
 SIMKL Service - The Main Event Loop
-Version: 7.5.0
-Last Modified: 2026-02-20
+Version: 7.5.7
+Last Modified: 2026-04-15
 
 This is the background service that makes scrobbling actually work.
 Monitors playback events and sends data to SIMKL in real-time.
@@ -45,7 +45,7 @@ from resources.lib.strings import (
 )
 
 # Module version
-__version__ = '7.5.5'
+__version__ = '7.5.7'
 
 # Log module initialization
 xbmc.log(f'[SIMKL Scrobbler] service.py v{__version__} - Main service module loading', level=xbmc.LOGINFO)
@@ -69,6 +69,8 @@ class SimklService:
         self._sync_in_progress = False
         self._sync_thread = None
         self._last_sync_time = None
+        self._library_scan_in_progress = False   # True while Kodi library scan is running
+        self._startup_sync_pending = False        # True if startup sync was deferred due to active scan
         self._init_activity_timestamps()
         self._load_last_sync_time()
         log(f"[service v{__version__}] SimklService.__init__() SimklService initialized - ready to scrobble!")
@@ -416,6 +418,29 @@ class SimklService:
                 sync_episodes=get_setting_bool('sync_episodes_to_kodi')
             )
             
+            # Refresh episode/movie sync state to reflect items just imported.
+            #
+            # sync_to_simkl() saves a delta-sync state snapshot BEFORE sync_from_simkl()
+            # runs, so any episodes/movies marked as watched during the import phase
+            # appear as playcount 0 in the saved state.  On the next sync cycle the
+            # export phase would see those as "changed" (0→1) and re-export them to
+            # SIMKL, which already has them.  SIMKL returns added:0 so it's harmless,
+            # but it wastes an API round-trip on every single background sync.
+            # Refreshing the state here corrects the snapshot before it's used next time.
+            try:
+                log(f"[service v{__version__}] SimklService._run_sync_thread() Refreshing sync state post-import...")
+                kodi_eps = sync_manager.get_kodi_episodes()
+                if kodi_eps:
+                    ep_state = sync_manager._build_episode_state(kodi_eps)
+                    sync_manager._save_sync_state('episodes', ep_state)
+                kodi_mvs = sync_manager.get_kodi_movies()
+                if kodi_mvs:
+                    mv_state = sync_manager._build_movie_state(kodi_mvs)
+                    sync_manager._save_sync_state('movies', mv_state)
+                log(f"[service v{__version__}] SimklService._run_sync_thread() Sync state refresh complete")
+            except Exception as _refresh_err:
+                log_error(f"[service v{__version__}] SimklService._run_sync_thread() Sync state refresh failed (non-fatal): {_refresh_err}")
+            
             # Get final stats
             stats = sync_manager.stats
             total_exported = stats['movies_exported'] + stats['episodes_exported']
@@ -499,8 +524,13 @@ class SimklService:
         # Trigger startup sync if enabled and authenticated
         addon = xbmcaddon.Addon('script.simkl.scrobbler')
         if get_setting_bool('sync_on_startup') and addon.getSetting('access_token'):
-            log(f"[service v{__version__}] SimklService.run() Sync on startup enabled - triggering initial sync")
-            self._trigger_library_sync()
+            if self._library_scan_in_progress:
+                # Kodi is still scanning on boot - defer until onScanFinished fires
+                log(f"[service v{__version__}] SimklService.run() Sync on startup deferred - library scan in progress")
+                self._startup_sync_pending = True
+            else:
+                log(f"[service v{__version__}] SimklService.run() Sync on startup enabled - triggering initial sync")
+                self._trigger_library_sync()
         
         # Initialize scrobbler with API
         api = SimklAPI()
@@ -803,18 +833,42 @@ class SimklMonitor(xbmc.Monitor):
         log(f"[service v{__version__}] SimklMonitor.onSettingsChanged() Settings changed detected")
         self.action({"action": "settings_changed"})
     
+    def onScanStarted(self, database):
+        """
+        Called when a library scan begins.
+
+        Used to defer any pending startup sync until the scan completes,
+        mirroring the behaviour of the Trakt addon.
+
+        Args:
+            database: "video" or "music"
+        """
+        if database == "video":
+            log(f"[service v{__version__}] SimklMonitor.onScanStarted() Video library scan started - holding sync")
+            self.service._library_scan_in_progress = True
+
     def onScanFinished(self, database):
         """
         Called when library scan finishes.
-        
+
+        Triggers sync if:
+        - A startup sync was deferred because a scan was in progress, OR
+        - The 'sync on library update' setting is enabled.
+
         Args:
             database: "video" or "music"
         """
         if database == "video":
             log(f"[service v{__version__}] SimklMonitor.onScanFinished() Video library scan finished")
-            # Trigger sync if setting is enabled
-            if get_setting_bool('sync_on_update'):
-                log(f"[service v{__version__}] SimklMonitor.onScanFinished() Triggering sync after library scan...")
+            self.service._library_scan_in_progress = False
+
+            startup_pending = self.service._startup_sync_pending
+            sync_on_update = get_setting_bool('sync_on_update')
+
+            if startup_pending or sync_on_update:
+                self.service._startup_sync_pending = False
+                log(f"[service v{__version__}] SimklMonitor.onScanFinished() Triggering sync "
+                    f"(startup_pending={startup_pending}, sync_on_update={sync_on_update})")
                 self.service._trigger_library_sync()
     
     def onCleanFinished(self, database):

@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """
 Utility Functions for SIMKL Scrobbler
-Version: 7.3.4
-Last Modified: 2026-02-04
+Version: 7.5.7
+Last Modified: 2026-04-15
 
 PHASE 9: Advanced Features & Polish
 

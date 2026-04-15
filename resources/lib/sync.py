@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """
 SIMKL Sync Module
-Version: 7.3.4
-Last Modified: 2026-02-05
+Version: 7.5.7
+Last Modified: 2026-04-15
 
 PHASE 9: Advanced Features & Polish
 
@@ -31,7 +31,7 @@ from resources.lib.utils import (
 from resources.lib.api import SimklAPI
 
 # Module version
-__version__ = '7.5.5'
+__version__ = '7.5.7'
 
 # Log module initialization
 xbmc.log(f'[SIMKL Scrobbler] sync.py v{__version__} - Sync manager module loading', level=xbmc.LOGINFO)
@@ -1342,8 +1342,25 @@ class SyncManager:
         # Get completed shows from SIMKL (includes episode info, with optional date filter)
         simkl_shows = self.api.get_all_items("shows", "completed", date_from=date_from)
         
-        # Also get "watching" shows - they have watched episodes too!
-        simkl_watching = self.api.get_all_items("shows", "watching", date_from=date_from)
+        # Fetch ALL watching shows - intentionally no date_from here.
+        #
+        # Root cause of cross-device sync failure (v7.5.7 fix):
+        # SIMKL's date_from filter on /sync/all-items/shows/watching acts on the
+        # timestamp of the show's WATCHLIST ENTRY (i.e. when the show was first
+        # added to the user's list), NOT on when individual episodes were watched.
+        #
+        # A show that has been in "watching" status for weeks will NOT appear in
+        # the filtered response even if Device A watched new episodes yesterday,
+        # because the show's list-entry timestamp pre-dates date_from.  This caused
+        # every incremental background sync on Devices B/C/D to silently skip all
+        # in-progress series and never import newly watched episodes.
+        #
+        # The activity check in sync_from_simkl() already gates this call: if
+        # shows_changed is False we never reach here at all, so always fetching the
+        # full watching list only incurs the extra API payload when something has
+        # actually changed on SIMKL.  date_from IS still applied to completed shows
+        # (where the status transition itself is reliably timestamped).
+        simkl_watching = self.api.get_all_items("shows", "watching")
         
         all_shows = (simkl_shows or []) + (simkl_watching or [])
         

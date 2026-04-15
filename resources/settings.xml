@@ -93,7 +93,7 @@
         <!-- Automatic sync triggers -->
         <setting id="sync_on_startup" type="bool" label="32402" default="true"/>
         <setting id="sync_on_update" type="bool" label="32403" default="true"/>
-        <setting id="auto_sync_interval" type="select" label="32405" default="0">
+        <setting id="auto_sync_interval" type="select" label="32405" default="2">
             <option label="32410">0</option>
             <option label="32411">1</option>
             <option label="32412">6</option>

@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """
 SIMKL Scrobbler Rating Service
-Version: 7.4.8
-Last Modified: 2026-02-20
+Version: 7.5.7
+Last Modified: 2026-04-15
 
 PHASE 9: Advanced Features & Polish
 
@@ -46,7 +46,7 @@ from resources.lib.strings import (
 )
 
 # Module version
-__version__ = '7.5.5'
+__version__ = '7.5.6'
 
 # Log module initialization
 xbmc.log(f'[SIMKL Scrobbler] rating.py v{__version__} - Rating service module loading', level=xbmc.LOGINFO)
@@ -160,7 +160,7 @@ class RatingDialog(xbmcgui.WindowXMLDialog):
                 desc_label.setLabel(getString(CLICK_STAR))
                 
         except Exception as e:
-            utils.log(f"[rating v{__version__}] RatingDialog.onInit() Error initializing rating dialog: {}".format(str(e)), xbmc.LOGERROR)
+            utils.log(f"[rating v{__version__}] RatingDialog.onInit() Error initializing rating dialog: {e}", xbmc.LOGERROR)
     
     def onClick(self, controlId):
         """Handle button clicks"""
@@ -213,7 +213,7 @@ class RatingDialog(xbmcgui.WindowXMLDialog):
             description = get_rating_description(rating)
             desc_label.setLabel(getString(RATING_DESC_FORMAT).format(rating, description))
         except Exception as e:
-            utils.log(f"[rating v{__version__}] RatingDialog._update_description() Error: {}".format(str(e)), xbmc.LOGERROR)
+            utils.log(f"[rating v{__version__}] RatingDialog._update_description() Error: {e}", xbmc.LOGERROR)
     
     def _highlight_stars(self, rating):
         """Set star visuals - gold for 1..rating, grey for (rating+1)..10.
@@ -228,7 +228,7 @@ class RatingDialog(xbmcgui.WindowXMLDialog):
                 gold_star = self.getControl(300 + i)
                 gold_star.setVisible(i <= rating)
         except Exception as e:
-            utils.log(f"[rating v{__version__}] RatingDialog._highlight_stars() Error: {}".format(str(e)), xbmc.LOGERROR)
+            utils.log(f"[rating v{__version__}] RatingDialog._highlight_stars() Error: {e}", xbmc.LOGERROR)
 
 
 class RatingService:
@@ -437,7 +437,7 @@ class RatingService:
             return False
             
         except Exception as e:
-            utils.log(f"[rating v{__version__}] RatingService.prompt_for_rating() Error prompting for rating: {}".format(str(e)), xbmc.LOGERROR)
+            utils.log(f"[rating v{__version__}] RatingService.prompt_for_rating() Error prompting for rating: {e}", xbmc.LOGERROR)
             return False
     
     def remove_rating_from_simkl(self, media_info):
@@ -467,9 +467,8 @@ class RatingService:
             if media_info.get('tvdb_id'):
                 api_media_info['ids']['tvdb'] = media_info['tvdb_id']
             
-            utils.log(f"[rating v{__version__}] RatingService.remove_rating_from_simkl() Removing rating for '{}'".format(
-                media_info.get('title', 'Unknown')
-            ))
+            _title = media_info.get('title', 'Unknown')
+            utils.log(f"[rating v{__version__}] RatingService.remove_rating_from_simkl() Removing rating for '{_title}'")
             
             response = self.api.remove_rating(media_type, api_media_info)
             
@@ -481,7 +480,7 @@ class RatingService:
                 return False
                 
         except Exception as e:
-            utils.log(f"[rating v{__version__}] RatingService.remove_rating_from_simkl() Error: {}".format(str(e)), xbmc.LOGERROR)
+            utils.log(f"[rating v{__version__}] RatingService.remove_rating_from_simkl() Error: {e}", xbmc.LOGERROR)
             return False
 
     def submit_rating(self, media_info, rating):
@@ -516,9 +515,8 @@ class RatingService:
             
             # Submit to SIMKL using correct api.add_rating signature:
             # add_rating(media_type, media_info, rating)
-            utils.log(f"[rating v{__version__}] RatingService.submit_rating() Submitting rating {} for '{}' to SIMKL".format(
-                rating, media_info.get('title', 'Unknown')
-            ))
+            _title = media_info.get('title', 'Unknown')
+            utils.log(f"[rating v{__version__}] RatingService.submit_rating() Submitting rating {rating} for '{_title}' to SIMKL")
             
             response = self.api.add_rating(media_type, api_media_info, rating)
             
@@ -530,5 +528,5 @@ class RatingService:
                 return False
                 
         except Exception as e:
-            utils.log(f"[rating v{__version__}] RatingService.submit_rating() Error submitting rating: {}".format(str(e)), xbmc.LOGERROR)
+            utils.log(f"[rating v{__version__}] RatingService.submit_rating() Error submitting rating: {e}", xbmc.LOGERROR)
             return False

@@ -30,7 +30,7 @@ from resources.lib.exclusions import check_exclusion, get_exclusion_summary
 from resources.lib.strings import getString, NOW_SCROBBLING, MARKED_AS_WATCHED
 
 # Module version
-__version__ = '7.5.5'
+__version__ = '7.5.7'
 
 # Log module initialization
 xbmc.log(f'[SIMKL Scrobbler] scrobbler.py v{__version__} - Core scrobbler engine loading', level=xbmc.LOGINFO)

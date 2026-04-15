@@ -1,10 +1,36 @@
 ﻿<?xml version="1.0" encoding="UTF-8"?>
 <!--
 SIMKL Scrobbler for Kodi
-Version: 7.5.5
-Last Modified: 2026-02-26
+Version: 7.5.7
+Last Modified: 2026-04-15
 
 CHANGELOG:
+7.5.7 - Fix cross-device watch status not syncing to other Kodi installs
+        Root cause 1 (primary): SIMKL's date_from filter on
+        /sync/all-items/shows/watching acts on the show's watchlist-entry
+        timestamp (when the show was first added to the list), NOT on
+        individual episode watched_at timestamps. A show already in "watching"
+        status for weeks will not appear in the filtered response even when
+        new episodes were scrobbled yesterday, causing every background sync
+        on other devices to silently miss newly watched episodes of
+        in-progress series. Fix: always fetch the full watching list when
+        shows_changed is detected; date_from is still applied to completed
+        shows where the status transition is reliably timestamped.
+        Root cause 2 (secondary): auto_sync_interval defaulted to disabled
+        (0). On always-on devices (Shield, Apple TV) that never restart,
+        the startup sync runs once and nothing triggers a re-sync unless the
+        Kodi library is scanned. Fix: default changed to 6 hours so
+        cross-device sync works out of the box. Existing users who already
+        have a value stored are not affected.
+        Fix (bonus): episode/movie sync state is now refreshed after
+        sync_from_simkl() completes. Without this, the episodes just
+        imported appeared as "changed" on the next export phase (playcount
+        0 in saved state vs. 1 in Kodi) and were redundantly re-exported
+        to SIMKL on every background sync cycle.
+7.5.6 - Fix rating dialog crash on Android/Shield TV (f-string syntax error in rating.py
+        caused silent import failure on devices without cached .pyc files)
+        Fix: library sync now defers startup sync until active Kodi scan finishes
+        (mirrors Trakt addon behaviour via onScanStarted/onScanFinished hooks)
 7.5.5 - SIMKL API optimizations (staff feedback from Ennergizer)
         Issue 1: Incremental sync via /sync/activities + ?date_from=
         - Background syncs check /sync/activities for change timestamps
@@ -135,7 +161,7 @@ CHANGELOG:
 -->
 <addon id="script.simkl.scrobbler" 
        name="SIMKL Scrobbler" 
-       version="7.5.5" 
+       version="7.5.7" 
        provider-name="Claude.ai with assistance from Michael Beck">
     
     <requires>

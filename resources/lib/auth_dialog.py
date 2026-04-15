@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """
 SIMKL Scrobbler - Authentication Dialog Handler  
-Version: 7.3.4
-Last Modified: 2026-02-14
+Version: 7.5.7
+Last Modified: 2026-04-15
 
 BUG FIXES:
 - FIXED: Dialog closing after ~3 seconds (NameError: max_attempts not in scope)
