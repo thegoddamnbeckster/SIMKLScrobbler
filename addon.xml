@@ -1,11 +1,11 @@
 ﻿<?xml version="1.0" encoding="UTF-8"?>
 <!--
 SIMKL Scrobbler for Kodi
-Version: 7.5.7
+Version: 7.5.8
 Last Modified: 2026-04-15
 
 CHANGELOG:
-7.5.7 - Fix cross-device watch status not syncing to other Kodi installs
+7.5.8 - Fix cross-device watch status not syncing to other Kodi installs
         Root cause 1 (primary): SIMKL's date_from filter on
         /sync/all-items/shows/watching acts on the show's watchlist-entry
         timestamp (when the show was first added to the list), NOT on
@@ -161,7 +161,7 @@ CHANGELOG:
 -->
 <addon id="script.simkl.scrobbler" 
        name="SIMKL Scrobbler" 
-       version="7.5.7" 
+       version="7.5.8" 
        provider-name="Claude.ai with assistance from Michael Beck">
     
     <requires>

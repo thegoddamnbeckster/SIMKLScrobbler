@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 SIMKL Scrobbler Rating Service
-Version: 7.5.7
+Version: 7.5.8
 Last Modified: 2026-04-15
 
 PHASE 9: Advanced Features & Polish

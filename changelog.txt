@@ -1,4 +1,32 @@
 
+[7.5.8] - 2026-04-17
+BUG FIX: Cross-device sync permanently skipped due to wrong SIMKL API field names
+
+- FIXED: Background sync never imported watched episodes from SIMKL — the delta
+  detection check (_check_simkl_activity) compared against fields that do not
+  exist in the /sync/activities API response.
+
+  Root cause: The code read movies_activity.get('watched_at') and
+  shows_activity.get('watched_at'). Neither "watched_at" field exists on the
+  movies or tv_shows objects in SIMKL's /sync/activities response. The actual
+  fields are movies.completed, tv_shows.watching, and tv_shows.completed.
+  Because .get('watched_at', '') always returned '', and stored values were also
+  '' (saved with the same wrong field name), movies_changed and shows_changed
+  were permanently False. Every background sync on every device concluded
+  "nothing has changed on SIMKL" and skipped the import entirely.
+
+  Fix: Updated _check_simkl_activity() to read movies.completed,
+  tv_shows.watching, and tv_shows.completed. shows_changed is now True if
+  either the watching or completed timestamp has changed. Stored keys renamed to
+  movies_completed_at, tv_shows_watching_at, and tv_shows_completed_at. The
+  force_full_sync fallback path in sync_from_simkl() was updated with the same
+  field names. The v7.5.7 fix (no date_from on watching-shows fetch) is
+  retained.
+
+  Impact: Cross-device sync now works. Episodes scrobbled on Device A will be
+  imported and marked watched on Devices B/C/D on the next background sync cycle.
+
+
 [7.5.7] - 2026-04-15
 BUG FIX: Cross-device watch status not syncing to other Kodi installs
 

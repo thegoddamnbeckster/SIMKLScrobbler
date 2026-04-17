@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 SIMKL Sync Module
-Version: 7.5.7
+Version: 7.5.8
 Last Modified: 2026-04-15
 
 PHASE 9: Advanced Features & Polish
@@ -31,7 +31,7 @@ from resources.lib.utils import (
 from resources.lib.api import SimklAPI
 
 # Module version
-__version__ = '7.5.7'
+__version__ = '7.5.8'
 
 # Log module initialization
 xbmc.log(f'[SIMKL Scrobbler] sync.py v{__version__} - Sync manager module loading', level=xbmc.LOGINFO)
@@ -148,8 +148,8 @@ class SyncManager:
         
         Returns:
             dict: Stored activity timestamps, or empty dict if first sync.
-                  Keys are dotted paths like 'movies.watched_at',
-                  'tv_shows.watched_at', etc.
+                  Keys: 'movies_completed_at', 'tv_shows_watching_at',
+                  'tv_shows_completed_at', 'movies_rated_at', 'tv_shows_rated_at'.
         """
         try:
             import xbmcaddon
@@ -170,11 +170,11 @@ class SyncManager:
     def _save_activity_timestamps(self, timestamps):
         """
         Save SIMKL activity timestamps to addon settings after successful sync.
-        
+
         Args:
             timestamps (dict): Activity timestamps to store. Should contain
-                               keys like 'movies_watched_at', 'tv_shows_watched_at',
-                               'movies_rated_at', 'tv_shows_rated_at'.
+                               keys like 'movies_completed_at', 'tv_shows_watching_at',
+                               'tv_shows_completed_at', 'movies_rated_at', 'tv_shows_rated_at'.
         """
         try:
             import xbmcaddon
@@ -226,51 +226,64 @@ class SyncManager:
         
         log(f"[sync v{__version__}] SyncManager._check_simkl_activity() Current SIMKL activities: {activities}")
         
-        # Extract relevant timestamps from the response
-        # SIMKL /sync/activities returns nested objects like:
-        # {"movies": {"watched_at": "...", "rated_at": "..."},
-        #  "tv_shows": {"watched_at": "...", "rated_at": "..."}}
+        # Extract relevant timestamps from the response.
+        # SIMKL /sync/activities returns nested objects. The actual field names are:
+        #   movies.completed  — updated when a movie is marked watched
+        #   tv_shows.watching — updated when a new episode is scrobbled for an in-progress show
+        #   tv_shows.completed — updated when a show reaches completed status
+        #   movies.rated_at / tv_shows.rated_at — updated on any rating change
+        # There is NO "watched_at" field on movies or tv_shows; using that name always
+        # returns '' which permanently prevents import from ever triggering.
         movies_activity = activities.get('movies', {})
         shows_activity = activities.get('tv_shows', {})
-        
-        current_movies_watched = movies_activity.get('watched_at', '')
-        current_shows_watched = shows_activity.get('watched_at', '')
+
+        current_movies_completed = movies_activity.get('completed', '')
+        current_shows_watching = shows_activity.get('watching', '')
+        current_shows_completed = shows_activity.get('completed', '')
         current_movies_rated = movies_activity.get('rated_at', '')
         current_shows_rated = shows_activity.get('rated_at', '')
-        
+
         # Compare against stored timestamps
-        stored_movies_watched = stored.get('movies_watched_at', '')
-        stored_shows_watched = stored.get('tv_shows_watched_at', '')
+        stored_movies_completed = stored.get('movies_completed_at', '')
+        stored_shows_watching = stored.get('tv_shows_watching_at', '')
+        stored_shows_completed = stored.get('tv_shows_completed_at', '')
         stored_movies_rated = stored.get('movies_rated_at', '')
         stored_shows_rated = stored.get('tv_shows_rated_at', '')
-        
-        movies_changed = (current_movies_watched != stored_movies_watched)
-        shows_changed = (current_shows_watched != stored_shows_watched)
+
+        movies_changed = (current_movies_completed != stored_movies_completed)
+        shows_watching_changed = (current_shows_watching != stored_shows_watching)
+        shows_completed_changed = (current_shows_completed != stored_shows_completed)
+        shows_changed = shows_watching_changed or shows_completed_changed
         ratings_changed = (current_movies_rated != stored_movies_rated or
                           current_shows_rated != stored_shows_rated)
-        
-        # For incremental fetch, use the stored timestamp as date_from.
+
+        # For incremental fetch, use the stored completed timestamp as date_from.
+        # Watching shows are always fetched in full (no date_from) because SIMKL's
+        # date_from on the watching endpoint filters by list-entry date, not watch date.
         # If first sync (no stored timestamps), date_from stays None for full fetch.
-        movies_date_from = stored_movies_watched if stored_movies_watched and not is_first_sync else None
-        shows_date_from = stored_shows_watched if stored_shows_watched and not is_first_sync else None
-        
+        movies_date_from = stored_movies_completed if stored_movies_completed and not is_first_sync else None
+        shows_date_from = stored_shows_completed if stored_shows_completed and not is_first_sync else None
+
         log(f"[sync v{__version__}] SyncManager._check_simkl_activity() Changes detected: "
-            f"movies={movies_changed}, shows={shows_changed}, ratings={ratings_changed}, "
-            f"is_first_sync={is_first_sync}")
-        
+            f"movies={movies_changed}, shows={shows_changed} "
+            f"(watching={shows_watching_changed}, completed={shows_completed_changed}), "
+            f"ratings={ratings_changed}, is_first_sync={is_first_sync}")
+
         if movies_changed:
             log(f"[sync v{__version__}] SyncManager._check_simkl_activity() Movie activity changed: "
-                f"stored='{stored_movies_watched}' -> current='{current_movies_watched}' | "
+                f"stored='{stored_movies_completed}' -> current='{current_movies_completed}' | "
                 f"date_from={movies_date_from}")
         if shows_changed:
             log(f"[sync v{__version__}] SyncManager._check_simkl_activity() Show activity changed: "
-                f"stored='{stored_shows_watched}' -> current='{current_shows_watched}' | "
+                f"watching: stored='{stored_shows_watching}' -> current='{current_shows_watching}' | "
+                f"completed: stored='{stored_shows_completed}' -> current='{current_shows_completed}' | "
                 f"date_from={shows_date_from}")
-        
+
         # Build the new timestamps dict to save after successful sync
         new_timestamps = {
-            'movies_watched_at': current_movies_watched,
-            'tv_shows_watched_at': current_shows_watched,
+            'movies_completed_at': current_movies_completed,
+            'tv_shows_watching_at': current_shows_watching,
+            'tv_shows_completed_at': current_shows_completed,
             'movies_rated_at': current_movies_rated,
             'tv_shows_rated_at': current_shows_rated
         }
@@ -1344,7 +1357,7 @@ class SyncManager:
         
         # Fetch ALL watching shows - intentionally no date_from here.
         #
-        # Root cause of cross-device sync failure (v7.5.7 fix):
+        # Root cause of cross-device sync failure (v7.5.8 fix):
         # SIMKL's date_from filter on /sync/all-items/shows/watching acts on the
         # timestamp of the show's WATCHLIST ENTRY (i.e. when the show was first
         # added to the user's list), NOT on when individual episodes were watched.
@@ -2025,8 +2038,9 @@ class SyncManager:
                     movies_activity = fresh_activities.get('movies', {})
                     shows_activity = fresh_activities.get('tv_shows', {})
                     new_timestamps = {
-                        'movies_watched_at': movies_activity.get('watched_at', ''),
-                        'tv_shows_watched_at': shows_activity.get('watched_at', ''),
+                        'movies_completed_at': movies_activity.get('completed', ''),
+                        'tv_shows_watching_at': shows_activity.get('watching', ''),
+                        'tv_shows_completed_at': shows_activity.get('completed', ''),
                         'movies_rated_at': movies_activity.get('rated_at', ''),
                         'tv_shows_rated_at': shows_activity.get('rated_at', '')
                     }
