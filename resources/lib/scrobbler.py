@@ -20,6 +20,7 @@ Professional code - Project 4 standards
 """
 
 import xbmc
+import xbmcgui
 import time
 import math
 from resources.lib.utils import (
@@ -27,10 +28,14 @@ from resources.lib.utils import (
     get_setting, get_setting_bool, get_setting_int, get_setting_float, notify
 )
 from resources.lib.exclusions import check_exclusion, get_exclusion_summary
-from resources.lib.strings import getString, NOW_SCROBBLING, MARKED_AS_WATCHED
+from resources.lib.resume_store import ResumeStore
+from resources.lib.strings import (
+    getString, NOW_SCROBBLING, MARKED_AS_WATCHED,
+    RESUME_DIALOG_TITLE, RESUME_DIALOG_MESSAGE, RESUME_DIALOG_START_OVER, RESUME_DIALOG_RESUME
+)
 
 # Module version
-__version__ = '7.5.8'
+__version__ = '7.5.9'
 
 # Log module initialization
 xbmc.log(f'[SIMKL Scrobbler] scrobbler.py v{__version__} - Core scrobbler engine loading', level=xbmc.LOGINFO)
@@ -58,14 +63,23 @@ class SimklScrobbler:
         self.is_paused = False
         self.current_video = None
         self.current_video_info = None  # SIMKL-formatted info
-        
+
         # Progress tracking
         self.watched_time = 0  # seconds
         self.video_duration = 1  # seconds (avoid div by zero)
         self.last_transition_check = 0
         self.last_progress_update = 0  # timestamp of last SIMKL progress update
         self.paused_at = 0
-        
+
+        # Resume point tracking for non-library streams
+        self.resume_store = ResumeStore()
+        self._is_library_item = False
+        self._resume_key = None
+
+        # Rewatch detection: True if Kodi's playcount was > 0 when playback started,
+        # meaning the user has watched this item before and this is a rewatch.
+        self._was_previously_watched = False
+
         log(f"[scrobbler v{__version__}] SimklScrobbler.__init__() SimklScrobbler initialized")
     
     def playback_started(self, data):
@@ -88,7 +102,12 @@ class SimklScrobbler:
         self.current_video_info = None
         self.watched_time = 0
         self.paused_at = 0
-        
+        self._is_library_item = data.get("dbid", -1) > 0
+        self._resume_key = None
+        self._was_previously_watched = data.get("playcount", 0) > 0
+        if self._was_previously_watched:
+            log(f"[scrobbler v{__version__}] SimklScrobbler.playback_started() Rewatch detected: playcount={data.get('playcount')} for '{data.get('title')}'")
+
         # Check exclusions BEFORE wasting time on API calls
         # This is where we filter out Live TV, HTTP, plugins, and custom paths
         # Note: The player also checks this, but we double-check here as a safety net
@@ -138,7 +157,13 @@ class SimklScrobbler:
         if not self.current_video_info:
             log_warning(f"[scrobbler v{__version__}] SimklScrobbler.playback_started() Could not identify content on SIMKL")
             return
-        
+
+        # Check for a saved resume point (non-library streams only)
+        try:
+            self._check_resume_point()
+        except Exception as e:
+            log_error(f"[scrobbler v{__version__}] SimklScrobbler.playback_started() Resume point check failed (non-fatal): {e}")
+
         # We're officially scrobbling!
         self.is_playing = True
         self.is_paused = False
@@ -202,7 +227,7 @@ class SimklScrobbler:
         log(f"[scrobbler v{__version__}] SimklScrobbler.playback_seek() Seek detected, doing transition check")
         self.transition_check(is_seek=True)
     
-    def playback_ended(self):
+    def playback_ended(self, user_stopped=False):
         """
         Handle playback ended/stopped event.
         
@@ -218,9 +243,13 @@ class SimklScrobbler:
         """
         if not self.is_playing:
             return
-        
-        log(f"[scrobbler v{__version__}] SimklScrobbler.playback_ended() Playback ended")
-        
+
+        log(f"[scrobbler v{__version__}] SimklScrobbler.playback_ended() Playback ended (user_stopped={user_stopped})")
+
+        # Snapshot resume state before anything is cleared
+        resume_key = self._resume_key or self._get_resume_key()
+        resume_position = self.watched_time
+
         # Calculate final progress
         watched_percent = self._calculate_watched_percent()
         log(f"[scrobbler v{__version__}] SimklScrobbler.playback_ended() Final progress: {watched_percent:.1f}%")
@@ -245,6 +274,19 @@ class SimklScrobbler:
                 # SIMKL handled it via /scrobble/stop - we're good
                 was_marked_watched = True
                 log(f"[scrobbler v{__version__}] SimklScrobbler.playback_ended() SIMKL marked as watched via scrobble/stop ({watched_percent:.1f}% >= 80%)")
+                # Rewatch tracking: /scrobble/stop on an already-watched item updates
+                # SIMKL's last_watched timestamp but does NOT add a new entry to the
+                # watch history list. To create a visible rewatch entry, we must also
+                # call /sync/history with an explicit watched_at timestamp.
+                if self._was_previously_watched:
+                    log(f"[scrobbler v{__version__}] SimklScrobbler.playback_ended() Rewatch - calling /sync/history to add new history entry")
+                    from datetime import datetime, timezone
+                    watched_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+                    rewatch_result = self._mark_watched_via_history(watched_at=watched_at)
+                    if rewatch_result:
+                        log(f"[scrobbler v{__version__}] SimklScrobbler.playback_ended() Rewatch history entry added successfully")
+                    else:
+                        log_warning(f"[scrobbler v{__version__}] SimklScrobbler.playback_ended() Failed to add rewatch history entry")
             else:
                 # Either scrobble/stop failed, or progress < 80% but user threshold met
                 # Use history API as fallback to explicitly mark watched
@@ -287,6 +329,15 @@ class SimklScrobbler:
             rating_media_info = self._build_rating_info()
             log(f"[scrobbler v{__version__}] SimklScrobbler.playback_ended() Rating info built: {rating_media_info}")
         
+        # Handle resume point tracking for non-library streams
+        if resume_key:
+            if was_marked_watched:
+                # Scrobble threshold reached — resume point no longer needed
+                self.resume_store.delete(resume_key)
+            elif user_stopped and not self._is_library_item and resume_position > 30:
+                # User stopped before threshold — save position for next session
+                self.resume_store.set(resume_key, resume_position)
+
         # Reset state BEFORE showing rating dialog so new playback isn't blocked
         self._reset_state()
         
@@ -664,44 +715,58 @@ class SimklScrobbler:
             log_error(f"[scrobbler v{__version__}] SimklScrobbler._scrobble() Error sending scrobble: {e}")
             return None
     
-    def _mark_watched_via_history(self):
+    def _mark_watched_via_history(self, watched_at=None):
         """
         Mark current item as watched using the /sync/history endpoint.
-        
-        This is a fallback for when /scrobble/stop doesn't mark the item
-        as watched (progress < 80%) but the user's configured threshold
-        has been met. This matches the Trakt addon behavior.
-        
+
+        Used in two scenarios:
+        1. Fallback: /scrobble/stop didn't mark as watched (progress < 80%) but
+           the user's configured threshold has been met.
+        2. Rewatch: /scrobble/stop already ran at >= 80% but the item was
+           previously watched, so we pass watched_at to create a new history
+           entry (SIMKL's scrobble/stop only updates last_watched, it does not
+           add a new entry for already-watched items).
+
+        Args:
+            watched_at: Optional ISO 8601 UTC timestamp string (e.g.
+                        "2026-05-20T15:23:55Z"). When provided, the watch event
+                        is recorded at this time. Omit for immediate marking
+                        (SIMKL uses server time).
+
         Returns:
             API response dict or None on failure
         """
         if not self.current_video_info:
             return None
-        
+
         media_type = self.current_video.get("type", "movie")
-        
+
         try:
             if media_type == "movie":
                 movie_obj = dict(self.current_video_info)
+                if watched_at:
+                    movie_obj["watched_at"] = watched_at
                 return self.api.add_to_history(movies=[movie_obj])
-            
+
             elif media_type == "episode":
                 show_info = self.current_video_info.get("show", {})
                 episode_info = self.current_video_info.get("episode", {})
-                
+
+                episode_obj = {"number": episode_info.get("number", 0)}
+                if watched_at:
+                    episode_obj["watched_at"] = watched_at
+
                 show_obj = {
                     "title": show_info.get("title"),
                     "ids": show_info.get("ids", {}),
                     "seasons": [{
                         "number": episode_info.get("season", 1),
-                        "episodes": [{
-                            "number": episode_info.get("number", 0)
-                        }]
+                        "episodes": [episode_obj]
                     }]
                 }
                 if show_info.get("year"):
                     show_obj["year"] = show_info["year"]
-                
+
                 return self.api.add_to_history(shows=[show_obj])
             
             else:
@@ -755,3 +820,109 @@ class SimklScrobbler:
         self.video_duration = 1
         self.last_progress_update = 0
         self.paused_at = 0
+        self._is_library_item = False
+        self._resume_key = None
+        self._was_previously_watched = False
+
+    def _get_resume_key(self):
+        """
+        Build a stable, session-independent key for the current item.
+
+        Prefers SIMKL ID, falls back to IMDb, then TMDb. For episodes,
+        the key includes season and episode number to distinguish them
+        within the same show.
+
+        Returns:
+            str or None
+        """
+        if not self.current_video_info or not self.current_video:
+            return None
+
+        media_type = self.current_video.get("type", "movie")
+
+        if media_type == "movie":
+            ids = self.current_video_info.get("ids", {})
+            if ids.get("simkl"):
+                return f"movie_simkl_{ids['simkl']}"
+            if ids.get("imdb"):
+                return f"movie_imdb_{ids['imdb']}"
+            if ids.get("tmdb"):
+                return f"movie_tmdb_{ids['tmdb']}"
+
+        elif media_type == "episode":
+            show = self.current_video_info.get("show", {})
+            episode = self.current_video_info.get("episode", {})
+            ids = show.get("ids", {})
+            season = episode.get("season", 0)
+            ep_num = episode.get("number", 0)
+            if ids.get("simkl"):
+                return f"ep_simkl_{ids['simkl']}_s{season}e{ep_num}"
+            if ids.get("imdb"):
+                return f"ep_imdb_{ids['imdb']}_s{season}e{ep_num}"
+            if ids.get("tmdb"):
+                return f"ep_tmdb_{ids['tmdb']}_s{season}e{ep_num}"
+
+        return None
+
+    def _check_resume_point(self):
+        """
+        Check for a saved resume position and offer to resume from it.
+
+        Only runs for non-library streams — library items already have
+        Kodi's native resume handling. If a resume point exists and is
+        still below the scrobble threshold, shows a dialog and seeks
+        if the user confirms.
+        """
+        if self._is_library_item:
+            return
+
+        key = self._get_resume_key()
+        if not key:
+            return
+
+        self._resume_key = key
+
+        saved_position = self.resume_store.get(key)
+        if not saved_position or saved_position <= 0:
+            return
+
+        # Clear stale entries where the saved position already exceeds the threshold
+        threshold = get_setting_int("scrobble_threshold", 70)
+        if self.video_duration > 0:
+            saved_percent = (saved_position / self.video_duration) * 100
+            if saved_percent >= threshold:
+                log(f"[scrobbler v{__version__}] _check_resume_point() Saved position {saved_percent:.0f}% >= threshold — clearing stale entry")
+                self.resume_store.delete(key)
+                return
+
+        # Format saved time as H:MM:SS or M:SS
+        total_sec = int(saved_position)
+        hours = total_sec // 3600
+        minutes = (total_sec % 3600) // 60
+        seconds = total_sec % 60
+        if hours > 0:
+            time_str = f"{hours}:{minutes:02d}:{seconds:02d}"
+        else:
+            time_str = f"{minutes}:{seconds:02d}"
+
+        title = self._get_display_title()
+        log(f"[scrobbler v{__version__}] _check_resume_point() Found resume point for {title}: {time_str}")
+
+        resume = xbmcgui.Dialog().yesno(
+            getString(RESUME_DIALOG_TITLE),
+            getString(RESUME_DIALOG_MESSAGE).format(title, time_str),
+            nolabel=getString(RESUME_DIALOG_START_OVER),
+            yeslabel=getString(RESUME_DIALOG_RESUME)
+        )
+
+        if resume:
+            log(f"[scrobbler v{__version__}] _check_resume_point() User chose resume — seeking to {saved_position}s")
+            try:
+                xbmc.Player().seekTime(saved_position)
+                self.watched_time = saved_position
+            except Exception as e:
+                log_error(f"[scrobbler v{__version__}] _check_resume_point() Seek failed: {e}")
+        else:
+            log(f"[scrobbler v{__version__}] _check_resume_point() User chose start over — clearing resume point")
+            self.resume_store.delete(key)
+            self._resume_key = None

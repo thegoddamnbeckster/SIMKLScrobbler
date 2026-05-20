@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 SIMKL Sync Module
-Version: 7.5.8
+Version: 7.5.9
 Last Modified: 2026-04-15
 
 PHASE 9: Advanced Features & Polish
@@ -31,7 +31,7 @@ from resources.lib.utils import (
 from resources.lib.api import SimklAPI
 
 # Module version
-__version__ = '7.5.8'
+__version__ = '7.5.9'
 
 # Log module initialization
 xbmc.log(f'[SIMKL Scrobbler] sync.py v{__version__} - Sync manager module loading', level=xbmc.LOGINFO)
@@ -1357,7 +1357,7 @@ class SyncManager:
         
         # Fetch ALL watching shows - intentionally no date_from here.
         #
-        # Root cause of cross-device sync failure (v7.5.8 fix):
+        # Root cause of cross-device sync failure (v7.5.9 fix):
         # SIMKL's date_from filter on /sync/all-items/shows/watching acts on the
         # timestamp of the show's WATCHLIST ENTRY (i.e. when the show was first
         # added to the user's list), NOT on when individual episodes were watched.

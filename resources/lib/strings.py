@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 SIMKL Scrobbler - Localization Helper
-Version: 7.5.8
+Version: 7.5.9
 Last Modified: 2026-04-15
 
 Provides easy access to localized strings throughout the addon.
@@ -66,6 +66,12 @@ SELECT_RATING_FIRST = 32828
 RATED_AS = 32829
 SUBMIT_RATING_FAILED = 32840
 RATING_DESC_FORMAT = 32841
+
+# Resume tracking (32900-32999)
+RESUME_DIALOG_TITLE = 32900
+RESUME_DIALOG_MESSAGE = 32901
+RESUME_DIALOG_START_OVER = 32902
+RESUME_DIALOG_RESUME = 32903
 
 # Rating descriptions (32830-32839)
 RATING_TRAIN_WRECK = 32830

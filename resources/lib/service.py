@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 SIMKL Service - The Main Event Loop
-Version: 7.5.8
+Version: 7.5.9
 Last Modified: 2026-04-15
 
 This is the background service that makes scrobbling actually work.
@@ -45,7 +45,7 @@ from resources.lib.strings import (
 )
 
 # Module version
-__version__ = '7.5.8'
+__version__ = '7.5.9'
 
 # Log module initialization
 xbmc.log(f'[SIMKL Scrobbler] service.py v{__version__} - Main service module loading', level=xbmc.LOGINFO)
@@ -106,7 +106,7 @@ class SimklService:
                 
             elif action == "stopped" or action == "ended":
                 # Playback stopped/ended - finalize scrobble
-                self.scrobbler.playback_ended()
+                self.scrobbler.playback_ended(user_stopped=(action == "stopped"))
                 
             elif action == "paused":
                 # Playback paused - tell SIMKL we're taking a break
@@ -445,13 +445,16 @@ class SimklService:
             stats = sync_manager.stats
             total_exported = stats['movies_exported'] + stats['episodes_exported']
             total_imported = stats['movies_imported'] + stats['episodes_imported']
-            
+            total_unmarked = stats['movies_unmarked'] + stats['episodes_unmarked']
+
             # Build completion message with counts
-            if total_exported > 0 or total_imported > 0:
+            if total_exported > 0 or total_imported > 0 or total_unmarked > 0:
                 message = getString(SYNC_COMPLETE_COUNTS).format(total_exported, total_imported)
+                if total_unmarked > 0:
+                    message += f", {total_unmarked} unmarked"
             else:
                 message = getString(SYNC_COMPLETE_NO_CHANGES)
-            
+
             # Show completion notification (if enabled)
             if show_notifications:
                 xbmcgui.Dialog().notification(
@@ -460,8 +463,8 @@ class SimklService:
                     xbmcgui.NOTIFICATION_INFO,
                     3000
                 )
-            
-            log(f"[service v{__version__}] SimklService._run_sync_thread() Library sync completed - Exported: {total_exported}, Imported: {total_imported}, Errors: {stats['errors']}")
+
+            log(f"[service v{__version__}] SimklService._run_sync_thread() Library sync completed - Exported: {total_exported}, Imported: {total_imported}, Unmarked: {total_unmarked}, Errors: {stats['errors']}")
             
             # Save last sync time (for scheduled syncs)
             self._save_last_sync_time()
@@ -799,7 +802,21 @@ class SimklPlayer(xbmc.Player):
                 video_data["season"] = info_tag.getSeason()
                 video_data["episode"] = info_tag.getEpisode()
                 video_data["episode_title"] = info_tag.getTitle()
-            
+
+            # Library detection: dbid > 0 means item is in Kodi's local library.
+            # Non-library streams (e.g. Umbrella/Real-Debrid) return -1.
+            try:
+                video_data["dbid"] = info_tag.getDbId()
+            except Exception:
+                video_data["dbid"] = -1
+
+            # Capture playcount at the start of playback so the scrobbler can
+            # detect rewatches (playcount > 0 = previously watched at least once).
+            try:
+                video_data["playcount"] = info_tag.getPlayCount()
+            except Exception:
+                video_data["playcount"] = 0
+
             log(f"[service v{__version__}] SimklPlayer._get_video_data() Video data extracted: {video_data}")
             return video_data
             

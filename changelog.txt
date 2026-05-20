@@ -1,4 +1,24 @@
 
+[7.5.9] - 2026-05-20
+FEATURE: Rewatches now create a new entry in SIMKL watch history
+
+- NEW: Rewatch detection. When playback begins, Kodi's playcount for the item
+  is captured. A playcount > 0 means the item was previously watched, so this
+  session is a rewatch.
+
+- NEW: After a rewatch reaches the watched threshold, the addon calls
+  /sync/history with an explicit watched_at timestamp in addition to the
+  normal /scrobble/stop. This creates a visible new entry in SIMKL's watch
+  history (simkl.com/.../history/watch-history/).
+
+  Root cause of the missing history entries: SIMKL's /scrobble/stop at >= 80%
+  marks the item as watched and updates the last_watched timestamp, but does
+  NOT add a new history row for items that were already watched. The dedicated
+  /sync/history call with watched_at is required to record each individual
+  rewatch event. First-time watches are unaffected (scrobble/stop alone is
+  sufficient when playcount was 0 at the start of playback).
+
+
 [7.5.8] - 2026-04-17
 BUG FIX: Cross-device sync permanently skipped due to wrong SIMKL API field names
 

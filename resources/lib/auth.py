@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 SIMKL OAuth Authentication
-Version: 7.5.8
+Version: 7.5.9
 Last Modified: 2026-04-15
 
 PHASE 9: Advanced Features & Polish
