@@ -1,4 +1,23 @@
 
+[7.6.0] - 2026-05-22
+IMPROVEMENT: Meaningful TV episode import progress + Kodi-first episode filtering
+
+- FIXED: TV episode import progress dialog sat at 50% for 10+ minutes with no
+  feedback. Dialog now shows "Show X of Y" with a real percentage, the current
+  show name on line 2, and a running episode count on line 3. A heartbeat log
+  line fires every 10 shows so the Kodi log confirms the process is alive.
+  Cancellation is checked per show and exits cleanly.
+
+- IMPROVED: The single VideoLibrary.GetEpisodes call that already ran upfront now
+  also builds an explicit set of (tvshowid, season, episode) tuples for unwatched
+  episodes only. The inner show-processing loop skips any SIMKL episode that is
+  not in that set with a single O(1) membership test, rather than a nested dict
+  walk plus a playcount check. Shows where every Kodi episode is already watched
+  are skipped entirely at the show level. This eliminates pointless iteration over
+  episodes not present in the local library and dramatically reduces the number of
+  steps for large SIMKL histories where most content is not in Kodi.
+
+
 [7.5.9] - 2026-05-20
 FEATURE: Rewatches now create a new entry in SIMKL watch history
 
@@ -17,6 +36,21 @@ FEATURE: Rewatches now create a new entry in SIMKL watch history
   /sync/history call with watched_at is required to record each individual
   rewatch event. First-time watches are unaffected (scrobble/stop alone is
   sufficient when playcount was 0 at the start of playback).
+
+- NEW: Resume point tracking for non-library streams (Umbrella/Real-Debrid).
+  When playback of an addon stream is stopped before the watched threshold,
+  the position is saved locally keyed by SIMKL/IMDb/TMDb ID (not file URL,
+  which changes every Real-Debrid session). On next playback of the same item
+  a dialog offers to resume from the saved position or start over. Reaching
+  the watched threshold automatically clears the saved position.
+  Library items are unaffected — Kodi handles resume natively for those.
+
+- IMPROVED: "Unmark items removed from SIMKL history" setting is now enabled
+  by default and moved out of the Dangerous Options section. When a show,
+  season or episode is unmarked in SIMKL (via Unmark All / Unmark Season),
+  the next full sync sets the matching Kodi library items back to unwatched.
+  Only runs during full sync — incremental syncs skip the check to avoid
+  false positives from partial data.
 
 
 [7.5.8] - 2026-04-17

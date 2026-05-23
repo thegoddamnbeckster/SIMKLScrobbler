@@ -31,7 +31,7 @@ from resources.lib.utils import (
 from resources.lib.api import SimklAPI
 
 # Module version
-__version__ = '7.5.9'
+__version__ = '7.6.0'
 
 # Log module initialization
 xbmc.log(f'[SIMKL Scrobbler] sync.py v{__version__} - Sync manager module loading', level=xbmc.LOGINFO)
@@ -1398,64 +1398,110 @@ class SyncManager:
         # Build indexes
         show_index = self._build_kodi_show_index(kodi_shows)
         episode_index = self._build_kodi_episode_index(kodi_episodes)
-        
+
+        # Build a fast lookup set from the single GetEpisodes call above:
+        # (tvshowid, season, episode) tuples for episodes that exist in Kodi
+        # and are currently unwatched — these are the only episodes worth updating.
+        # Checking set membership is O(1) and avoids multi-level dict traversal for
+        # every SIMKL episode, which eliminates pointless RPC churn on shows the
+        # local library does not have.
+        kodi_episode_set = {
+            (ep.get("tvshowid"), ep.get("season", 0), ep.get("episode", 0))
+            for ep in kodi_episodes
+            if ep.get("playcount", 0) == 0 and ep.get("tvshowid") is not None
+        }
+        kodi_shows_with_unwatched = {t[0] for t in kodi_episode_set}
+        log(f"[sync v{__version__}] SyncManager.import_episodes_from_simkl() Kodi library: "
+            f"{len(kodi_episodes)} total episodes, {len(kodi_episode_set)} unwatched "
+            f"across {len(kodi_shows_with_unwatched)} shows")
+
         # Match and update
         imported = 0
         already_watched = 0
         not_found_shows = 0
         not_found_eps = 0
         matched_shows = set()
-        
-        for simkl_show in all_shows:
+
+        total_shows = len(all_shows)
+        HEARTBEAT_INTERVAL = 10  # Confirm liveness in the log every N shows
+
+        for show_idx, simkl_show in enumerate(all_shows):
             show_data = simkl_show.get("show", {})
             show_ids = show_data.get("ids", {})
             show_title = show_data.get("title", "Unknown")
-            
+
+            # Update progress dialog each show (50%->80% range for this phase)
+            if self.progress_dialog:
+                pct = 50 + int((show_idx / max(1, total_shows)) * 30)
+                msg = (
+                    f"Importing TV episodes from SIMKL... (Show {show_idx + 1} of {total_shows})\n"
+                    f"Processing: {show_title}\n"
+                    f"Episodes marked so far: {imported}"
+                )
+                self.progress_dialog.update(pct, msg)
+                if self.progress_dialog.iscanceled():
+                    self.cancelled = True
+                    log(f"[sync v{__version__}] SyncManager.import_episodes_from_simkl() "
+                        f"Cancelled by user at show {show_idx + 1} of {total_shows} "
+                        f"({imported} episodes marked)")
+                    break
+
+            # Heartbeat: confirm the process is alive every N shows
+            if show_idx > 0 and show_idx % HEARTBEAT_INTERVAL == 0:
+                log(f"[sync v{__version__}] SyncManager.import_episodes_from_simkl() "
+                    f"Heartbeat: {show_idx}/{total_shows} shows processed, "
+                    f"{imported} episodes marked so far")
+
             # Find show in Kodi
             kodi_show = self._match_show_to_kodi(show_ids, show_index)
-            
+
             if not kodi_show:
                 log_debug(f"[sync v{__version__}] SyncManager.import_episodes_from_simkl() Show not in Kodi: {show_title}")
                 not_found_shows += 1
                 continue
-            
+
             kodi_tvshowid = kodi_show.get("tvshowid")
-            
+
+            # Skip shows where every Kodi episode is already watched — no point
+            # iterating their seasons when the set guarantees nothing will match.
+            if kodi_tvshowid not in kodi_shows_with_unwatched:
+                log_debug(f"[sync v{__version__}] SyncManager.import_episodes_from_simkl() All Kodi episodes already watched for: {show_title}")
+                continue
+
             # Get watched seasons from SIMKL
             # SIMKL can return seasons in different ways
             seasons = simkl_show.get("seasons", [])
-            
+
             if not seasons:
                 # Sometimes it's just episode count, no detailed seasons
                 log_debug(f"[sync v{__version__}] SyncManager.import_episodes_from_simkl() No detailed season info for {show_title}")
                 continue
-            
+
             # Process each season
             for season_data in seasons:
                 season_num = season_data.get("number", 0)
                 episodes = season_data.get("episodes", [])
-                
+
                 for ep_data in episodes:
                     ep_num = ep_data.get("number", 0)
-                    
-                    # Find episode in Kodi
-                    kodi_ep = None
-                    if kodi_tvshowid in episode_index:
-                        if season_num in episode_index[kodi_tvshowid]:
-                            kodi_ep = episode_index[kodi_tvshowid][season_num].get(ep_num)
-                    
-                    if not kodi_ep:
-                        not_found_eps += 1
+
+                    # Fast pre-filter: only process episodes that exist in Kodi
+                    # and are unwatched. Single set lookup replaces the nested
+                    # dict walk + playcount check that the old code performed.
+                    if (kodi_tvshowid, season_num, ep_num) not in kodi_episode_set:
+                        # Distinguish not-found-in-library from already-watched
+                        # for accurate stats without an extra RPC call.
+                        show_season = episode_index.get(kodi_tvshowid, {}).get(season_num, {})
+                        if ep_num in show_season:
+                            already_watched += 1
+                        else:
+                            not_found_eps += 1
                         continue
-                    
-                    # Check if already watched
-                    if kodi_ep.get("playcount", 0) > 0:
-                        already_watched += 1
-                        continue
-                    
-                    # Mark as watched
+
+                    # Episode exists in Kodi and is unwatched — mark it.
+                    kodi_ep = episode_index[kodi_tvshowid][season_num][ep_num]
                     ep_id = kodi_ep.get("episodeid")
-                    
+
                     if self._set_episode_playcount(ep_id, 1):
                         log_debug(f"[sync v{__version__}] SyncManager.import_episodes_from_simkl() Marked: {show_title} S{season_num:02d}E{ep_num:02d}")
                         imported += 1
@@ -1463,10 +1509,18 @@ class SyncManager:
                     else:
                         log_error(f"[sync v{__version__}] SyncManager.import_episodes_from_simkl() Failed: {show_title} S{season_num:02d}E{ep_num:02d}")
                         self.stats['errors'] += 1
-        
+
         log(f"[sync v{__version__}] SyncManager.import_episodes_from_simkl() Import results: {imported} marked, {already_watched} already watched")
         log(f"[sync v{__version__}] SyncManager.import_episodes_from_simkl() Not found: {not_found_shows} shows, {not_found_eps} episodes")
-        
+
+        # If the user cancelled mid-import, skip the unmark check and return
+        # partial results — the unmark logic needs a complete SIMKL dataset.
+        if self.cancelled:
+            log(f"[sync v{__version__}] SyncManager.import_episodes_from_simkl() Import cancelled; skipping unmark check")
+            self.stats['episodes_imported'] = imported
+            self.stats['shows_imported'] = len(matched_shows)
+            return imported
+
         # Check if we should unmark episodes not on SIMKL
         # IMPORTANT: Only unmark during FULL sync (no date_from filter).
         # During incremental sync, we only fetched shows changed since date_from,
@@ -1480,10 +1534,10 @@ class SyncManager:
                 unmarked = self._unmark_episodes_not_on_simkl(kodi_episodes, simkl_episodes)
                 self.stats['episodes_unmarked'] = unmarked
                 log(f"[sync v{__version__}] SyncManager.import_episodes_from_simkl() Unmarked {unmarked} episodes not found on SIMKL")
-        
+
         self.stats['episodes_imported'] = imported
         self.stats['shows_imported'] = len(matched_shows)
-        
+
         log(f"[sync v{__version__}] SyncManager.import_episodes_from_simkl() === Episode Import Complete: {imported} episodes marked as watched ===")
         return imported
     

@@ -5,6 +5,19 @@ Version: 7.5.9
 Last Modified: 2026-04-15
 
 CHANGELOG:
+7.6.0 - Fix TV episode import: meaningful progress dialog + Kodi-first episode filter
+        Progress (Problem 1): the episode import phase sat at 50% for 10+ minutes
+        with no feedback. Fixed: dialog now shows "Show X of Y" with a real
+        percentage, the current show name on line 2, and a running episode count
+        on line 3. A heartbeat log line fires every 10 shows so the log confirms
+        the process is alive. Cancellation is checked per show and exits cleanly.
+        Performance (Problem 2): a single VideoLibrary.GetEpisodes call already
+        fetched all Kodi episodes upfront; that result now also builds an explicit
+        lookup set of (tvshowid, season, episode) tuples for unwatched episodes
+        only. The inner loop skips any SIMKL episode not in that set with one
+        O(1) membership test instead of a nested dict walk, and entire shows are
+        skipped at the show level when all their Kodi episodes are already watched.
+        Eliminates pointless iteration over episodes not in the local library.
 7.5.9 - Fix cross-device watch status not syncing to other Kodi installs
         Root cause 1 (primary): SIMKL's date_from filter on
         /sync/all-items/shows/watching acts on the show's watchlist-entry
@@ -159,9 +172,9 @@ CHANGELOG:
         - Service: Localized sync and auth notifications
 6.13.0 - Previous release
 -->
-<addon id="script.simkl.scrobbler" 
-       name="SIMKL Scrobbler" 
-       version="7.5.9" 
+<addon id="script.simkl.scrobbler"
+       name="SIMKL Scrobbler"
+       version="7.6.0"
        provider-name="Claude.ai with assistance from Michael Beck">
     
     <requires>
