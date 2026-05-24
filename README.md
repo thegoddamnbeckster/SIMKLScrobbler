@@ -1,10 +1,10 @@
-﻿# SIMKL Scrobbler for Kodi
+# SIMKL Scrobbler for Kodi
 
 Automatically track your Kodi watching activity to your [SIMKL](https://simkl.com) account. Movies and TV episodes are scrobbled in real-time as you watch, with bidirectional library sync, a rating system, and context menu integration.
 
 This addon aims to provide the same quality of experience that the popular Trakt addon offers, but for SIMKL users.
 
-**Current Version:** 7.6.0
+[![Latest Release](https://img.shields.io/github/v/release/thegoddamnbeckster/SIMKLScrobbler?label=version)](https://github.com/thegoddamnbeckster/SIMKLScrobbler/releases/latest)
 
 ## Features
 
