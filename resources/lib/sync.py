@@ -31,7 +31,7 @@ from resources.lib.utils import (
 from resources.lib.api import SimklAPI
 
 # Module version
-__version__ = '7.6.0'
+__version__ = '7.8.0'
 
 # Log module initialization
 xbmc.log(f'[SIMKL Scrobbler] sync.py v{__version__} - Sync manager module loading', level=xbmc.LOGINFO)
@@ -40,24 +40,29 @@ xbmc.log(f'[SIMKL Scrobbler] sync.py v{__version__} - Sync manager module loadin
 def _kodi_time_to_utc_iso(kodi_timestamp):
     """
     Convert Kodi's local time string to UTC ISO 8601 format.
-    
+
     Kodi stores lastplayed as "YYYY-MM-DD HH:MM:SS" in local time.
     SIMKL expects ISO 8601 with "Z" suffix meaning UTC.
-    
+
+    Uses time.mktime() which correctly interprets the naive datetime as local
+    time on all platforms, including Android where
+    datetime.now(timezone.utc).astimezone().tzinfo returns None and crashes
+    with "'NoneType' object is not callable".
+
     Args:
         kodi_timestamp: String like "2026-01-15 20:30:00"
-        
+
     Returns:
         UTC ISO string like "2026-01-15T22:30:00Z" or None on failure
     """
     try:
         # Parse as local time (naive datetime)
         local_dt = datetime.strptime(kodi_timestamp, "%Y-%m-%d %H:%M:%S")
-        # Attach local timezone info
-        local_dt = local_dt.replace(tzinfo=datetime.now(timezone.utc).astimezone().tzinfo)
-        # Convert to UTC
-        utc_dt = local_dt.astimezone(timezone.utc)
-        # Format as ISO 8601 with Z suffix
+        # time.mktime() treats the timetuple as local time and returns a UTC POSIX
+        # timestamp. datetime.fromtimestamp() then converts it to a UTC-aware
+        # datetime. This portable approach works on all platforms including Android.
+        posix_ts = time.mktime(local_dt.timetuple())
+        utc_dt = datetime.fromtimestamp(posix_ts, tz=timezone.utc)
         return utc_dt.strftime("%Y-%m-%dT%H:%M:%SZ")
     except Exception as e:
         log_warning(f"[sync v{__version__}] _kodi_time_to_utc_iso() Failed to convert timestamp '{kodi_timestamp}': {e}")
@@ -893,7 +898,10 @@ class SyncManager:
             self.stats['errors'] += 1
         
         self.stats['episodes_exported'] = total_sent
-        self.stats['shows_exported'] = len(shows_data)
+        # Only count shows when SIMKL actually added episodes.
+        # SIMKL returns "added: 0" when all submitted episodes were already
+        # present; reporting "N shows" alongside "0 episodes" is misleading.
+        self.stats['shows_exported'] = len(shows_data) if total_sent > 0 else 0
         
         # Save current sync state after successful export
         current_state = self._build_episode_state(kodi_episodes)
@@ -1070,14 +1078,21 @@ class SyncManager:
         
         return None
     
-    def _match_show_to_kodi(self, simkl_ids, kodi_shows_by_id):
+    def _match_show_to_kodi(self, simkl_ids, kodi_shows_by_id, show_title=None, show_year=None):
         """
         Find a SIMKL show in the Kodi library.
-        
+
+        Tries ID-based matching first (IMDb → TVDB → TMDb), then falls back to
+        title+year matching for shows where SIMKL returns no overlapping ID.
+        Both title and year are required for the fallback to avoid false-positive
+        matches on remakes/reboots with identical titles.
+
         Args:
             simkl_ids (dict): IDs from SIMKL show object
             kodi_shows_by_id (dict): Kodi shows indexed by various IDs
-            
+            show_title (str, optional): Show title for title+year fallback
+            show_year (int, optional): Premiere year for title+year fallback
+
         Returns:
             dict: Kodi show or None if not found
         """
@@ -1086,19 +1101,29 @@ class SyncManager:
             imdb = simkl_ids["imdb"]
             if imdb in kodi_shows_by_id.get("imdb", {}):
                 return kodi_shows_by_id["imdb"][imdb]
-        
+
         # Try TVDB
         if simkl_ids.get("tvdb"):
             tvdb = str(simkl_ids["tvdb"])
             if tvdb in kodi_shows_by_id.get("tvdb", {}):
                 return kodi_shows_by_id["tvdb"][tvdb]
-        
+
         # Try TMDb
         if simkl_ids.get("tmdb"):
             tmdb = str(simkl_ids["tmdb"])
             if tmdb in kodi_shows_by_id.get("tmdb", {}):
                 return kodi_shows_by_id["tmdb"][tmdb]
-        
+
+        # Title+year fallback: for shows where SIMKL doesn't return an ID that
+        # overlaps with what the Kodi scraper recorded (e.g. SIMKL only returns
+        # simkl/slug IDs, or Kodi used a different scraper source).
+        if show_title and show_year:
+            key = (show_title.lower().strip(), int(show_year))
+            if key in kodi_shows_by_id.get("title_year", {}):
+                log_debug(f"[sync v{__version__}] SyncManager._match_show_to_kodi() "
+                          f"Matched by title+year: '{show_title}' ({show_year})")
+                return kodi_shows_by_id["title_year"][key]
+
         return None
     
     def _build_kodi_movie_index(self, kodi_movies):
@@ -1130,31 +1155,39 @@ class SyncManager:
     def _build_kodi_show_index(self, kodi_shows):
         """
         Build an index of Kodi TV shows by their various IDs.
-        
+
         Returns:
-            dict: {"imdb": {id: show}, "tvdb": {id: show}, "tmdb": {id: show}}
+            dict: {"imdb": {id: show}, "tvdb": {id: show}, "tmdb": {id: show},
+                   "title_year": {(title_lower, year_int): show}}
         """
-        index = {"imdb": {}, "tmdb": {}, "tvdb": {}}
-        
+        index = {"imdb": {}, "tmdb": {}, "tvdb": {}, "title_year": {}}
+
         for show in kodi_shows.values():
             uniqueid = show.get("uniqueid", {})
-            
+
             if uniqueid.get("imdb"):
                 index["imdb"][uniqueid["imdb"]] = show
-            
+
             if uniqueid.get("tvdb"):
                 index["tvdb"][str(uniqueid["tvdb"])] = show
-            
+
             if uniqueid.get("tmdb"):
                 index["tmdb"][str(uniqueid["tmdb"])] = show
-            
+
             # Check imdbnumber field
             imdbnumber = show.get("imdbnumber", "")
             if imdbnumber.startswith("tt"):
                 index["imdb"][imdbnumber] = show
             elif imdbnumber.isdigit():
                 index["tvdb"][imdbnumber] = show
-        
+
+            # Title+year fallback — populated for every show that has both fields.
+            # Used when SIMKL returns no ID that overlaps with what Kodi scraped.
+            title = show.get("title", "")
+            year = show.get("year")
+            if title and year:
+                index["title_year"][(title.lower().strip(), int(year))] = show
+
         return index
     
     def _build_kodi_episode_index(self, kodi_episodes):
@@ -1352,8 +1385,11 @@ class SyncManager:
         sync_mode = f"incremental from {date_from}" if date_from else "FULL"
         log(f"[sync v{__version__}] SyncManager.import_episodes_from_simkl() === Starting Episode Import from SIMKL ({sync_mode}) ===")
         
-        # Get completed shows from SIMKL (includes episode info, with optional date filter)
-        simkl_shows = self.api.get_all_items("shows", "completed", date_from=date_from)
+        # Get completed shows from SIMKL with extended=True to receive per-episode data.
+        # Without extended=full the API returns only show-level metadata (title, ids,
+        # watched_episodes_count) — the seasons/episodes array needed to mark individual
+        # Kodi episodes is absent, so nothing gets imported.
+        simkl_shows = self.api.get_all_items("shows", "completed", extended=True, date_from=date_from)
         
         # Fetch ALL watching shows - intentionally no date_from here.
         #
@@ -1373,7 +1409,13 @@ class SyncManager:
         # full watching list only incurs the extra API payload when something has
         # actually changed on SIMKL.  date_from IS still applied to completed shows
         # (where the status transition itself is reliably timestamped).
-        simkl_watching = self.api.get_all_items("shows", "watching")
+        # extended=True is required here: the /sync/all-items/shows/watching endpoint
+        # only returns show-level metadata by default.  Per-episode watched status
+        # (the seasons[] array) is only included with ?extended=full, which is what
+        # extended=True maps to.  Without it every in-progress show hits the
+        # "if not seasons: continue" path and 0 episodes are ever imported —
+        # the root cause of cross-device episode sync failing for watching shows.
+        simkl_watching = self.api.get_all_items("shows", "watching", extended=True)
         
         all_shows = (simkl_shows or []) + (simkl_watching or [])
         
@@ -1452,8 +1494,12 @@ class SyncManager:
                     f"Heartbeat: {show_idx}/{total_shows} shows processed, "
                     f"{imported} episodes marked so far")
 
-            # Find show in Kodi
-            kodi_show = self._match_show_to_kodi(show_ids, show_index)
+            # Find show in Kodi — try IDs first, fall back to title+year
+            kodi_show = self._match_show_to_kodi(
+                show_ids, show_index,
+                show_title=show_title,
+                show_year=show_data.get("year")
+            )
 
             if not kodi_show:
                 log_debug(f"[sync v{__version__}] SyncManager.import_episodes_from_simkl() Show not in Kodi: {show_title}")
@@ -1529,6 +1575,11 @@ class SyncManager:
             if date_from:
                 log(f"[sync v{__version__}] SyncManager.import_episodes_from_simkl() Skipping unmark check - incremental sync only has partial data")
             else:
+                # Update the progress dialog before the unmark pass so it doesn't
+                # appear frozen at "Show N of N" (79%) while hundreds of
+                # SetEpisodeDetails RPCs run. Bumps to 80% with descriptive text.
+                if self.progress_dialog:
+                    self.progress_dialog.update(80, "Checking for episodes to unmark...")
                 # Build set of watched episodes on SIMKL for checking
                 simkl_episodes = self._build_simkl_episode_set(all_shows, show_index)
                 unmarked = self._unmark_episodes_not_on_simkl(kodi_episodes, simkl_episodes)
@@ -1557,9 +1608,13 @@ class SyncManager:
         for simkl_show in simkl_shows:
             show_data = simkl_show.get("show", {})
             show_ids = show_data.get("ids", {})
-            
-            # Find show in Kodi
-            kodi_show = self._match_show_to_kodi(show_ids, kodi_show_index)
+
+            # Find show in Kodi — try IDs first, fall back to title+year
+            kodi_show = self._match_show_to_kodi(
+                show_ids, kodi_show_index,
+                show_title=show_data.get("title", ""),
+                show_year=show_data.get("year")
+            )
             if not kodi_show:
                 continue
             
@@ -1904,11 +1959,15 @@ class SyncManager:
                 if ids.get("tmdb"):
                     simkl_rated_show_ids.add(("tmdb", str(ids["tmdb"])))
                 
-                # Find in Kodi
-                kodi_show = self._match_show_to_kodi(ids, kodi_show_index)
+                # Find in Kodi — try IDs first, fall back to title+year
+                kodi_show = self._match_show_to_kodi(
+                    ids, kodi_show_index,
+                    show_title=show_data.get("title"),
+                    show_year=show_data.get("year")
+                )
                 if not kodi_show:
                     continue
-                
+
                 kodi_rating = kodi_show.get("userrating", 0)
                 simkl_rating = int(rating)
                 

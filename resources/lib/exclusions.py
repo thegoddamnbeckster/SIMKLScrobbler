@@ -29,7 +29,7 @@ import xbmcgui
 from resources.lib.utils import log, log_debug, log_module_init, get_setting, get_setting_bool
 
 # Module version
-__version__ = '7.6.0'
+__version__ = '7.8.0'
 
 # Log module initialization
 log_module_init('exclusions.py', __version__)

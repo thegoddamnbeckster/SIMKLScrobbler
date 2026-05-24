@@ -167,8 +167,8 @@ msgid "Dangerous Options"
 msgstr "Dangerous Options"
 
 msgctxt "#32420"
-msgid "Unmark items not on SIMKL (dangerous!)"
-msgstr "Unmark items not on SIMKL (dangerous!)"
+msgid "Unmark items removed from SIMKL history"
+msgstr "Unmark items removed from SIMKL history"
 
 msgctxt "#32654"
 msgid "Sync movies to Kodi"
@@ -539,3 +539,24 @@ msgstr "Excellent"
 msgctxt "#32839"
 msgid "Legendary"
 msgstr "Legendary"
+
+# ============================================================================
+# Resume Point Tracking (32900-32999)
+# Dialogs for resuming non-library streams (e.g. Umbrella/Real-Debrid)
+# ============================================================================
+
+msgctxt "#32900"
+msgid "Resume Playback"
+msgstr "Resume Playback"
+
+msgctxt "#32901"
+msgid "Resume {0} from {1}?"
+msgstr "Resume {0} from {1}?"
+
+msgctxt "#32902"
+msgid "Start Over"
+msgstr "Start Over"
+
+msgctxt "#32903"
+msgid "Resume"
+msgstr "Resume"

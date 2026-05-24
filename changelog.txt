@@ -1,4 +1,73 @@
 
+[7.8.0] - 2026-05-24
+BUGFIX: Episode import now works — add ?extended=full to SIMKL show API calls; clean up sync summary dialog
+
+- FIXED (critical): Episode import from SIMKL to Kodi was silently importing 0 episodes for
+  every show in every sync. Root cause: the /sync/all-items/shows/watching and /completed
+  endpoints were called without ?extended=full. Without this parameter, SIMKL's response
+  contains only show-level metadata (title, ids, watched_episodes_count) — the seasons[]
+  array with per-episode watched status is entirely absent. The existing code path
+  "if not seasons: continue" therefore skipped every matched show, so nothing was ever
+  marked as watched in Kodi regardless of what was recorded on SIMKL. This is the root
+  cause of cross-device episode sync ("Reboot" and all other in-progress shows not
+  propagating to other Kodi installs). Fixed by passing extended=True to both API calls,
+  which appends ?extended=full to the HTTP request.
+
+- FIXED (UI): Removed the "(Y shows)" suffix from the "Episodes: X (Y shows)" rows in
+  the sync completion summary dialog. The show count was confusing — particularly because
+  the export counter reported the number of shows prepared for export rather than shows
+  that were actually updated on SIMKL. Plain episode counts are cleaner and sufficient.
+
+
+[7.7.1] - 2026-05-24
+HOTFIX: Rating dialog — D-pad/remote navigation no longer blocks submission
+
+- FIXED: When navigating to a star using the D-pad or keyboard arrow keys,
+  onFocus() lit up the gold stars visually but onClick() was never fired, so
+  selected_rating remained None. Pressing Submit then showed "select a rating
+  first" even though the user could see 4 (or any number) of gold stars. Fixed:
+  the dialog now tracks the last focused star (_focused_star). When Submit is
+  clicked, if no star was explicitly clicked but a star was focused via navigation,
+  that star's value is promoted to selected_rating before submission.
+
+- FIXED: After navigating from a star to the Submit or Cancel button, the gold
+  stars now restore to the actually-selected state (or blank if nothing was
+  selected). Previously the hover-preview stars stayed lit, making the dialog
+  look like a rating was committed even though it wasn't.
+
+- Rating 0 (unrate by clicking the same star twice) continues to work correctly
+  and submits via the existing unrate path.
+
+
+[7.7.0] - 2026-05-24
+BUGFIX: Android timezone crash, show matching fallback, progress dialog freeze, sync counters
+
+- FIXED (critical): _kodi_time_to_utc_iso() crashed on Android with "'NoneType' object is
+  not callable". Root cause: datetime.now(timezone.utc).astimezone().tzinfo returns None on
+  Android's Python environment inside Kodi. This caused ALL watched_at timestamps to be sent
+  as None to SIMKL during export (every movie and episode). Fixed by replacing the broken
+  astimezone() call with time.mktime() + datetime.fromtimestamp(), which correctly interprets
+  local time on all platforms including Android/Shield TV.
+
+- FIXED (Bug 1/4/5): Show matching now falls back to title+year when ID-based matching fails.
+  SIMKL's watching list sometimes returns only simkl/slug IDs with no TVDB/IMDb/TMDb overlap
+  with what the Kodi scraper recorded, causing up to 295 of 403 "watching" shows to be
+  silently skipped (episodes not imported, ratings not synced). The Kodi show index now
+  includes a (normalized_title, year) bucket; _match_show_to_kodi() tries it after IMDb,
+  TVDB, and TMDb ID matching. The fallback requires BOTH title and year to avoid false-positive
+  matches on remakes/reboots with identical titles. Affects episode import, episode unmark
+  eligibility, and show ratings import.
+
+- FIXED (Bug 2): Progress dialog no longer appears frozen on "Show N of N" (79%) during the
+  episode unmark pass. After the main import loop finishes, the dialog is updated to
+  "Checking for episodes to unmark..." at 80% before any SetEpisodeDetails RPCs begin.
+
+- FIXED (Bug 3): shows_exported counter no longer reports "N shows" when SIMKL returned
+  "added: 0" (all submitted episodes were already present on SIMKL). The counter now reports
+  0 shows when episodes_exported is 0, eliminating the confusing "Episodes: 0 (20 shows)"
+  summary in the sync completion dialog.
+
+
 [7.6.0] - 2026-05-22
 IMPROVEMENT: Meaningful TV episode import progress + Kodi-first episode filtering
 

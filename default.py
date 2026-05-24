@@ -17,7 +17,7 @@ from resources.lib.auth import SimklAuth
 from resources.lib.utils import log, log_error
 
 # Version constant
-VERSION = "7.5.5"
+VERSION = "7.8.0"
 
 # Get addon instance
 addon = xbmcaddon.Addon()
@@ -568,12 +568,12 @@ def handle_manual_sync():
         lines = []
         lines.append("[B]Kodi to SIMKL (Export)[/B]")
         lines.append(f"  Movies:   {stats['movies_exported']}")
-        lines.append(f"  Episodes: {stats['episodes_exported']} ({stats['shows_exported']} shows)")
+        lines.append(f"  Episodes: {stats['episodes_exported']}")
         lines.append(f"  Ratings:  {stats['ratings_exported']}")
         lines.append("")
         lines.append("[B]SIMKL to Kodi (Import)[/B]")
         lines.append(f"  Movies:   {stats['movies_imported']}")
-        lines.append(f"  Episodes: {stats['episodes_imported']} ({stats['shows_imported']} shows)")
+        lines.append(f"  Episodes: {stats['episodes_imported']}")
         lines.append(f"  Ratings:  {stats['ratings_imported']}")
         
         if stats['movies_unmarked'] > 0 or stats['episodes_unmarked'] > 0:

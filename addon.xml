@@ -1,10 +1,48 @@
 ﻿<?xml version="1.0" encoding="UTF-8"?>
 <!--
 SIMKL Scrobbler for Kodi
-Version: 7.5.9
-Last Modified: 2026-04-15
+Version: 7.8.0
+Last Modified: 2026-05-24
 
 CHANGELOG:
+7.8.0 - Fix episode import: add extended=full to SIMKL API calls + clean up summary dialog
+        Fix (critical): Episode import from SIMKL was silently importing 0 episodes for ALL
+        shows. Root cause: both /sync/all-items/shows/completed and /sync/all-items/shows/watching
+        are called without ?extended=full. Without this parameter SIMKL returns only show-level
+        metadata (title, ids, watched_episodes_count) — the seasons[] array that contains
+        per-episode watched status is absent. The code path "if not seasons: continue" was
+        silently skipping every single show, so 0 episodes were ever marked as watched in Kodi
+        regardless of what was in SIMKL. Fixed: extended=True is now passed to both calls,
+        which appends ?extended=full to the request and causes SIMKL to include per-episode
+        data in the response. This is the core fix for cross-device episode sync not working.
+        Fix (UI): Removed "(Y shows)" portion from the "Episodes: X (Y shows)" lines in the
+        sync completion summary dialog. The show count was confusing (especially since the
+        export counter reported prepared shows not shows actually updated) — plain episode
+        counts are cleaner and sufficient.
+7.7.1 - Fix rating dialog: D-pad navigation no longer blocks submission
+7.7.0 - Bug fixes: timezone crash, show matching, progress dialog, sync counters
+        Fix (critical): _kodi_time_to_utc_iso() crashed on Android with
+        "'NoneType' object is not callable" because
+        datetime.now(timezone.utc).astimezone().tzinfo returns None on Android/Kodi.
+        This caused ALL watched_at timestamps to be sent as None to SIMKL during
+        export, meaning SIMKL recorded no watch timestamps. Fixed: replaced broken
+        astimezone() approach with time.mktime() + datetime.fromtimestamp(), which
+        correctly interprets local time on all platforms including Android.
+        Fix (Bug 1/4/5): Show matching now falls back to title+year when ID-based
+        matching fails. SIMKL's watching list sometimes returns only simkl/slug IDs
+        with no TVDB/IMDb overlap, causing up to 295 of 403 watching shows to be
+        silently skipped. The Kodi show index now includes a (title_lower, year)
+        bucket; _match_show_to_kodi() tries it after IMDb/TVDB/TMDb. The fallback
+        requires both title and year to avoid false matches on remakes. Affects
+        episode import, episode unmark, and ratings import/export.
+        Fix (Bug 2): Progress dialog no longer freezes on "Show N of N" during
+        the unmark pass. After the main import loop finishes, the dialog is
+        updated to "Checking for episodes to unmark..." at 80% before the
+        SetEpisodeDetails RPCs begin.
+        Fix (Bug 3): shows_exported counter no longer reports N prepared shows
+        when SIMKL returned "added: 0" (all episodes already present). Counter
+        now reports 0 shows when episodes_exported is 0, matching the episode
+        count semantics shown in the sync summary dialog.
 7.6.0 - Fix TV episode import: meaningful progress dialog + Kodi-first episode filter
         Progress (Problem 1): the episode import phase sat at 50% for 10+ minutes
         with no feedback. Fixed: dialog now shows "Show X of Y" with a real
@@ -174,7 +212,7 @@ CHANGELOG:
 -->
 <addon id="script.simkl.scrobbler"
        name="SIMKL Scrobbler"
-       version="7.6.0"
+       version="7.8.0"
        provider-name="Claude.ai with assistance from Michael Beck">
     
     <requires>

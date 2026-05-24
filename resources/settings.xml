@@ -108,10 +108,7 @@
         <setting id="sync_movies_from_kodi" type="bool" label="32655" default="true"/>
         <setting id="sync_episodes_to_kodi" type="bool" label="32673" default="true"/>
         <setting id="sync_episodes_from_kodi" type="bool" label="32674" default="true"/>
-        
-        <!-- Dangerous options -->
-        <setting id="sync_dangerous_info" type="lsep" label="32418"/>
-        <setting id="unmark_not_on_simkl" type="bool" label="32420" default="false"/>
+        <setting id="unmark_not_on_simkl" type="bool" label="32420" default="true"/>
         
         <!-- Hidden sync state storage -->
         <setting id="last_auto_sync_time" type="text" visible="false"/>

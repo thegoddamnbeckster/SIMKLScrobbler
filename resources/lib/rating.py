@@ -46,7 +46,7 @@ from resources.lib.strings import (
 )
 
 # Module version
-__version__ = '7.6.0'
+__version__ = '7.8.0'
 
 # Log module initialization
 xbmc.log(f'[SIMKL Scrobbler] rating.py v{__version__} - Rating service module loading', level=xbmc.LOGINFO)
@@ -129,6 +129,7 @@ class RatingDialog(xbmcgui.WindowXMLDialog):
         self.media_type = kwargs.get('media_type', 'unknown')  # 'movie' or 'episode'
         self.current_rating = kwargs.get('current_rating', None)
         self.selected_rating = None
+        self._focused_star = None   # last star hovered via D-pad/navigation (not yet clicked)
         self.submitted = False
         
     def onInit(self):
@@ -169,42 +170,73 @@ class RatingDialog(xbmcgui.WindowXMLDialog):
             if self.selected_rating == controlId:
                 # Clicking the same star again deselects (unrate)
                 self.selected_rating = 0
+                self._focused_star = None
                 self._highlight_stars(0)
                 desc_label = self.getControl(101)
                 desc_label.setLabel(getString(CLICK_STAR))
             else:
                 self.selected_rating = controlId
+                self._focused_star = None   # explicit click supersedes hover
                 self._update_description(controlId)
                 self._highlight_stars(controlId)
-            
+
         # Submit button
         elif controlId == 9010:
+            # If the user navigated to a star via D-pad (onFocus fired) but never
+            # pressed SELECT on it, selected_rating is still None even though gold
+            # stars are visible. Treat the last focused star as a confirmed selection
+            # so remote/keyboard navigation works the same as mouse clicks.
+            if self.selected_rating is None and self._focused_star is not None:
+                self.selected_rating = self._focused_star
+                utils.log(f"[rating v{__version__}] RatingDialog.onClick() "
+                          f"Promoted focused star {self._focused_star} to selected_rating on submit")
+
             if self.selected_rating is not None:
                 self.submitted = True
                 self.close()
             else:
-                # No rating selected yet (first open, never clicked anything)
+                # No rating selected and no star ever focused — dialog was just opened
+                # and Submit was pressed immediately without touching any star.
                 xbmcgui.Dialog().notification(
                     getString(SIMKL),
                     getString(SELECT_RATING_FIRST),
                     xbmcgui.NOTIFICATION_WARNING,
                     3000
                 )
-                
+
         # Cancel button
         elif controlId == 9000:
             self.submitted = False
             self.close()
-    
+
     def onFocus(self, controlId):
         """Handle focus changes - preview stars and update description as user hovers.
-        
-        Shows gold stars up to hovered position as a preview.
-        Does NOT change selected_rating - that only happens on click.
+
+        Shows gold stars up to the hovered position as a preview, and records the
+        focused star so onClick(Submit) can promote it if the user never explicitly
+        clicked a star (D-pad / keyboard navigation path).
+
+        When focus leaves the star row (e.g. moves to Submit/Cancel), restores the
+        gold stars to the currently selected rating so the hover preview doesn't
+        make an uncommitted star look permanent.
         """
         if 1 <= controlId <= 10:
+            self._focused_star = controlId
             self._update_description(controlId)
             self._highlight_stars(controlId)
+        else:
+            # Focus moved away from star row — restore visual to actual selection
+            # so the hover preview doesn't persist and mislead the user.
+            display = self.selected_rating if self.selected_rating is not None else 0
+            self._highlight_stars(display)
+            if display:
+                self._update_description(display)
+            else:
+                try:
+                    desc_label = self.getControl(101)
+                    desc_label.setLabel(getString(CLICK_STAR))
+                except Exception:
+                    pass
     
     def _update_description(self, rating):
         """Update rating description label with full description and meaning"""
