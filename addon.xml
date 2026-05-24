@@ -1,24 +1,26 @@
-﻿<?xml version="1.0" encoding="UTF-8"?>
+<?xml version="1.0" encoding="UTF-8"?>
 <!--
 SIMKL Scrobbler for Kodi
-Version: 7.8.0
+Version: 7.8.1
 Last Modified: 2026-05-24
 
 CHANGELOG:
-7.8.0 - Fix episode import: add extended=full to SIMKL API calls + clean up summary dialog
-        Fix (critical): Episode import from SIMKL was silently importing 0 episodes for ALL
-        shows. Root cause: both /sync/all-items/shows/completed and /sync/all-items/shows/watching
-        are called without ?extended=full. Without this parameter SIMKL returns only show-level
-        metadata (title, ids, watched_episodes_count) — the seasons[] array that contains
-        per-episode watched status is absent. The code path "if not seasons: continue" was
-        silently skipping every single show, so 0 episodes were ever marked as watched in Kodi
-        regardless of what was in SIMKL. Fixed: extended=True is now passed to both calls,
-        which appends ?extended=full to the request and causes SIMKL to include per-episode
-        data in the response. This is the core fix for cross-device episode sync not working.
-        Fix (UI): Removed "(Y shows)" portion from the "Episodes: X (Y shows)" lines in the
-        sync completion summary dialog. The show count was confusing (especially since the
-        export counter reported prepared shows not shows actually updated) — plain episode
-        counts are cleaner and sufficient.
+7.8.1 - Fix episode/movie import: Kodi-first iteration; extended=full; summary cleanup
+        Fix (critical): Episode and movie import now iterates Kodi's local library instead
+        of SIMKL's cloud list. Previously the outer loop ran over all SIMKL items (~600+
+        shows, potentially thousands of movies) and tried to match each one to Kodi —
+        ~75% of those iterations were guaranteed misses for anything not in the local
+        library. Reversed: a SIMKL lookup index is built once (keyed by imdb/tvdb/tmdb/
+        title+year), then Kodi's ~100-200 shows/movies are iterated and each one is
+        looked up O(1) in the index. Same result, a fraction of the iterations.
+        Fix (critical): Episode import also required adding extended=True to both
+        /sync/all-items/shows/completed and /sync/all-items/shows/watching API calls.
+        Without ?extended=full SIMKL returns only show-level metadata — the seasons[]
+        array with per-episode watched status is absent — causing 0 episodes to ever
+        be imported regardless of SIMKL's records.
+        Fix (UI): Removed "(Y shows)" suffix from Episodes lines in the sync summary
+        dialog. The show count was confusing and the export counter reported prepared
+        shows rather than shows actually updated on SIMKL.
 7.7.1 - Fix rating dialog: D-pad navigation no longer blocks submission
 7.7.0 - Bug fixes: timezone crash, show matching, progress dialog, sync counters
         Fix (critical): _kodi_time_to_utc_iso() crashed on Android with
@@ -212,7 +214,7 @@ CHANGELOG:
 -->
 <addon id="script.simkl.scrobbler"
        name="SIMKL Scrobbler"
-       version="7.8.0"
+       version="7.8.1"
        provider-name="Claude.ai with assistance from Michael Beck">
     
     <requires>

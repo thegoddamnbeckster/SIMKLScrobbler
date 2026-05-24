@@ -1,22 +1,25 @@
 
-[7.8.0] - 2026-05-24
-BUGFIX: Episode import now works — add ?extended=full to SIMKL show API calls; clean up sync summary dialog
+[7.8.1] - 2026-05-24
+BUGFIX: Kodi-first import iteration for shows and movies; ?extended=full for episode data; summary cleanup
 
-- FIXED (critical): Episode import from SIMKL to Kodi was silently importing 0 episodes for
-  every show in every sync. Root cause: the /sync/all-items/shows/watching and /completed
-  endpoints were called without ?extended=full. Without this parameter, SIMKL's response
-  contains only show-level metadata (title, ids, watched_episodes_count) — the seasons[]
-  array with per-episode watched status is entirely absent. The existing code path
-  "if not seasons: continue" therefore skipped every matched show, so nothing was ever
-  marked as watched in Kodi regardless of what was recorded on SIMKL. This is the root
-  cause of cross-device episode sync ("Reboot" and all other in-progress shows not
-  propagating to other Kodi installs). Fixed by passing extended=True to both API calls,
-  which appends ?extended=full to the HTTP request.
+- FIXED (performance): Both episode and movie import now iterate Kodi's local library
+  as the outer loop instead of SIMKL's cloud list. Previously the code looped over every
+  item SIMKL knows about (~600+ shows, potentially many more movies) and attempted to
+  match each against Kodi — for a library of ~100-200 titles, roughly 75%+ of those
+  iterations were guaranteed misses. Reversed: a SIMKL lookup index is built once (keyed
+  by imdb/tvdb/tmdb and title+year), then Kodi's shows/movies are iterated with an O(1)
+  lookup per item. Same result, a fraction of the work.
 
-- FIXED (UI): Removed the "(Y shows)" suffix from the "Episodes: X (Y shows)" rows in
-  the sync completion summary dialog. The show count was confusing — particularly because
-  the export counter reported the number of shows prepared for export rather than shows
-  that were actually updated on SIMKL. Plain episode counts are cleaner and sufficient.
+- FIXED (critical): Episode import from SIMKL now passes ?extended=full to both the
+  /sync/all-items/shows/watching and /sync/all-items/shows/completed API calls. Without
+  this parameter SIMKL returns only show-level metadata (title, ids, watched count) —
+  the seasons[] array containing per-episode watched status is absent. The code path
+  "if not seasons: continue" was silently skipping every show, resulting in 0 episodes
+  ever imported. This was the root cause of cross-device episode sync not working.
+
+- FIXED (UI): Removed the "(Y shows)" suffix from the Episodes rows in the sync summary
+  dialog. The show count was confusing and the export counter reported prepared shows,
+  not shows actually updated on SIMKL. Plain episode counts are cleaner.
 
 
 [7.7.1] - 2026-05-24

@@ -31,7 +31,7 @@ from resources.lib.utils import (
 from resources.lib.api import SimklAPI
 
 # Module version
-__version__ = '7.8.0'
+__version__ = '7.8.1'
 
 # Log module initialization
 xbmc.log(f'[SIMKL Scrobbler] sync.py v{__version__} - Sync manager module loading', level=xbmc.LOGINFO)
@@ -1253,51 +1253,68 @@ class SyncManager:
             log(f"[sync v{__version__}] SyncManager.import_movies_from_simkl() No movies in Kodi library to match")
             return 0
         
-        # Build index for fast lookup
-        kodi_index = self._build_kodi_movie_index(kodi_movies)
-        
-        # Build SIMKL movie ID set for unmark checking
-        simkl_movie_ids = set()
+        # Build SIMKL movie lookup indexes and the unmark ID set in a single pass.
+        # Keying by SIMKL IDs lets the outer loop iterate Kodi's (smaller) movie
+        # list and do an O(1) lookup per movie, rather than iterating SIMKL's
+        # (potentially much larger) list and searching Kodi for each entry.
+        simkl_by_imdb = {}   # imdb_id  → simkl_movie entry
+        simkl_by_tmdb = {}   # tmdb_id  → simkl_movie entry
+        simkl_movie_ids = set()  # (type, value) pairs used by the unmark pass
+
         for simkl_movie in simkl_movies:
             movie_data = simkl_movie.get("movie", {})
             ids = movie_data.get("ids", {})
             if ids.get("imdb"):
+                simkl_by_imdb[str(ids["imdb"])] = simkl_movie
                 simkl_movie_ids.add(("imdb", ids["imdb"]))
             if ids.get("tmdb"):
+                simkl_by_tmdb[str(ids["tmdb"])] = simkl_movie
                 simkl_movie_ids.add(("tmdb", str(ids["tmdb"])))
-        
-        # Match and update
+
+        # Match and update — iterate Kodi movies and look each one up in the
+        # SIMKL index.  Kodi is the authoritative local library; anything not
+        # in Kodi is irrelevant regardless of what SIMKL knows about it.
         imported = 0
         already_watched = 0
         not_found = 0
-        
-        for simkl_movie in simkl_movies:
-            # Find in Kodi
-            kodi_movie = self._match_movie_to_kodi(simkl_movie, kodi_index)
-            
-            if not kodi_movie:
-                movie_info = simkl_movie.get("movie", {})
-                log_debug(f"[sync v{__version__}] SyncManager.import_movies_from_simkl() Not in Kodi: {movie_info.get('title', 'Unknown')}")
+
+        for kodi_movie in kodi_movies:
+            uniqueid = kodi_movie.get("uniqueid", {})
+            title = kodi_movie.get("title", "Unknown")
+
+            # Look up this Kodi movie in the SIMKL index
+            simkl_movie = None
+            if uniqueid.get("imdb"):
+                simkl_movie = simkl_by_imdb.get(str(uniqueid["imdb"]))
+            if not simkl_movie and uniqueid.get("tmdb"):
+                simkl_movie = simkl_by_tmdb.get(str(uniqueid["tmdb"]))
+            if not simkl_movie:
+                # imdbnumber field fallback (older scrapers / Kodi versions)
+                imdbnumber = kodi_movie.get("imdbnumber", "")
+                if imdbnumber.startswith("tt"):
+                    simkl_movie = simkl_by_imdb.get(imdbnumber)
+
+            if not simkl_movie:
+                log_debug(f"[sync v{__version__}] SyncManager.import_movies_from_simkl() Not on SIMKL: {title}")
                 not_found += 1
                 continue
-            
+
             # Check if already watched in Kodi
             if kodi_movie.get("playcount", 0) > 0:
                 already_watched += 1
                 continue
-            
+
             # Mark as watched in Kodi
             movie_id = kodi_movie.get("movieid")
-            title = kodi_movie.get("title", "Unknown")
-            
+
             if self._set_movie_playcount(movie_id, 1):
                 log(f"[sync v{__version__}] SyncManager.import_movies_from_simkl() Marked as watched: {title}")
                 imported += 1
             else:
                 log_error(f"[sync v{__version__}] SyncManager.import_movies_from_simkl() Failed to update: {title}")
                 self.stats['errors'] += 1
-        
-        log(f"[sync v{__version__}] SyncManager.import_movies_from_simkl() Import results: {imported} marked, {already_watched} already watched, {not_found} not in Kodi")
+
+        log(f"[sync v{__version__}] SyncManager.import_movies_from_simkl() Import results: {imported} marked, {already_watched} already watched, {not_found} not on SIMKL")
         
         # Check if we should unmark items not on SIMKL
         # IMPORTANT: Only unmark during FULL sync (no date_from filter).
@@ -1437,16 +1454,12 @@ class SyncManager:
             log(f"[sync v{__version__}] SyncManager.import_episodes_from_simkl() No episodes in Kodi library")
             return 0
         
-        # Build indexes
+        # Build Kodi-side indexes (show_index still needed by the unmark pass below)
         show_index = self._build_kodi_show_index(kodi_shows)
         episode_index = self._build_kodi_episode_index(kodi_episodes)
 
-        # Build a fast lookup set from the single GetEpisodes call above:
-        # (tvshowid, season, episode) tuples for episodes that exist in Kodi
-        # and are currently unwatched — these are the only episodes worth updating.
-        # Checking set membership is O(1) and avoids multi-level dict traversal for
-        # every SIMKL episode, which eliminates pointless RPC churn on shows the
-        # local library does not have.
+        # (tvshowid, season, episode) tuples for Kodi episodes that are unwatched.
+        # O(1) membership test replaces nested dict walk for each SIMKL episode.
         kodi_episode_set = {
             (ep.get("tvshowid"), ep.get("season", 0), ep.get("episode", 0))
             for ep in kodi_episodes
@@ -1457,26 +1470,51 @@ class SyncManager:
             f"{len(kodi_episodes)} total episodes, {len(kodi_episode_set)} unwatched "
             f"across {len(kodi_shows_with_unwatched)} shows")
 
-        # Match and update
+        # Build SIMKL show lookup indexes keyed by each show's IDs so the outer
+        # loop can drive on Kodi's ~100-200 shows rather than SIMKL's potentially
+        # 600+ shows (most of which will never be in the local library).
+        simkl_by_imdb = {}         # imdb_id          → simkl_show entry
+        simkl_by_tvdb = {}         # tvdb_id           → simkl_show entry
+        simkl_by_tmdb = {}         # tmdb_id           → simkl_show entry
+        simkl_by_title_year = {}   # (title_lower, yr) → simkl_show entry
+
+        for simkl_show in all_shows:
+            show_data = simkl_show.get("show", {})
+            ids = show_data.get("ids", {})
+            title = show_data.get("title", "")
+            year = show_data.get("year")
+            if ids.get("imdb"):
+                simkl_by_imdb[str(ids["imdb"])] = simkl_show
+            if ids.get("tvdb"):
+                simkl_by_tvdb[str(ids["tvdb"])] = simkl_show
+            if ids.get("tmdb"):
+                simkl_by_tmdb[str(ids["tmdb"])] = simkl_show
+            if title and year:
+                simkl_by_title_year[(title.lower().strip(), int(year))] = simkl_show
+
+        # Match and update — iterate Kodi shows and look each one up in the
+        # SIMKL index.  Kodi is the authoritative local library; anything not
+        # in Kodi is irrelevant regardless of what SIMKL knows about it.
         imported = 0
         already_watched = 0
         not_found_shows = 0
         not_found_eps = 0
         matched_shows = set()
 
-        total_shows = len(all_shows)
-        HEARTBEAT_INTERVAL = 10  # Confirm liveness in the log every N shows
+        kodi_show_list = list(kodi_shows.values())
+        total_shows = len(kodi_show_list)
+        HEARTBEAT_INTERVAL = 10
 
-        for show_idx, simkl_show in enumerate(all_shows):
-            show_data = simkl_show.get("show", {})
-            show_ids = show_data.get("ids", {})
-            show_title = show_data.get("title", "Unknown")
+        for show_idx, kodi_show in enumerate(kodi_show_list):
+            kodi_tvshowid = kodi_show.get("tvshowid")
+            show_title = kodi_show.get("title", "Unknown")
+            uniqueid = kodi_show.get("uniqueid", {})
 
-            # Update progress dialog each show (50%->80% range for this phase)
+            # Update progress dialog (50%->80% range for this phase)
             if self.progress_dialog:
                 pct = 50 + int((show_idx / max(1, total_shows)) * 30)
                 msg = (
-                    f"Importing TV episodes from SIMKL... (Show {show_idx + 1} of {total_shows})\n"
+                    f"Importing TV episodes from SIMKL... ({show_idx + 1} of {total_shows})\n"
                     f"Processing: {show_title}\n"
                     f"Episodes marked so far: {imported}"
                 )
@@ -1494,33 +1532,43 @@ class SyncManager:
                     f"Heartbeat: {show_idx}/{total_shows} shows processed, "
                     f"{imported} episodes marked so far")
 
-            # Find show in Kodi — try IDs first, fall back to title+year
-            kodi_show = self._match_show_to_kodi(
-                show_ids, show_index,
-                show_title=show_title,
-                show_year=show_data.get("year")
-            )
+            # Look up this Kodi show in the SIMKL index
+            simkl_show = None
+            if uniqueid.get("imdb"):
+                simkl_show = simkl_by_imdb.get(str(uniqueid["imdb"]))
+            if not simkl_show and uniqueid.get("tvdb"):
+                simkl_show = simkl_by_tvdb.get(str(uniqueid["tvdb"]))
+            if not simkl_show and uniqueid.get("tmdb"):
+                simkl_show = simkl_by_tmdb.get(str(uniqueid["tmdb"]))
+            if not simkl_show:
+                # imdbnumber field fallback (older scrapers / Kodi versions)
+                imdbnumber = kodi_show.get("imdbnumber", "")
+                if imdbnumber.startswith("tt"):
+                    simkl_show = simkl_by_imdb.get(imdbnumber)
+                elif imdbnumber.isdigit():
+                    simkl_show = simkl_by_tvdb.get(imdbnumber)
+            if not simkl_show:
+                # Title+year fallback: for shows where ID sets don't overlap
+                year = kodi_show.get("year")
+                if show_title and year:
+                    simkl_show = simkl_by_title_year.get(
+                        (show_title.lower().strip(), int(year))
+                    )
 
-            if not kodi_show:
-                log_debug(f"[sync v{__version__}] SyncManager.import_episodes_from_simkl() Show not in Kodi: {show_title}")
+            if not simkl_show:
+                log_debug(f"[sync v{__version__}] SyncManager.import_episodes_from_simkl() Not on SIMKL: {show_title}")
                 not_found_shows += 1
                 continue
 
-            kodi_tvshowid = kodi_show.get("tvshowid")
-
-            # Skip shows where every Kodi episode is already watched — no point
-            # iterating their seasons when the set guarantees nothing will match.
+            # Skip shows where every Kodi episode is already watched
             if kodi_tvshowid not in kodi_shows_with_unwatched:
-                log_debug(f"[sync v{__version__}] SyncManager.import_episodes_from_simkl() All Kodi episodes already watched for: {show_title}")
+                log_debug(f"[sync v{__version__}] SyncManager.import_episodes_from_simkl() All Kodi episodes already watched: {show_title}")
                 continue
 
             # Get watched seasons from SIMKL
-            # SIMKL can return seasons in different ways
             seasons = simkl_show.get("seasons", [])
-
             if not seasons:
-                # Sometimes it's just episode count, no detailed seasons
-                log_debug(f"[sync v{__version__}] SyncManager.import_episodes_from_simkl() No detailed season info for {show_title}")
+                log_debug(f"[sync v{__version__}] SyncManager.import_episodes_from_simkl() No season data from SIMKL for: {show_title}")
                 continue
 
             # Process each season
@@ -1557,7 +1605,7 @@ class SyncManager:
                         self.stats['errors'] += 1
 
         log(f"[sync v{__version__}] SyncManager.import_episodes_from_simkl() Import results: {imported} marked, {already_watched} already watched")
-        log(f"[sync v{__version__}] SyncManager.import_episodes_from_simkl() Not found: {not_found_shows} shows, {not_found_eps} episodes")
+        log(f"[sync v{__version__}] SyncManager.import_episodes_from_simkl() Not on SIMKL: {not_found_shows} Kodi shows, {not_found_eps} episodes")
 
         # If the user cancelled mid-import, skip the unmark check and return
         # partial results — the unmark logic needs a complete SIMKL dataset.

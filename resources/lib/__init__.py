@@ -12,5 +12,5 @@ Professional code - suitable for public distribution
 Attribution: Claude.ai with assistance from Michael Beck
 """
 
-__version__ = '7.8.0'
+__version__ = '7.8.1'
 __author__ = 'Claude.ai with assistance from Michael Beck'
