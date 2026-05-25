@@ -37,10 +37,11 @@ This addon aims to provide the same quality of experience that the popular Trakt
 - Episode rating support is coded but disabled until SIMKL adds API support
 
 ### Context Menu Integration
-Three companion addons add SIMKL actions to Kodi''s library context menu:
-- **SIMKL - Rating button** (context.simkl.rate) — Rate any movie, show, or episode
-- **SIMKL - Toggle Watched** (context.simkl.watched) — Mark or unmark items on SIMKL
-- **SIMKL - Sync to SIMKL** (context.simkl.sync) — Sync a single item immediately
+A companion addon adds a **Rate on SIMKL** option to Kodi's library context menu:
+
+- **SIMKL - Rating button** ([context.simkl.rate](https://github.com/thegoddamnbeckster/SIMKLScrobbler/releases/tag/context.simkl.rate-v1.0.3)) — Rate any movie, TV show, season, or episode directly from the right-click menu. Episodes and seasons automatically resolve to their parent show (SIMKL rates shows, not individual episodes). Requires `script.simkl.scrobbler` v7.8.4+.
+
+Additional context menu addons (Toggle Watched, Sync to SIMKL) are planned.
 
 ### Exclusions
 Control what gets scrobbled with granular exclusion settings:
@@ -64,14 +65,14 @@ Control what gets scrobbled with granular exclusion settings:
 ## Installation
 
 ### From ZIP (Manual)
-1. Download the latest release ZIP from the [Releases](https://github.com/thegoddamnbeckster/SIMKLScrobbler/releases) page
+1. Download the latest `script.simkl.scrobbler-vX.X.X.zip` from the [Releases](https://github.com/thegoddamnbeckster/SIMKLScrobbler/releases) page
 2. In Kodi, go to **Add-ons > Install from zip file**
 3. Navigate to the downloaded ZIP and install
-4. Optionally install the context menu addons from their respective ZIPs
+4. Optionally install the [context.simkl.rate](https://github.com/thegoddamnbeckster/SIMKLScrobbler/releases/tag/context.simkl.rate-v1.0.3) companion addon the same way — adds "Rate on SIMKL" to the right-click context menu
 
 ### From Source
 1. Clone this repository
-2. Copy the script.simkl folder to your Kodi addons directory
+2. Copy the `script.simkl.scrobbler` folder to your Kodi addons directory
 3. Restart Kodi
 
 ## Setup
@@ -121,9 +122,7 @@ script.simkl.scrobbler/
 │   └── language/
 │       └── resource.language.en_gb/
 │           └── strings.po # English localization strings
-├── context.simkl.rate/    # Context menu: Rate on SIMKL
-├── context.simkl.watched/ # Context menu: Toggle watched
-└── context.simkl.sync/    # Context menu: Sync to SIMKL
+└── context.simkl.rate/    # Companion addon: Rate on SIMKL (released separately)
 ```
 
 The background service uses a dispatch queue pattern: SimklPlayer detects playback events and queues them, the main SimklService loop processes the queue, and SimklScrobbler handles the SIMKL API communication. SimklMonitor handles library scan awareness via onScanStarted() / onScanFinished() callbacks. Sync operations run in background threads to avoid blocking Kodi.
