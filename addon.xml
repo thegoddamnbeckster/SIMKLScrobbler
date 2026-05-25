@@ -1,21 +1,23 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
 SIMKL Scrobbler for Kodi
-Version: 7.8.2
-Last Modified: 2026-05-24
+Version: 7.8.3
+Last Modified: 2026-05-25
 
 CHANGELOG:
-7.8.2 - Fix import counters; fix show ratings sync clearing bug
-        Fix (Bug 1): Episode import counter now counts episodes genuinely changed in
-        Kodi, not episodes evaluated from SIMKL. Replaced the kodi_episode_set pre-filter
-        with an explicit per-episode playcount read from episode_index. Counter only
-        increments when current Kodi playcount == 0 and we successfully write playcount=1.
-        Fix (Bug 2): Show ratings import+clearing now uses Kodi-first iteration with a
-        SIMKL ratings index. The old code did a separate clearing pass using ID-only set
-        lookup, which meant shows matched via title+year during import were then
-        immediately cleared (their IDs were never added to the check set). Combined into
-        one pass: look up each Kodi show in the SIMKL ratings index; import if found and
-        different; clear if not found and Kodi has a stale rating.
+7.8.3 - Code quality fixes from internal review
+        Fix: imdbnumber fallback (startswith/isdigit) extracted to
+        _lookup_by_imdbnumber() helper; was copy-pasted in 3 import loops.
+        Fix: kodi_episodes double-iteration replaced with a single loop.
+        Fix: duplicate IMDb IDs in SIMKL data now log_warning instead of
+        silently overwriting.
+        Fix: completed+watching show deduplication by SIMKL ID before indexing.
+        Fix: movie import now has title+year fallback (matches shows).
+        Fix: `if not rating:` replaced with isinstance + 1-10 range guard.
+        Fix: rating import no longer clears Kodi ratings for items absent from
+        SIMKL (import is now additive-only; cannot distinguish "never rated on
+        SIMKL" from "not on SIMKL at all").
+        Fix: not_found_eps renamed to simkl_eps_not_in_kodi with updated log.
 7.8.1 - Kodi-first import iteration for shows and movies
         Episode and movie import now iterates Kodi's local library as the outer loop
         rather than SIMKL's cloud list. A SIMKL lookup index (imdb/tvdb/tmdb/title+year)
@@ -214,7 +216,7 @@ CHANGELOG:
 -->
 <addon id="script.simkl.scrobbler"
        name="SIMKL Scrobbler"
-       version="7.8.2"
+       version="7.8.3"
        provider-name="Claude.ai with assistance from Michael Beck">
     
     <requires>

@@ -14,7 +14,7 @@ import xbmc
 import xbmcvfs
 from resources.lib.utils import log, log_error
 
-__version__ = '7.8.2'
+__version__ = '7.8.3'
 
 xbmc.log(f'[SIMKL Scrobbler] resume_store.py v{__version__} - Resume store loading', level=xbmc.LOGINFO)
 

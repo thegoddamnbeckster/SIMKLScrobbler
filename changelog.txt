@@ -1,4 +1,52 @@
 
+[7.8.3] - 2026-05-25
+CODE QUALITY: Internal review fixes — helper extraction, deduplication, validation, rating import semantics
+
+- FIXED: imdbnumber fallback logic (startswith("tt") → imdb, isdigit() → tvdb) was
+  copy-pasted verbatim into three separate import loops: episode import, movie import,
+  and ratings import. All three could silently diverge on the next edit. Extracted to
+  _lookup_by_imdbnumber(kodi_item, by_imdb, by_tvdb=None); all three callers updated.
+
+- FIXED: kodi_episodes was iterated twice back-to-back to build kodi_shows_with_unwatched
+  (set comprehension) and unwatched_count (sum/generator). Combined into a single for-loop
+  with both accumulators. The unwatched_count log line now notes it is diagnostic only —
+  the per-episode playcount check drives actual import logic, not the aggregate count.
+
+- FIXED: SIMKL index dicts (by_imdb, by_tvdb, by_tmdb) had silent last-write-wins
+  behaviour when SIMKL returned duplicate entries with the same ID. Added log_warning
+  when a duplicate IMDb ID is detected during indexing (both episode import and show
+  ratings import).
+
+- FIXED: all_shows (completed + watching combined list) could contain the same show in
+  both lists. The old code appended them and built an index with silent last-write-wins.
+  Now deduplicates by SIMKL ID before indexing; watching entry takes precedence
+  (appended first, earlier entry kept). Duplicate is logged as a warning.
+
+- FIXED: Movie import had no title+year fallback — only IMDb and TMDb ID-based matching.
+  Shows have had IMDb → TVDB → TMDb → title+year since v7.7.0; movies were inconsistent.
+  Added simkl_by_title_year bucket to movie import; lookup now matches shows.
+
+- FIXED: `if not rating:` in ratings index building was too broad. `not 0` is True (good)
+  but `not 0.5` is False (silent truncation to 0 via int()), `not ""` is True (fine), and
+  `not False` is True (fine but coincidental). Replaced with isinstance(rating, (int, float))
+  guard and explicit 1 <= rating <= 10 range check. Out-of-range values now log_warning
+  and are skipped rather than silently passing through.
+
+- FIXED: Rating import was clearing Kodi ratings for any movie or show absent from SIMKL's
+  ratings list. Absence means either (a) the user never rated it on SIMKL, or (b) the item
+  isn't on SIMKL at all. Both cases are indistinguishable without fetching the full
+  watching/completed list, which is not available inside import_ratings_from_simkl().
+  Clearing in either case destroys ratings set via Kodi, Trakt, or any other source.
+  Clearing logic removed from both movie and show rating import. Rating import is now
+  additive-only: if SIMKL has a rating, apply it to Kodi if different; if not, leave Kodi
+  alone. A comment explains the rationale.
+
+- FIXED: not_found_eps counter renamed to simkl_eps_not_in_kodi. The old name was
+  ambiguous after the Kodi-first iteration refactor (v7.8.1). The counter now exclusively
+  means "SIMKL wanted to mark this episode watched but Kodi has no such episode" (e.g.
+  not downloaded, different numbering scheme). Log message updated to match.
+
+
 [7.8.2] - 2026-05-25
 BUGFIX: Episode import counter now counts actual changes; show ratings clearing no longer drops title+year matches
 
