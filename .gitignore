@@ -27,3 +27,8 @@ settings_minimal.xml
 # Test context menu (development only)
 context.simkl.test/
 CLAUDE.md
+
+backlog_*.md
+build_*.ps1
+install_all.ps1
+build_temp/
