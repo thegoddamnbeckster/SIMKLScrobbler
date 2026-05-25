@@ -1,8 +1,8 @@
 # SIMKL Context Menu - Rating Button
 
-**Version:** 1.0.1  
+**Version:** 1.0.3  
 **Type:** Kodi Context Menu Addon  
-**Requires:** script.simkl v6.7.0+
+**Requires:** script.simkl.scrobbler v7.8.4+
 
 ## Purpose
 
@@ -10,7 +10,7 @@ Adds "Rate on SIMKL" option to the context menu when right-clicking movies, TV s
 
 ## Installation
 
-1. Install main addon: `script.simkl` v6.7.0 or higher
+1. Install main addon: `script.simkl.scrobbler` v7.8.4 or higher
 2. Install this context addon: `context.simkl.rate`
 3. Restart Kodi
 4. Right-click any media item → "Rate on SIMKL" appears
@@ -19,8 +19,11 @@ Adds "Rate on SIMKL" option to the context menu when right-clicking movies, TV s
 
 This is a **standalone context menu addon** (required by Kodi architecture):
 - Detects media type and database ID from the selected item
-- Calls `script.simkl` with `action=rate` parameter
-- Main addon handles authentication, API calls, rating dialog
+- For **episodes** and **seasons**: resolves to the parent show via JSON-RPC before delegating
+- Calls `script.simkl.scrobbler` with `action=rate` and the resolved type/ID
+- Main addon handles authentication, API calls, and the rating dialog
+
+SIMKL supports only movie and show ratings — not individual episodes or seasons. This addon handles the translation transparently so you always rate the correct entity.
 
 ## Technical Details
 
@@ -29,17 +32,22 @@ Uses `ListItem.DBTYPE` instead of `Container.Content()`:
 - **DBTYPE**: Works everywhere (library, in progress, recently added, all views)
 - **Container.Content**: Only works in main library views
 
+### Episode and Season Resolution
+- **Episode**: `GetEpisodeDetails → tvshowid` → calls scrobbler with `media_type=show, dbid=<tvshowid>`
+- **Season**: `GetSeasonDetails → tvshowid` → calls scrobbler with `media_type=show, dbid=<tvshowid>`
+- **Movie / Show**: passed through directly, no resolution needed
+
 ### Supported Media Types
-- Movies (`dbtype=movie`)
-- TV Shows (`dbtype=tvshow`)
-- Seasons (`dbtype=season`)
-- Episodes (`dbtype=episode`)
+- Movies (`dbtype=movie`) → rated as movie
+- TV Shows (`dbtype=tvshow`) → rated as show
+- Seasons (`dbtype=season`) → resolved to parent show, rated as show
+- Episodes (`dbtype=episode`) → resolved to parent show, rated as show
 
 ### Visibility Condition
 ```xml
-String.IsEqual(ListItem.dbtype,movie) | 
-String.IsEqual(ListItem.dbtype,tvshow) | 
-String.IsEqual(ListItem.dbtype,season) | 
+String.IsEqual(ListItem.dbtype,movie) |
+String.IsEqual(ListItem.dbtype,tvshow) |
+String.IsEqual(ListItem.dbtype,season) |
 String.IsEqual(ListItem.dbtype,episode)
 ```
 
@@ -47,7 +55,7 @@ String.IsEqual(ListItem.dbtype,episode)
 
 ```
 context.simkl.rate/
-├── addon.py                    # Main script (detection + delegation)
+├── addon.py                    # Main script (detection, resolution, delegation)
 ├── addon.xml                   # Addon metadata + context menu registration
 ├── changelog.txt               # Version history
 ├── icon.png                    # Addon icon
@@ -63,14 +71,22 @@ context.simkl.rate/
 
 All operations logged to kodi.log with version prefix:
 ```
-[context.simkl.rate v1.0.1] CONTEXT MENU TRIGGERED
-[context.simkl.rate v1.0.1] ListItem.DBTYPE = 'movie'
-[context.simkl.rate v1.0.1] Detected media_type = 'movie'
-[context.simkl.rate v1.0.1] DBID = '2566'
-[context.simkl.rate v1.0.1] Executing: RunScript(script.simkl,action=rate,media_type=movie,dbid=2566)
+[context.simkl.rate v1.0.3] CONTEXT MENU TRIGGERED
+[context.simkl.rate v1.0.3] ListItem.DBTYPE = 'episode'
+[context.simkl.rate v1.0.3] Detected media_type = 'episode'
+[context.simkl.rate v1.0.3] DBID = '8821'
+[context.simkl.rate v1.0.3] Episode DBID 8821 → show 'Breaking Bad' (tvshowid=42)
+[context.simkl.rate v1.0.3] Executing: RunScript(script.simkl.scrobbler,action=rate,media_type=show,dbid=42)
 ```
 
 ## Changelog
+
+### v1.0.3 (2026-05-25)
+- **FIXED:** Episodes now resolve to parent show via `GetEpisodeDetails → tvshowid` before calling scrobbler
+- **FIXED:** Seasons now resolve to parent show via `GetSeasonDetails → tvshowid` before calling scrobbler
+- **FIXED:** Error notification shown to user when resolution fails
+- **FIXED:** README and dependency corrected (`script.simkl` → `script.simkl.scrobbler`)
+- **Architecture:** All type resolution happens in this addon; scrobbler always receives movie or show
 
 ### v1.0.1 (2025-12-27)
 - **FIXED:** Media type detection now uses ListItem.DBTYPE (works in all views)

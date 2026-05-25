@@ -1,3 +1,31 @@
+v1.0.3 (2026-05-25)
+====================
+FIX: Standalone episode and season resolution
+
+FIXED:
+- Episode ratings now resolve to the parent show before calling the scrobbler.
+  The addon calls GetEpisodeDetails to get tvshowid, then passes
+  media_type=show with that tvshowid to script.simkl.scrobbler. Previously
+  the scrobbler received media_type=episode and its api.add_rating('episode')
+  call defaulted to S01E01 with no correct episode data.
+
+- Season ratings now resolve to the parent show before calling the scrobbler.
+  The addon calls GetSeasonDetails to get tvshowid, then passes media_type=show.
+  Previously the scrobbler had no season handler and returned "Could not find
+  item details" for any season DBID.
+
+- Error notification shown to user when resolution fails (was silent log-only).
+
+ARCHITECTURE:
+- All type resolution (episode → show, season → show) now happens inside this
+  addon before RunScript fires. The scrobbler always receives media_type=movie
+  or media_type=show with a valid library DBID — types it already handles.
+  No changes required to script.simkl.scrobbler.
+
+FIXED:
+- README and dependency corrected: was still referencing script.simkl
+  (the pre-7.4.0 addon ID). Corrected to script.simkl.scrobbler.
+
 v1.0.1 (2025-12-27)
 ====================
 CRITICAL FIX: Media Type Detection
