@@ -15,7 +15,7 @@ import xbmc
 import xbmcaddon
 
 # Module version
-__version__ = '7.8.3'
+__version__ = '7.8.4'
 
 # Log module initialization
 xbmc.log(f'[SIMKL Scrobbler] strings.py v{__version__} - Localization helper loading', level=xbmc.LOGINFO)

@@ -1,4 +1,51 @@
 
+[7.8.4] - 2026-05-25
+BUGFIX: Follow-up fixes from second code review
+
+- FIXED: _lookup_by_imdbnumber() now guards against non-string imdbnumber values.
+  If Kodi returns imdbnumber as None (key present, null value) or a non-string type,
+  the old code would reach imdbnumber.startswith("tt") and throw AttributeError,
+  crashing the entire sync. Added isinstance(imdbnumber, str) check before use.
+
+- FIXED: Title+year fallback used "Unknown" as the default when Kodi returns no title,
+  making "Unknown" truthy and causing a real lookup against ("unknown", year) in the
+  SIMKL index. A show or movie legitimately titled "Unknown" could be a false match.
+  Changed default to "" in import_movies_from_simkl(), import_episodes_from_simkl(),
+  and the show ratings loop. Display uses a separate title_display variable.
+
+- FIXED: int(year) calls in title+year index building and lookups were unguarded.
+  A malformed year from SIMKL's API (e.g. "2003-2005", "?") would raise ValueError
+  and crash the entire import. All int(year) calls now wrapped in try/except
+  (ValueError, TypeError) — applies to movie index, show index, ratings index,
+  _build_kodi_show_index(), and all five lookup sites.
+
+- FIXED: Collision warnings were only emitted for IMDb ID duplicates; TVDB and TMDb
+  duplicates still had silent last-write-wins. Added log_warning for TVDB and TMDb
+  collision in import_episodes_from_simkl() index building for consistency.
+  Added TMDb collision warning in import_movies_from_simkl() as well.
+
+- FIXED: Deduplication of all_shows (completed+watching) only covered shows that had
+  a SIMKL ID. Shows with no SIMKL ID but a duplicate IMDb ID would bypass dedup and
+  appear twice. Dedup key is now "simkl:{id}" when present, falling back to "imdb:{id}".
+  Shows with neither ID are still always included (no reliable dedup key available).
+
+- FIXED: Post-dedup count log reported pre-dedup per-list counts alongside the deduped
+  total, so the numbers didn't add up when duplicates were removed. Log now notes the
+  deduped count when non-zero.
+
+- FIXED: isinstance(rating, (int, float)) admitted bool (True→1, False→0) since bool
+  is a Python int subclass. Added explicit isinstance(rating, bool) exclusion in both
+  movie and show rating validation paths.
+
+- FIXED: The simkl_rating is None branch in show ratings used a six-line comment
+  followed by pass. Restructured to if simkl_rating is not None: with the comment
+  condensed to the surrounding context. Cleaner and no dead branch.
+
+- FIXED: matched_shows set and self.stats['shows_imported'] were computed and stored
+  but never surfaced in the sync summary dialog — phantom stat. Removed both.
+  shows_imported key remains in the stats dict at its initialised value of 0.
+
+
 [7.8.3] - 2026-05-25
 CODE QUALITY: Internal review fixes — helper extraction, deduplication, validation, rating import semantics
 
