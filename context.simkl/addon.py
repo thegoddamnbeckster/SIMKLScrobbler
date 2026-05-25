@@ -1,11 +1,18 @@
 # -*- coding: utf-8 -*-
 """
-SIMKL Context Menu - Rating Button
+SIMKL Context Menu
 Version: 1.0.3
 Last Modified: 2026-05-25
 
-Context menu addon that adds "Rate on SIMKL" option to media items.
-Delegates to script.simkl.scrobbler for actual rating functionality.
+Context menu addon that adds SIMKL actions to the right-click menu in Kodi.
+Delegates to script.simkl.scrobbler for all actual functionality.
+
+Currently implemented:
+  - Rate on SIMKL (action=rate)
+
+Planned (backlog):
+  - Toggle Watched on SIMKL (action=togglewatched)
+  - Sync to SIMKL (action=sync)
 
 SIMKL supports only movie and show ratings — not individual episodes or seasons.
 This addon resolves episodes and seasons to their parent show before calling the
@@ -25,12 +32,12 @@ VERSION = "1.0.3"
 
 def log(message):
     """Log message with addon prefix and version."""
-    xbmc.log("[context.simkl.rate v%s] %s" % (VERSION, message), xbmc.LOGINFO)
+    xbmc.log("[context.simkl v%s] %s" % (VERSION, message), xbmc.LOGINFO)
 
 
 def log_error(message):
     """Log error message."""
-    xbmc.log("[context.simkl.rate v%s] ERROR: %s" % (VERSION, message), xbmc.LOGERROR)
+    xbmc.log("[context.simkl v%s] ERROR: %s" % (VERSION, message), xbmc.LOGERROR)
 
 
 def get_media_type():

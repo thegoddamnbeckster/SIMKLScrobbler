@@ -1,5 +1,6 @@
 v1.0.3 (2026-05-25)
 ====================
+RENAMED: context.simkl.rate → context.simkl
 FIX: Standalone episode and season resolution
 
 FIXED:
@@ -21,6 +22,9 @@ ARCHITECTURE:
   addon before RunScript fires. The scrobbler always receives media_type=movie
   or media_type=show with a valid library DBID — types it already handles.
   No changes required to script.simkl.scrobbler.
+- Renamed addon ID from context.simkl.rate to context.simkl. Name is now
+  generic to accommodate planned future actions (Toggle Watched, Sync).
+  Users upgrading from context.simkl.rate should uninstall it first.
 
 FIXED:
 - README and dependency corrected: was still referencing script.simkl

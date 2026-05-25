@@ -1,11 +1,12 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <!--
-SIMKL Context Menu - Rating Button
+SIMKL Context Menu
 Version: 1.0.3
 Last Modified: 2026-05-25
 
 CHANGELOG:
-1.0.3 - Standalone episode and season resolution (no scrobbler changes required)
+1.0.3 - Renamed from context.simkl.rate to context.simkl
+        Standalone episode and season resolution (no scrobbler changes required)
         Fix: episodes now resolve to parent show before calling scrobbler.
              GetEpisodeDetails → tvshowid; scrobbler receives media_type=show
              with the correct tvshowid. Previously the scrobbler received
@@ -15,8 +16,6 @@ CHANGELOG:
              item details" error because the scrobbler had no season handler.
         Fix: error notification shown to user when resolution fails (was
              silent log-only failure).
-        Fix: README and dependency corrected (was still referencing
-             script.simkl, the pre-7.4.0 addon ID).
         Architecture: all type resolution now happens in this addon before
              RunScript fires. Scrobbler always receives movie or show.
 1.0.1 - CRITICAL FIX: Media type detection + professional logging
@@ -29,8 +28,8 @@ CHANGELOG:
         - IMPROVED: Professional code structure matching main addon
 1.0.0 - Initial release with context menu registration
 -->
-<addon id="context.simkl.rate"
-       name="SIMKL - Rating button"
+<addon id="context.simkl"
+       name="SIMKL - Context Menu"
        version="1.0.3"
        provider-name="Claude.ai with assistance from Michael Beck">
     <requires>
@@ -46,8 +45,8 @@ CHANGELOG:
         </menu>
     </extension>
     <extension point="xbmc.addon.metadata">
-        <summary lang="en_GB">Add SIMKL rating button to context menu in library</summary>
-        <description lang="en_GB">Add SIMKL rating button to the context menu in your library.</description>
+        <summary lang="en_GB">SIMKL context menu actions for your Kodi library</summary>
+        <description lang="en_GB">Adds SIMKL actions to the right-click context menu in your library. Currently: Rate on SIMKL. Planned: Toggle Watched, Sync to SIMKL.</description>
         <platform>all</platform>
         <license>MIT</license>
         <assets>
