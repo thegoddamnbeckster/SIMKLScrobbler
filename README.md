@@ -1,4 +1,4 @@
-# SIMKL Scrobbler for Kodi
+﻿# SIMKL Scrobbler for Kodi
 
 Automatically track your Kodi watching activity to your [SIMKL](https://simkl.com) account. Movies and TV episodes are scrobbled in real-time as you watch, with bidirectional library sync, a rating system, and context menu integration.
 
@@ -142,7 +142,7 @@ The background service uses a dispatch queue pattern: SimklPlayer detects playba
 
 - Show rating prompts are available but rated as shows (not individual episodes) because SIMKL''s API does not support individual episode ratings
 - The QR code in the authentication dialog is generated via a web API (qrserver.com); if the network request fails, only the PIN is shown
-- The uto_sync_interval setting uses a <select> type which returns option values as strings rather than integers
+- The `auto_sync_interval` setting uses a `<select>` type which returns option values as strings rather than integers
 
 ## Contributing
 
