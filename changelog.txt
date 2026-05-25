@@ -1,4 +1,24 @@
 
+[7.8.2] - 2026-05-25
+BUGFIX: Episode import counter now counts actual changes; show ratings clearing no longer drops title+year matches
+
+- FIXED (Bug 1): The episode import counter was counting every episode evaluated from
+  SIMKL rather than episodes genuinely changed in Kodi. The old kodi_episode_set
+  pre-filter approach had a subtle edge case where the counter could increment for
+  episodes that weren't actually updated. Replaced with an explicit per-episode
+  playcount read from episode_index: the counter only increments when the current
+  Kodi playcount is 0 and we successfully write playcount=1. "47 episodes imported"
+  now means exactly 47 Kodi episodes had their playcount changed.
+
+- FIXED (Bug 2): Show ratings import was using separate import and clearing passes.
+  The import pass used _match_show_to_kodi() which supports title+year fallback, but
+  the clearing pass used a plain ID-set lookup (imdb/tvdb/tmdb only). Any show matched
+  via title+year during import had no entry in the ID set, so the clearing pass
+  immediately cleared its rating. Fixed by combining both into a single Kodi-first pass
+  using a SIMKL ratings index (same pattern as episode/movie import): each Kodi show
+  is looked up in the index; rating is imported if found+different, cleared if absent.
+
+
 [7.8.1] - 2026-05-24
 BUGFIX: Kodi-first import iteration for shows and movies; ?extended=full for episode data; summary cleanup
 

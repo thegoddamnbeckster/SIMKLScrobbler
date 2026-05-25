@@ -1,26 +1,26 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
 SIMKL Scrobbler for Kodi
-Version: 7.8.1
+Version: 7.8.2
 Last Modified: 2026-05-24
 
 CHANGELOG:
-7.8.1 - Fix episode/movie import: Kodi-first iteration; extended=full; summary cleanup
-        Fix (critical): Episode and movie import now iterates Kodi's local library instead
-        of SIMKL's cloud list. Previously the outer loop ran over all SIMKL items (~600+
-        shows, potentially thousands of movies) and tried to match each one to Kodi —
-        ~75% of those iterations were guaranteed misses for anything not in the local
-        library. Reversed: a SIMKL lookup index is built once (keyed by imdb/tvdb/tmdb/
-        title+year), then Kodi's ~100-200 shows/movies are iterated and each one is
-        looked up O(1) in the index. Same result, a fraction of the iterations.
-        Fix (critical): Episode import also required adding extended=True to both
-        /sync/all-items/shows/completed and /sync/all-items/shows/watching API calls.
-        Without ?extended=full SIMKL returns only show-level metadata — the seasons[]
-        array with per-episode watched status is absent — causing 0 episodes to ever
-        be imported regardless of SIMKL's records.
-        Fix (UI): Removed "(Y shows)" suffix from Episodes lines in the sync summary
-        dialog. The show count was confusing and the export counter reported prepared
-        shows rather than shows actually updated on SIMKL.
+7.8.2 - Fix import counters; fix show ratings sync clearing bug
+        Fix (Bug 1): Episode import counter now counts episodes genuinely changed in
+        Kodi, not episodes evaluated from SIMKL. Replaced the kodi_episode_set pre-filter
+        with an explicit per-episode playcount read from episode_index. Counter only
+        increments when current Kodi playcount == 0 and we successfully write playcount=1.
+        Fix (Bug 2): Show ratings import+clearing now uses Kodi-first iteration with a
+        SIMKL ratings index. The old code did a separate clearing pass using ID-only set
+        lookup, which meant shows matched via title+year during import were then
+        immediately cleared (their IDs were never added to the check set). Combined into
+        one pass: look up each Kodi show in the SIMKL ratings index; import if found and
+        different; clear if not found and Kodi has a stale rating.
+7.8.1 - Kodi-first import iteration for shows and movies
+        Episode and movie import now iterates Kodi's local library as the outer loop
+        rather than SIMKL's cloud list. A SIMKL lookup index (imdb/tvdb/tmdb/title+year)
+        is built once; each Kodi show/movie is looked up O(1). Eliminates ~75% of
+        iterations that were guaranteed misses against items not in the local library.
 7.7.1 - Fix rating dialog: D-pad navigation no longer blocks submission
 7.7.0 - Bug fixes: timezone crash, show matching, progress dialog, sync counters
         Fix (critical): _kodi_time_to_utc_iso() crashed on Android with
@@ -214,7 +214,7 @@ CHANGELOG:
 -->
 <addon id="script.simkl.scrobbler"
        name="SIMKL Scrobbler"
-       version="7.8.1"
+       version="7.8.2"
        provider-name="Claude.ai with assistance from Michael Beck">
     
     <requires>

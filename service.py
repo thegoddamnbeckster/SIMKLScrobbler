@@ -13,7 +13,7 @@ Professional code - Project 4 standards
 import xbmc
 
 # Module version
-__version__ = '7.8.1'
+__version__ = '7.8.2'
 
 # Log module initialization
 xbmc.log(f'[SIMKL Scrobbler] service.py v{__version__} - Entry point loading', level=xbmc.LOGINFO)

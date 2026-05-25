@@ -31,7 +31,7 @@ from resources.lib.utils import (
 from resources.lib.api import SimklAPI
 
 # Module version
-__version__ = '7.8.1'
+__version__ = '7.8.2'
 
 # Log module initialization
 xbmc.log(f'[SIMKL Scrobbler] sync.py v{__version__} - Sync manager module loading', level=xbmc.LOGINFO)
@@ -1458,16 +1458,16 @@ class SyncManager:
         show_index = self._build_kodi_show_index(kodi_shows)
         episode_index = self._build_kodi_episode_index(kodi_episodes)
 
-        # (tvshowid, season, episode) tuples for Kodi episodes that are unwatched.
-        # O(1) membership test replaces nested dict walk for each SIMKL episode.
-        kodi_episode_set = {
-            (ep.get("tvshowid"), ep.get("season", 0), ep.get("episode", 0))
+        # Set of tvshowids that have at least one unwatched episode — used to
+        # skip fully-watched shows at the show level without inspecting every episode.
+        kodi_shows_with_unwatched = {
+            ep.get("tvshowid")
             for ep in kodi_episodes
             if ep.get("playcount", 0) == 0 and ep.get("tvshowid") is not None
         }
-        kodi_shows_with_unwatched = {t[0] for t in kodi_episode_set}
+        unwatched_count = sum(1 for ep in kodi_episodes if ep.get("playcount", 0) == 0)
         log(f"[sync v{__version__}] SyncManager.import_episodes_from_simkl() Kodi library: "
-            f"{len(kodi_episodes)} total episodes, {len(kodi_episode_set)} unwatched "
+            f"{len(kodi_episodes)} total episodes, {unwatched_count} unwatched "
             f"across {len(kodi_shows_with_unwatched)} shows")
 
         # Build SIMKL show lookup indexes keyed by each show's IDs so the outer
@@ -1579,21 +1579,21 @@ class SyncManager:
                 for ep_data in episodes:
                     ep_num = ep_data.get("number", 0)
 
-                    # Fast pre-filter: only process episodes that exist in Kodi
-                    # and are unwatched. Single set lookup replaces the nested
-                    # dict walk + playcount check that the old code performed.
-                    if (kodi_tvshowid, season_num, ep_num) not in kodi_episode_set:
-                        # Distinguish not-found-in-library from already-watched
-                        # for accurate stats without an extra RPC call.
-                        show_season = episode_index.get(kodi_tvshowid, {}).get(season_num, {})
-                        if ep_num in show_season:
-                            already_watched += 1
-                        else:
-                            not_found_eps += 1
+                    # Look up the episode in Kodi by (show, season, episode).
+                    kodi_ep = episode_index.get(kodi_tvshowid, {}).get(season_num, {}).get(ep_num)
+                    if kodi_ep is None:
+                        not_found_eps += 1
                         continue
 
-                    # Episode exists in Kodi and is unwatched — mark it.
-                    kodi_ep = episode_index[kodi_tvshowid][season_num][ep_num]
+                    # Only write — and only count — when the playcount actually
+                    # differs from what Kodi currently has.  This is the single
+                    # source of truth: the counter means "episodes genuinely
+                    # changed in Kodi", not "episodes evaluated from SIMKL".
+                    current_playcount = kodi_ep.get("playcount", 0)
+                    if current_playcount > 0:
+                        already_watched += 1
+                        continue
+
                     ep_id = kodi_ep.get("episodeid")
 
                     if self._set_episode_playcount(ep_id, 1):
@@ -1982,75 +1982,84 @@ class SyncManager:
                     imported += 1
         
         # --- Show Ratings ---
+        # Build a SIMKL ratings index keyed by each show's IDs so the outer
+        # loop can drive on Kodi's shows (Kodi-first, same pattern as episode/
+        # movie import).  This also fixes the clearing-pass bug: the old code
+        # built simkl_rated_show_ids from ID tuples only, so any show that was
+        # matched via title+year during the import pass had no entry in the set,
+        # and its rating was immediately cleared in the clearing pass.  With the
+        # index approach, import and clearing happen in the same loop so there
+        # is no mismatch between what was matched and what is checked.
         simkl_show_ratings = self.api.get_user_ratings("shows")
         kodi_shows = self.get_kodi_tvshows()
-        kodi_show_index = self._build_kodi_show_index(kodi_shows)
-        
-        simkl_rated_show_ids = set()
-        
+
+        simkl_show_rating_by_imdb = {}         # imdb_id          → int rating
+        simkl_show_rating_by_tvdb = {}         # tvdb_id           → int rating
+        simkl_show_rating_by_tmdb = {}         # tmdb_id           → int rating
+        simkl_show_rating_by_title_year = {}   # (title_lower, yr) → int rating
+
         if simkl_show_ratings:
             log(f"[sync v{__version__}] SyncManager.import_ratings_from_simkl() Found {len(simkl_show_ratings)} show ratings on SIMKL")
-            
             for item in simkl_show_ratings:
                 show_data = item.get("show", item)
                 ids = show_data.get("ids", {})
                 rating = item.get("user_rating", item.get("rating", 0))
-                
-                if not rating or rating == 0:
+                if not rating:
                     continue
-                
-                # Track this show as rated on SIMKL
+                rating = int(rating)
+                title = show_data.get("title", "")
+                year = show_data.get("year")
                 if ids.get("imdb"):
-                    simkl_rated_show_ids.add(("imdb", ids["imdb"]))
+                    simkl_show_rating_by_imdb[str(ids["imdb"])] = rating
                 if ids.get("tvdb"):
-                    simkl_rated_show_ids.add(("tvdb", str(ids["tvdb"])))
+                    simkl_show_rating_by_tvdb[str(ids["tvdb"])] = rating
                 if ids.get("tmdb"):
-                    simkl_rated_show_ids.add(("tmdb", str(ids["tmdb"])))
-                
-                # Find in Kodi — try IDs first, fall back to title+year
-                kodi_show = self._match_show_to_kodi(
-                    ids, kodi_show_index,
-                    show_title=show_data.get("title"),
-                    show_year=show_data.get("year")
-                )
-                if not kodi_show:
-                    continue
+                    simkl_show_rating_by_tmdb[str(ids["tmdb"])] = rating
+                if title and year:
+                    simkl_show_rating_by_title_year[(title.lower().strip(), int(year))] = rating
 
-                kodi_rating = kodi_show.get("userrating", 0)
-                simkl_rating = int(rating)
-                
+        # Single Kodi-first pass: import ratings and clear stale ones together.
+        for tvshowid, kodi_show in kodi_shows.items():
+            uniqueid = kodi_show.get("uniqueid", {})
+            kodi_rating = kodi_show.get("userrating", 0)
+            title = kodi_show.get("title", "Unknown")
+            year = kodi_show.get("year")
+
+            # Look up this Kodi show in the SIMKL ratings index
+            simkl_rating = None
+            if uniqueid.get("imdb"):
+                simkl_rating = simkl_show_rating_by_imdb.get(str(uniqueid["imdb"]))
+            if simkl_rating is None and uniqueid.get("tvdb"):
+                simkl_rating = simkl_show_rating_by_tvdb.get(str(uniqueid["tvdb"]))
+            if simkl_rating is None and uniqueid.get("tmdb"):
+                simkl_rating = simkl_show_rating_by_tmdb.get(str(uniqueid["tmdb"]))
+            if simkl_rating is None:
+                imdbnumber = kodi_show.get("imdbnumber", "")
+                if imdbnumber.startswith("tt"):
+                    simkl_rating = simkl_show_rating_by_imdb.get(imdbnumber)
+                elif imdbnumber.isdigit():
+                    simkl_rating = simkl_show_rating_by_tvdb.get(imdbnumber)
+            if simkl_rating is None and title and year:
+                simkl_rating = simkl_show_rating_by_title_year.get(
+                    (title.lower().strip(), int(year))
+                )
+
+            if simkl_rating is None:
+                # Show has no rating on SIMKL — clear Kodi rating if one exists
+                if kodi_rating != 0:
+                    if self._set_show_rating(tvshowid, 0):
+                        log_debug(f"[sync v{__version__}] SyncManager.import_ratings_from_simkl() Cleared show rating: {title}")
+                        imported += 1
+                    else:
+                        self.stats['errors'] += 1
+            else:
+                # Show is rated on SIMKL — apply only if it differs from Kodi
                 if kodi_rating != simkl_rating:
-                    tvshowid = kodi_show.get("tvshowid")
                     if self._set_show_rating(tvshowid, simkl_rating):
-                        title = kodi_show.get("title", "Unknown")
                         log_debug(f"[sync v{__version__}] SyncManager.import_ratings_from_simkl() Show rating: {title} -> {simkl_rating}/10")
                         imported += 1
                     else:
                         self.stats['errors'] += 1
-        
-        # Clear ratings for Kodi shows not rated on SIMKL
-        for tvshowid, show in kodi_shows.items():
-            if show.get("userrating", 0) == 0:
-                continue
-            
-            uniqueid = show.get("uniqueid", {})
-            found_on_simkl = False
-            
-            if uniqueid.get("imdb"):
-                if ("imdb", uniqueid["imdb"]) in simkl_rated_show_ids:
-                    found_on_simkl = True
-            if not found_on_simkl and uniqueid.get("tvdb"):
-                if ("tvdb", str(uniqueid["tvdb"])) in simkl_rated_show_ids:
-                    found_on_simkl = True
-            if not found_on_simkl and uniqueid.get("tmdb"):
-                if ("tmdb", str(uniqueid["tmdb"])) in simkl_rated_show_ids:
-                    found_on_simkl = True
-            
-            if not found_on_simkl:
-                if self._set_show_rating(tvshowid, 0):
-                    title = show.get("title", "Unknown")
-                    log_debug(f"[sync v{__version__}] SyncManager.import_ratings_from_simkl() Cleared show rating: {title}")
-                    imported += 1
         
         self.stats['ratings_imported'] = imported
         log(f"[sync v{__version__}] SyncManager.import_ratings_from_simkl() === Rating Import Complete: {imported} ratings updated ===")
