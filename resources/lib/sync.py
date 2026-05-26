@@ -31,7 +31,7 @@ from resources.lib.utils import (
 from resources.lib.api import SimklAPI
 
 # Module version
-__version__ = '7.8.4'
+__version__ = '7.8.5'
 
 # Log module initialization
 xbmc.log(f'[SIMKL Scrobbler] sync.py v{__version__} - Sync manager module loading', level=xbmc.LOGINFO)
@@ -358,6 +358,78 @@ class SyncManager:
         except Exception as e:
             log_error(f"[sync v{__version__}] SyncManager._save_sync_state() Failed to save sync state for {category}: {e}")
     
+    def _get_stable_show_key(self, tvshowid, kodi_shows):
+        """
+        Return a stable string key for a TV show, for use in episode delta state.
+
+        Kodi's internal tvshowid is a SQLite row ID that can change after a library
+        rebuild or a forced rescan. Using it as the delta key causes ALL episodes to
+        appear "changed" after a rescan (old tvshowid keys never match). Instead we
+        use the show's external ID (TVDB → IMDb → TMDb in preference order), which
+        is content-stable across rescans. Falls back to tvshowid only when no
+        external ID is available.
+
+        Args:
+            tvshowid (int): Kodi internal show ID
+            kodi_shows (dict): tvshowid → show dict from get_kodi_tvshows(), or None
+
+        Returns:
+            str: e.g. "tvdb:81189", "imdb:tt0903747", or "tvshowid:42"
+        """
+        if kodi_shows and tvshowid in kodi_shows:
+            show = kodi_shows[tvshowid]
+            uid = show.get('uniqueid', {})
+            if uid.get('tvdb'):
+                return f"tvdb:{uid['tvdb']}"
+            if uid.get('imdb'):
+                return f"imdb:{uid['imdb']}"
+            if uid.get('tmdb'):
+                return f"tmdb:{uid['tmdb']}"
+            imdbnumber = show.get('imdbnumber', '')
+            if imdbnumber:
+                return f"imdb:{imdbnumber}"
+        return f"tvshowid:{tvshowid}"
+
+    def _save_ratings_cache(self, media_type, ratings_list):
+        """
+        Persist a flat {id_key: rating} lookup to addon settings so the rating
+        dialog can resolve current ratings instantly without an API call.
+
+        Written after every ratings fetch during sync (both export and import
+        paths). The dialog reads this cache before falling back to the API.
+
+        Args:
+            media_type (str): "movies" or "shows"
+            ratings_list (list): Raw list returned by api.get_user_ratings()
+        """
+        try:
+            import xbmcaddon
+            cache = {}
+            for item in ratings_list:
+                rating = item.get('user_rating') or item.get('rating')
+                if not rating:
+                    continue
+                if media_type == 'movies':
+                    ids = item.get('movie', {}).get('ids', {})
+                else:
+                    ids = item.get('show', {}).get('ids', {})
+                # Store under every available ID so lookup hits regardless of
+                # which ID the caller has
+                if ids.get('imdb'):
+                    cache[f"imdb:{ids['imdb']}"] = rating
+                if ids.get('simkl'):
+                    cache[f"simkl:{ids['simkl']}"] = rating
+                if ids.get('tmdb'):
+                    cache[f"tmdb:{ids['tmdb']}"] = rating
+                if ids.get('tvdb'):
+                    cache[f"tvdb:{ids['tvdb']}"] = rating
+            addon = xbmcaddon.Addon('script.simkl.scrobbler')
+            addon.setSetting(f'rating_cache_{media_type}', json.dumps(cache))
+            log_debug(f"[sync v{__version__}] SyncManager._save_ratings_cache() "
+                      f"Cached {len(cache)} {media_type} rating lookups")
+        except Exception as e:
+            log_debug(f"[sync v{__version__}] SyncManager._save_ratings_cache() Failed: {e}")
+
     def _build_movie_state(self, movies):
         """
         Build a state dict from movie list for delta comparison.
@@ -382,26 +454,36 @@ class SyncManager:
         
         return state
     
-    def _build_episode_state(self, episodes):
+    def _build_episode_state(self, episodes, kodi_shows=None):
         """
         Build a state dict from episode list for delta comparison.
-        
+
+        Keys use a stable external show ID (TVDB/IMDb/TMDb) rather than Kodi's
+        internal tvshowid, which is re-assigned after library rebuilds and would
+        cause all episodes to appear "changed" after every rescan.
+
         Args:
             episodes (list): List of Kodi episodes
-            
+            kodi_shows (dict): tvshowid → show dict from get_kodi_tvshows(). When
+                provided, enables stable key resolution. Pass None only if the shows
+                dict is genuinely unavailable.
+
         Returns:
-            dict: {show_id:season:episode: playcount}
+            dict: {"tvdb:81189:1:1": playcount, ...}
         """
         state = {}
         for ep in episodes:
             tvshowid = ep.get('tvshowid')
             season = ep.get('season', 0)
             episode = ep.get('episode', 0)
-            
-            if tvshowid is not None:
-                key = f"{tvshowid}:{season}:{episode}"
-                state[key] = ep.get('playcount', 0)
-        
+
+            if tvshowid is None:
+                continue
+
+            show_key = self._get_stable_show_key(tvshowid, kodi_shows)
+            key = f"{show_key}:{season}:{episode}"
+            state[key] = ep.get('playcount', 0)
+
         return state
     
     def _find_changed_movies(self, current_movies, last_state):
@@ -442,40 +524,46 @@ class SyncManager:
         log(f"[sync v{__version__}] SyncManager._find_changed_movies() Delta sync: {len(changed)} of {len(current_movies)} movies changed")
         return changed
     
-    def _find_changed_episodes(self, current_episodes, last_state):
+    def _find_changed_episodes(self, current_episodes, last_state, kodi_shows=None):
         """
         Find episodes that have changed since last sync.
-        
+
+        Uses stable external show IDs (via _get_stable_show_key) so that a Kodi
+        library rescan — which reassigns internal tvshowid values — does not cause
+        every episode to appear "changed".
+
         Args:
             current_episodes (list): Current episode list
-            last_state (dict): Previous sync state
-            
+            last_state (dict): Previous sync state (keyed by stable show ID)
+            kodi_shows (dict): tvshowid → show dict; passed to _build_episode_state
+
         Returns:
             list: Episodes that have changed
         """
         if not last_state:
             log(f"[sync v{__version__}] SyncManager._find_changed_episodes() No previous sync state - syncing all episodes")
             return current_episodes
-        
+
         changed = []
-        current_state = self._build_episode_state(current_episodes)
-        
+        current_state = self._build_episode_state(current_episodes, kodi_shows)
+
         for ep in current_episodes:
             tvshowid = ep.get('tvshowid')
             season = ep.get('season', 0)
             episode = ep.get('episode', 0)
-            
+
             if tvshowid is None:
                 continue
-            
-            key = f"{tvshowid}:{season}:{episode}"
+
+            show_key = self._get_stable_show_key(tvshowid, kodi_shows)
+            key = f"{show_key}:{season}:{episode}"
             current_playcount = current_state.get(key, 0)
             last_playcount = last_state.get(key, -1)
-            
-            # Changed if: new episode, or playcount changed
+
+            # Changed if: new episode (not in last state), or playcount changed
             if last_playcount == -1 or current_playcount != last_playcount:
                 changed.append(ep)
-        
+
         log(f"[sync v{__version__}] SyncManager._find_changed_episodes() Delta sync: {len(changed)} of {len(current_episodes)} episodes changed")
         return changed
     
@@ -803,16 +891,16 @@ class SyncManager:
             changed_episodes = kodi_episodes
         else:
             last_state = self._load_sync_state('episodes')
-            changed_episodes = self._find_changed_episodes(kodi_episodes, last_state)
-        
+            changed_episodes = self._find_changed_episodes(kodi_episodes, last_state, tv_shows)
+
         # Filter to watched episodes
         watched_episodes = [e for e in changed_episodes if e.get("playcount", 0) > 0]
         log(f"[sync v{__version__}] SyncManager.export_episodes_to_simkl() Found {len(watched_episodes)} watched episodes (changed since last sync)")
-        
+
         if not watched_episodes:
             log(f"[sync v{__version__}] SyncManager.export_episodes_to_simkl() No changed watched episodes to export")
-            # Still update sync state
-            current_state = self._build_episode_state(kodi_episodes)
+            # Still update sync state with stable keys so next delta is accurate
+            current_state = self._build_episode_state(kodi_episodes, tv_shows)
             self._save_sync_state('episodes', current_state)
             return 0
         
@@ -903,10 +991,10 @@ class SyncManager:
         # present; reporting "N shows" alongside "0 episodes" is misleading.
         self.stats['shows_exported'] = len(shows_data) if total_sent > 0 else 0
         
-        # Save current sync state after successful export
-        current_state = self._build_episode_state(kodi_episodes)
+        # Save current sync state after successful export (stable keys)
+        current_state = self._build_episode_state(kodi_episodes, tv_shows)
         self._save_sync_state('episodes', current_state)
-        
+
         log(f"[sync v{__version__}] SyncManager.export_episodes_to_simkl() === Episode Export Complete: {total_sent} episodes sent to SIMKL ===")
         
         return total_sent
@@ -1885,6 +1973,7 @@ class SyncManager:
         try:
             simkl_movies = self.api.get_user_ratings("movies")
             if simkl_movies:
+                self._save_ratings_cache('movies', simkl_movies)
                 for item in simkl_movies:
                     movie = item.get("movie", {})
                     ids = movie.get("ids", {})
@@ -1948,6 +2037,7 @@ class SyncManager:
         try:
             simkl_shows = self.api.get_user_ratings("shows")
             if simkl_shows:
+                self._save_ratings_cache('shows', simkl_shows)
                 for item in simkl_shows:
                     show = item.get("show", {})
                     ids = show.get("ids", {})
@@ -2030,9 +2120,11 @@ class SyncManager:
         
         # --- Movie Ratings ---
         simkl_movie_ratings = self.api.get_user_ratings("movies")
+        if simkl_movie_ratings:
+            self._save_ratings_cache('movies', simkl_movie_ratings)
         kodi_movies = self.get_kodi_movies()
         kodi_movie_index = self._build_kodi_movie_index(kodi_movies)
-        
+
         if simkl_movie_ratings:
             log(f"[sync v{__version__}] SyncManager.import_ratings_from_simkl() Found {len(simkl_movie_ratings)} movie ratings on SIMKL")
 
@@ -2086,6 +2178,8 @@ class SyncManager:
         # index approach, import and clearing happen in the same loop so there
         # is no mismatch between what was matched and what is checked.
         simkl_show_ratings = self.api.get_user_ratings("shows")
+        if simkl_show_ratings:
+            self._save_ratings_cache('shows', simkl_show_ratings)
         kodi_shows = self.get_kodi_tvshows()
 
         simkl_show_rating_by_imdb = {}         # imdb_id          → int rating

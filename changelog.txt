@@ -1,4 +1,28 @@
 
+[7.8.5] - 2026-05-26
+BUGFIX: Rating dialog performance + episode delta stability
+
+- FIXED: Rating dialog took 15-25 seconds to open on Android (SHIELD TV).
+  Two stacked causes: (1) auth.py imported auth_dialog at module level, which
+  pulled in 'requests' — a 12-second cold-load on Android for every action=rate
+  RunScript call, even if authentication was already done. Fixed by making the
+  import lazy (inside authenticate() only). (2) prompt_for_rating() made a
+  blocking get_user_ratings() API call (~4 seconds) before showing the dialog.
+  Fixed by caching ratings during sync: every ratings fetch in export_ratings_to_simkl()
+  and import_ratings_from_simkl() now writes a flat {id_key → rating} dict to
+  addon settings. The rating dialog reads the cache instantly. API fallback only
+  occurs before the very first sync after install.
+
+- FIXED: Episode delta sync marked all episodes (~553) as changed on every run,
+  sending a full export each time rather than an incremental one. Root cause: the
+  delta state key used Kodi's internal tvshowid, which is a SQLite row ID that is
+  reassigned when the library is rescanned or rebuilt. After a scan, all old keys
+  became stale (old tvshowid → new tvshowid), so every episode appeared "changed".
+  Fixed by resolving tvshowid to a content-stable external ID (TVDB → IMDb → TMDb,
+  in preference order) using the already-fetched kodi_shows dict. First run after
+  update will still export all episodes (old format keys won't match new format keys),
+  but all subsequent runs will correctly only export changes.
+
 [7.8.4] - 2026-05-25
 BUGFIX: Follow-up fixes from second code review
 

@@ -14,10 +14,13 @@ Attribution: Claude.ai with assistance from Michael Beck
 
 import xbmc
 from resources.lib.utils import log, log_module_init, set_setting, get_setting
-from resources.lib.auth_dialog import show_auth_dialog
+# auth_dialog is intentionally NOT imported here at module level.
+# auth_dialog.py imports 'requests' at the top which cold-loads in ~12 seconds on
+# Android. Keeping it lazy means every RunScript(action=rate/sync/...) call avoids
+# that penalty. Only action=auth actually needs the dialog.
 
 # Module version
-__version__ = '7.8.4'
+__version__ = '7.8.5'
 
 # Log module initialization
 log_module_init('auth.py', __version__)
@@ -39,7 +42,10 @@ class SimklAuth:
         """
         log(f"[auth v{__version__}] SimklAuth.authenticate() ========== authenticate() START ==========")
         log(f"[auth v{__version__}] SimklAuth.authenticate() Calling show_auth_dialog()...")
-        
+
+        # Lazy import: auth_dialog pulls in 'requests' which is slow on Android.
+        # Only do this now, when authentication is actually being performed.
+        from resources.lib.auth_dialog import show_auth_dialog
         success, username = show_auth_dialog()
         
         log(f"[auth v{__version__}] SimklAuth.authenticate() returned: success={success}, username='{username}'")

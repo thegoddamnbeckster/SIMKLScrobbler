@@ -17,7 +17,7 @@ from resources.lib.auth import SimklAuth
 from resources.lib.utils import log, log_error
 
 # Version constant
-VERSION = "7.8.2"
+VERSION = "7.8.5"
 
 # Get addon instance
 addon = xbmcaddon.Addon()

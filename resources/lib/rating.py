@@ -27,6 +27,7 @@ Rating descriptions moved to strings.po for easy translation
 Professional code - Project 4 standards
 """
 
+import json
 import xbmc
 import xbmcgui
 import xbmcaddon
@@ -46,7 +47,7 @@ from resources.lib.strings import (
 )
 
 # Module version
-__version__ = '7.8.4'
+__version__ = '7.8.5'
 
 # Log module initialization
 xbmc.log(f'[SIMKL Scrobbler] rating.py v{__version__} - Rating service module loading', level=xbmc.LOGINFO)
@@ -310,43 +311,106 @@ class RatingService:
                 return False
         return False
     
-    def get_current_rating(self, media_type, simkl_id=None, imdb_id=None, tmdb_id=None):
+    @staticmethod
+    def _load_ratings_cache(api_type):
         """
-        Retrieve current user rating from SIMKL.
-        
-        Searches by any available ID (SIMKL, IMDb, TMDb).
-        
+        Load the flat ratings cache written by SyncManager._save_ratings_cache().
+
+        The cache is stored in addon settings as JSON under 'rating_cache_movies'
+        or 'rating_cache_shows'. Keys are like "imdb:tt1234567", "simkl:12345",
+        "tmdb:12345", "tvdb:81189". Values are integer ratings (1-10).
+
         Args:
-            media_type (str): 'movie' or 'episode'
-            simkl_id (int, optional): SIMKL ID of the item
-            imdb_id (str, optional): IMDb ID of the item
-            tmdb_id (str, optional): TMDb ID of the item
-            
+            api_type (str): 'movies' or 'shows'
+
+        Returns:
+            dict or None: {id_key: rating} if the setting is populated,
+                          None if the setting is missing/empty (cache not yet written)
+        """
+        try:
+            raw = xbmcaddon.Addon('script.simkl.scrobbler').getSetting(
+                f'rating_cache_{api_type}'
+            )
+            if raw:
+                return json.loads(raw)
+        except Exception:
+            pass
+        return None
+
+    def get_current_rating(self, media_type, simkl_id=None, imdb_id=None,
+                           tmdb_id=None, tvdb_id=None):
+        """
+        Retrieve current user rating, using the sync-populated cache when available.
+
+        Checks the flat ratings cache first (populated by SyncManager during every
+        sync). If the cache is present, the result is instant with no network call.
+        Falls back to a live API call only when no cache exists (e.g. before the
+        first sync after install).
+
+        Args:
+            media_type (str): 'movie' or 'episode' (episode → looks up show rating)
+            simkl_id (int, optional): SIMKL ID
+            imdb_id (str, optional): IMDb ID
+            tmdb_id (str, optional): TMDb ID
+            tvdb_id (str, optional): TVDB ID
+
         Returns:
             int or None: Current rating (1-10) or None if not rated
         """
-        if not simkl_id and not imdb_id and not tmdb_id:
+        if not simkl_id and not imdb_id and not tmdb_id and not tvdb_id:
             return None
-        
+
         try:
             api_type = 'movies' if media_type == 'movie' else 'shows'
+
+            # --- Cache path (fast: no network) ---
+            cache = self._load_ratings_cache(api_type)
+            if cache is not None:
+                # Cache is populated — trust it for both hits and misses.
+                # A miss means the item is unrated on SIMKL; no API call needed.
+                for prefix, value in (
+                    ('simkl', simkl_id),
+                    ('imdb', imdb_id),
+                    ('tmdb', tmdb_id),
+                    ('tvdb', tvdb_id),
+                ):
+                    if value:
+                        hit = cache.get(f"{prefix}:{value}")
+                        if hit is not None:
+                            utils.log(
+                                f"[rating v{__version__}] RatingService.get_current_rating() "
+                                f"Cache hit ({prefix}): {hit}"
+                            )
+                            return hit
+                utils.log(
+                    f"[rating v{__version__}] RatingService.get_current_rating() "
+                    f"Cache populated, item not found — treating as unrated"
+                )
+                return None
+
+            # --- API fallback (slow: ~4s network call) ---
+            # Only reached before the first sync after install.
+            utils.log(
+                f"[rating v{__version__}] RatingService.get_current_rating() "
+                f"No ratings cache yet — fetching from API"
+            )
             ratings_list = self.api.get_ratings(api_type)
-            
+
             if not ratings_list:
                 return None
-            
+
             for item in ratings_list:
                 if media_type == 'movie':
                     item_data = item.get('movie', {})
                 else:
                     item_data = item.get('show', {})
-                
+
                 item_ids = item_data.get('ids', {})
-                
+
                 # Also check top-level ids (SIMKL API format varies)
                 if not item_ids:
                     item_ids = item.get('ids', {})
-                
+
                 # Match on any available ID
                 if simkl_id and item_ids.get('simkl') == simkl_id:
                     return item.get('user_rating', item.get('rating'))
@@ -354,12 +418,20 @@ class RatingService:
                     return item.get('user_rating', item.get('rating'))
                 if tmdb_id and str(item_ids.get('tmdb', '')) == str(tmdb_id):
                     return item.get('user_rating', item.get('rating'))
-            
-            utils.log(f"[rating v{__version__}] RatingService.get_current_rating() No matching rating found in {len(ratings_list)} entries")
+                if tvdb_id and str(item_ids.get('tvdb', '')) == str(tvdb_id):
+                    return item.get('user_rating', item.get('rating'))
+
+            utils.log(
+                f"[rating v{__version__}] RatingService.get_current_rating() "
+                f"No matching rating found in {len(ratings_list)} entries"
+            )
             return None
-            
+
         except Exception as e:
-            utils.log(f"[rating v{__version__}] RatingService.get_current_rating() Error retrieving current rating: {e}", xbmc.LOGERROR)
+            utils.log(
+                f"[rating v{__version__}] RatingService.get_current_rating() "
+                f"Error retrieving current rating: {e}", xbmc.LOGERROR
+            )
             return None
     
     def prompt_for_rating(self, media_info):
@@ -390,7 +462,8 @@ class RatingService:
                 media_type,
                 simkl_id=media_info.get('simkl_id'),
                 imdb_id=media_info.get('imdb_id'),
-                tmdb_id=media_info.get('tmdb_id')
+                tmdb_id=media_info.get('tmdb_id'),
+                tvdb_id=media_info.get('tvdb_id')
             )
             utils.log(f"[rating v{__version__}] RatingService.prompt_for_rating() Current rating lookup: {current_rating}")
             
