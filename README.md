@@ -4,7 +4,7 @@ Automatically track your Kodi watching activity to your [SIMKL](https://simkl.co
 
 This addon aims to provide the same quality of experience that the popular Trakt addon offers, but for SIMKL users.
 
-[![Latest Release](https://img.shields.io/github/v/release/thegoddamnbeckster/SIMKLScrobbler?label=version)](https://github.com/thegoddamnbeckster/SIMKLScrobbler/releases/latest) [![Context Menu](https://img.shields.io/badge/context_menu-v1.0.3-blue)](https://github.com/thegoddamnbeckster/SIMKLScrobbler/releases/tag/context.simkl.rate-v1.0.3)
+[![Latest Release](https://img.shields.io/github/v/release/thegoddamnbeckster/SIMKLScrobbler?label=version)](https://github.com/thegoddamnbeckster/SIMKLScrobbler/releases/latest) [![Context Menu](https://img.shields.io/badge/context_menu-context.simkl-blue)](https://github.com/thegoddamnbeckster/context.simkl)
 
 ## Features
 
@@ -14,7 +14,7 @@ This addon aims to provide the same quality of experience that the popular Trakt
 - Configurable watched threshold (default 70%) with automatic fallback to SIMKL history API for items between 70-79%
 - Start, pause, and stop events sent to SIMKL in real-time
 - Multi-episode transition detection for binge-watching sessions
-- Optional periodic progress updates every 15 minutes during long playback (default OFF — SIMKL already records progress from the start scrobble)
+- Optional periodic progress updates every 15 minutes during long playback (default ON — required to keep the SIMKL website "Currently Watching" indicator alive for the full duration of playback)
 
 ### Bidirectional Library Sync
 - **Export to SIMKL:** Send your Kodi watched history and ratings to SIMKL
@@ -39,7 +39,7 @@ This addon aims to provide the same quality of experience that the popular Trakt
 ### Context Menu Integration
 A companion addon adds SIMKL actions to Kodi's library context menu:
 
-- **SIMKL - Context Menu** ([context.simkl](https://github.com/thegoddamnbeckster/SIMKLScrobbler/releases/tag/context.simkl.rate-v1.0.3)) — Right-click any movie, TV show, season, or episode for SIMKL actions. Currently: **Rate on SIMKL**. Episodes and seasons automatically resolve to their parent show (SIMKL rates shows, not individual episodes). Requires `script.simkl.scrobbler` v7.8.4+.
+- **SIMKL - Context Menu** ([context.simkl](https://github.com/thegoddamnbeckster/context.simkl)) — Right-click any movie, TV show, season, or episode for SIMKL actions. Currently: **Rate on SIMKL**. Episodes and seasons automatically resolve to their parent show (SIMKL rates shows, not individual episodes). Requires `script.simkl.scrobbler` v7.8.4+.
 
 Planned additions to the context menu addon: Toggle Watched on SIMKL, Sync to SIMKL.
 
@@ -68,7 +68,7 @@ Control what gets scrobbled with granular exclusion settings:
 1. Download the latest `script.simkl.scrobbler-vX.X.X.zip` from the [Releases](https://github.com/thegoddamnbeckster/SIMKLScrobbler/releases) page
 2. In Kodi, go to **Add-ons > Install from zip file**
 3. Navigate to the downloaded ZIP and install
-4. Optionally install the [context.simkl](https://github.com/thegoddamnbeckster/SIMKLScrobbler/releases/tag/context.simkl.rate-v1.0.3) companion addon the same way — adds SIMKL actions to the right-click context menu
+4. Optionally install the [context.simkl](https://github.com/thegoddamnbeckster/context.simkl/releases/latest) companion addon the same way — adds SIMKL actions to the right-click context menu
 
 ### From Source
 1. Clone this repository
@@ -122,8 +122,9 @@ script.simkl.scrobbler/
 │   └── language/
 │       └── resource.language.en_gb/
 │           └── strings.po # English localization strings
-└── context.simkl/         # Companion addon: SIMKL context menu actions (released separately)
 ```
+
+The context menu addon lives in its own repository: [thegoddamnbeckster/context.simkl](https://github.com/thegoddamnbeckster/context.simkl)
 
 The background service uses a dispatch queue pattern: SimklPlayer detects playback events and queues them, the main SimklService loop processes the queue, and SimklScrobbler handles the SIMKL API communication. SimklMonitor handles library scan awareness via onScanStarted() / onScanFinished() callbacks. Sync operations run in background threads to avoid blocking Kodi.
 
