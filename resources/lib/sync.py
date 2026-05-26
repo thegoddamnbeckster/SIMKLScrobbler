@@ -22,6 +22,7 @@ Attribution: Claude.ai with assistance from Michael Beck
 import json
 import time
 import xbmc
+import xbmcaddon
 import xbmcgui
 from datetime import datetime, timezone
 from resources.lib.utils import (
@@ -31,7 +32,7 @@ from resources.lib.utils import (
 from resources.lib.api import SimklAPI
 
 # Module version
-__version__ = '7.8.5'
+__version__ = '7.8.6'
 
 # Log module initialization
 xbmc.log(f'[SIMKL Scrobbler] sync.py v{__version__} - Sync manager module loading', level=xbmc.LOGINFO)
@@ -385,9 +386,18 @@ class SyncManager:
                 return f"imdb:{uid['imdb']}"
             if uid.get('tmdb'):
                 return f"tmdb:{uid['tmdb']}"
+            # imdbnumber on TV shows is often a raw TVDB integer (not a tt* IMDb
+            # ID) depending on which scraper populated it. Only treat it as an
+            # IMDb key when it starts with 'tt'; otherwise ignore it to avoid a
+            # bogus imdb: key that will never match anything.
             imdbnumber = show.get('imdbnumber', '')
-            if imdbnumber:
+            if imdbnumber and imdbnumber.startswith('tt'):
                 return f"imdb:{imdbnumber}"
+        # Fallback: tvshowid is a SQLite row ID reassigned after library rebuilds.
+        # Log a warning so users can identify shows missing external IDs.
+        log_warning(f"[sync v{__version__}] SyncManager._get_stable_show_key() "
+                    f"No external ID for tvshowid {tvshowid} — episode delta will "
+                    f"reset after a library rescan for this show")
         return f"tvshowid:{tvshowid}"
 
     def _save_ratings_cache(self, media_type, ratings_list):
@@ -403,10 +413,12 @@ class SyncManager:
             ratings_list (list): Raw list returned by api.get_user_ratings()
         """
         try:
-            import xbmcaddon
             cache = {}
             for item in ratings_list:
-                rating = item.get('user_rating') or item.get('rating')
+                # Use 'is not None' (not 'or') so a hypothetical rating of 0
+                # doesn't fall through to the secondary field incorrectly.
+                user_rating = item.get('user_rating')
+                rating = user_rating if user_rating is not None else item.get('rating')
                 if not rating:
                     continue
                 if media_type == 'movies':
@@ -423,12 +435,22 @@ class SyncManager:
                     cache[f"tmdb:{ids['tmdb']}"] = rating
                 if ids.get('tvdb'):
                     cache[f"tvdb:{ids['tvdb']}"] = rating
+            serialized = json.dumps(cache)
+            # Warn if the cache is approaching Kodi's settings XML size ceiling.
+            # Truncated JSON causes silent cache misses → 4s API call on every
+            # rating dialog open.
+            if len(serialized) > 65536:
+                log_warning(f"[sync v{__version__}] SyncManager._save_ratings_cache() "
+                            f"Ratings cache is {len(serialized)} bytes — may be truncated "
+                            f"by Kodi settings on some platforms")
             addon = xbmcaddon.Addon('script.simkl.scrobbler')
-            addon.setSetting(f'rating_cache_{media_type}', json.dumps(cache))
+            addon.setSetting(f'rating_cache_{media_type}', serialized)
             log_debug(f"[sync v{__version__}] SyncManager._save_ratings_cache() "
-                      f"Cached {len(cache)} {media_type} rating lookups")
+                      f"Cached {len(cache)} {media_type} rating lookups "
+                      f"({len(serialized)} bytes)")
         except Exception as e:
-            log_debug(f"[sync v{__version__}] SyncManager._save_ratings_cache() Failed: {e}")
+            log_warning(f"[sync v{__version__}] SyncManager._save_ratings_cache() "
+                        f"Failed to write ratings cache: {e}")
 
     def _build_movie_state(self, movies):
         """
@@ -545,8 +567,6 @@ class SyncManager:
             return current_episodes
 
         changed = []
-        current_state = self._build_episode_state(current_episodes, kodi_shows)
-
         for ep in current_episodes:
             tvshowid = ep.get('tvshowid')
             season = ep.get('season', 0)
@@ -557,7 +577,9 @@ class SyncManager:
 
             show_key = self._get_stable_show_key(tvshowid, kodi_shows)
             key = f"{show_key}:{season}:{episode}"
-            current_playcount = current_state.get(key, 0)
+            # Read playcount directly from the episode object — avoids building
+            # a full state dict (and calling _get_stable_show_key twice per ep).
+            current_playcount = ep.get('playcount', 0)
             last_playcount = last_state.get(key, -1)
 
             # Changed if: new episode (not in last state), or playcount changed
@@ -981,19 +1003,20 @@ class SyncManager:
             added = result.get("added", {}).get("episodes", 0)
             total_sent = added
             log(f"[sync v{__version__}] SyncManager.export_episodes_to_simkl() Episodes added to SIMKL: {added}")
+            # Save sync state only on API success. Saving after a failure would
+            # record current playcounts as "already synced", silently losing those
+            # episodes from every future delta until the user forces a full sync.
+            current_state = self._build_episode_state(kodi_episodes, tv_shows)
+            self._save_sync_state('episodes', current_state)
         else:
-            log_error(f"[sync v{__version__}] SyncManager.export_episodes_to_simkl() Failed to send episodes to SIMKL")
+            log_error(f"[sync v{__version__}] SyncManager.export_episodes_to_simkl() Failed to send episodes to SIMKL — sync state NOT updated so episodes will retry next run")
             self.stats['errors'] += 1
-        
+
         self.stats['episodes_exported'] = total_sent
         # Only count shows when SIMKL actually added episodes.
         # SIMKL returns "added: 0" when all submitted episodes were already
         # present; reporting "N shows" alongside "0 episodes" is misleading.
         self.stats['shows_exported'] = len(shows_data) if total_sent > 0 else 0
-        
-        # Save current sync state after successful export (stable keys)
-        current_state = self._build_episode_state(kodi_episodes, tv_shows)
-        self._save_sync_state('episodes', current_state)
 
         log(f"[sync v{__version__}] SyncManager.export_episodes_to_simkl() === Episode Export Complete: {total_sent} episodes sent to SIMKL ===")
         
@@ -1972,8 +1995,12 @@ class SyncManager:
         simkl_movie_ratings = {}
         try:
             simkl_movies = self.api.get_user_ratings("movies")
-            if simkl_movies:
+            if simkl_movies is not None:
+                # Write cache even when the list is empty — an empty cache is
+                # valid (user has no ratings) and prevents the dialog from
+                # falling back to a slow API call on every open.
                 self._save_ratings_cache('movies', simkl_movies)
+            if simkl_movies:
                 for item in simkl_movies:
                     movie = item.get("movie", {})
                     ids = movie.get("ids", {})
@@ -2036,8 +2063,9 @@ class SyncManager:
         simkl_show_ratings = {}
         try:
             simkl_shows = self.api.get_user_ratings("shows")
-            if simkl_shows:
+            if simkl_shows is not None:
                 self._save_ratings_cache('shows', simkl_shows)
+            if simkl_shows:
                 for item in simkl_shows:
                     show = item.get("show", {})
                     ids = show.get("ids", {})
@@ -2120,7 +2148,7 @@ class SyncManager:
         
         # --- Movie Ratings ---
         simkl_movie_ratings = self.api.get_user_ratings("movies")
-        if simkl_movie_ratings:
+        if simkl_movie_ratings is not None:
             self._save_ratings_cache('movies', simkl_movie_ratings)
         kodi_movies = self.get_kodi_movies()
         kodi_movie_index = self._build_kodi_movie_index(kodi_movies)
@@ -2178,7 +2206,7 @@ class SyncManager:
         # index approach, import and clearing happen in the same loop so there
         # is no mismatch between what was matched and what is checked.
         simkl_show_ratings = self.api.get_user_ratings("shows")
-        if simkl_show_ratings:
+        if simkl_show_ratings is not None:
             self._save_ratings_cache('shows', simkl_show_ratings)
         kodi_shows = self.get_kodi_tvshows()
 

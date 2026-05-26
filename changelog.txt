@@ -1,4 +1,67 @@
 
+[7.8.6] - 2026-05-26
+BUGFIX: Code review follow-up — 13 correctness issues resolved
+
+- FIXED (Critical): _get_stable_show_key() accepted any imdbnumber string as an
+  IMDb key. TV shows scraped by TVDB store a raw numeric TVDB ID in imdbnumber,
+  not a tt* IMDb ID. This produced bogus imdb:81189 delta keys that never matched
+  anything, causing those shows' episodes to always appear "changed". Fix: imdbnumber
+  is now only used as an imdb: key when it starts with 'tt', matching the guard
+  already present in _build_movie_state().
+
+- FIXED (Critical): Episode sync state was saved unconditionally after the SIMKL
+  API call, even when the call failed (result=None). A failed export silently
+  recorded the current playcounts as "already synced", making those episodes
+  invisible to every future delta until a forced full sync. Sync state is now only
+  written inside the successful result branch.
+
+- FIXED (Critical): clear_authentication() did not clear the ratings cache
+  (rating_cache_movies / rating_cache_shows). Logging out and into a different
+  account would show the previous account's ratings in the rating dialog until
+  the new account completed its first sync. Both cache keys are now cleared on
+  logout.
+
+- FIXED (High): Ratings cache was not written when the user had zero ratings on
+  SIMKL (API returns [] rather than None). The if simkl_list: guard treated an
+  empty list as a no-write. _load_ratings_cache() then returned None instead of
+  {}, triggering the slow ~4s API fallback on every rating dialog open. Fixed by
+  changing the guard to if simkl_list is not None: at all 4 call sites.
+
+- FIXED (High): Re-rating guard bypassed after an in-session rating. When a user
+  rated an item via the dialog, the new rating was submitted to SIMKL but not
+  written to the local cache. A subsequent rating prompt for the same show (e.g.
+  next episode) read None from the cache and showed the dialog even with
+  rating_allow_rerating=false. Fixed by calling _patch_ratings_cache() after
+  every successful submit_rating() or remove_rating_from_simkl().
+
+- FIXED (High): _find_changed_episodes() called _get_stable_show_key() twice per
+  episode — once inside _build_episode_state() and again in the comparison loop.
+  Eliminated the redundant _build_episode_state() call; the loop now reads
+  ep.get('playcount', 0) directly from the episode object.
+
+- FIXED (High): Shows with no scraped external IDs silently fell back to
+  tvshowid: keys with no log output, leaving the instability bug in place for
+  that subset of content. Fallback now emits log_warning() identifying the
+  affected show for easier diagnosis.
+
+- FIXED (Medium): _save_ratings_cache() failure was logged at DEBUG level
+  (log_debug), meaning it was invisible in production logs. Failures now emit
+  log_warning(). Same for _load_ratings_cache() exceptions in rating.py.
+
+- FIXED (Medium): Redundant import xbmcaddon inside _save_ratings_cache() —
+  xbmcaddon is already imported at module level in sync.py. Removed.
+
+- FIXED (Medium): Ratings cache now warns when the serialized JSON exceeds 64KB,
+  which risks truncation in Kodi's settings XML on some platforms.
+
+- FIXED (Low): user_rating or rating coalescing was wrong for numeric fields.
+  If SIMKL returned user_rating=0, Python's 'or' would fall through to the
+  rating field. Fixed with explicit is not None check.
+
+- FIXED (Low): _load_ratings_cache() created a new xbmcaddon.Addon() instance
+  on every call, forcing Kodi to re-parse the settings XML. Converted from
+  @staticmethod to an instance method using self.addon.
+
 [7.8.5] - 2026-05-26
 BUGFIX: Rating dialog performance + episode delta stability
 

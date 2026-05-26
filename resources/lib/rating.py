@@ -47,7 +47,7 @@ from resources.lib.strings import (
 )
 
 # Module version
-__version__ = '7.8.5'
+__version__ = '7.8.6'
 
 # Log module initialization
 xbmc.log(f'[SIMKL Scrobbler] rating.py v{__version__} - Rating service module loading', level=xbmc.LOGINFO)
@@ -311,14 +311,16 @@ class RatingService:
                 return False
         return False
     
-    @staticmethod
-    def _load_ratings_cache(api_type):
+    def _load_ratings_cache(self, api_type):
         """
         Load the flat ratings cache written by SyncManager._save_ratings_cache().
 
         The cache is stored in addon settings as JSON under 'rating_cache_movies'
         or 'rating_cache_shows'. Keys are like "imdb:tt1234567", "simkl:12345",
         "tmdb:12345", "tvdb:81189". Values are integer ratings (1-10).
+
+        Uses self.addon rather than constructing a new Addon() instance, saving
+        the addon.xml parse overhead on every call.
 
         Args:
             api_type (str): 'movies' or 'shows'
@@ -328,14 +330,51 @@ class RatingService:
                           None if the setting is missing/empty (cache not yet written)
         """
         try:
-            raw = xbmcaddon.Addon('script.simkl.scrobbler').getSetting(
-                f'rating_cache_{api_type}'
-            )
+            raw = self.addon.getSetting(f'rating_cache_{api_type}')
             if raw:
                 return json.loads(raw)
-        except Exception:
-            pass
+        except Exception as e:
+            utils.log(f"[rating v{__version__}] RatingService._load_ratings_cache() "
+                      f"Failed to read ratings cache: {e}", xbmc.LOGWARNING)
         return None
+
+    def _patch_ratings_cache(self, media_type, media_info, rating):
+        """
+        Update the ratings cache in-place after a successful rating change.
+
+        Called immediately after submit_rating() or remove_rating_from_simkl()
+        succeeds, so that get_current_rating() returns the correct value for the
+        rest of the session without waiting for the next sync. Without this, the
+        re-rating guard (rating_allow_rerating=false) is bypassed for any item
+        rated during the current session because the cache still shows "unrated".
+
+        Args:
+            media_type (str): 'movie' or 'episode'
+            media_info (dict): Media info dict with *_id fields
+            rating (int or None): New rating (1-10), or None/0 to remove
+        """
+        try:
+            api_type = 'movies' if media_type == 'movie' else 'shows'
+            raw = self.addon.getSetting(f'rating_cache_{api_type}')
+            cache = json.loads(raw) if raw else {}
+            for prefix, value in (
+                ('simkl', media_info.get('simkl_id')),
+                ('imdb',  media_info.get('imdb_id')),
+                ('tmdb',  media_info.get('tmdb_id')),
+                ('tvdb',  media_info.get('tvdb_id')),
+            ):
+                if value:
+                    key = f"{prefix}:{value}"
+                    if rating:
+                        cache[key] = rating
+                    else:
+                        cache.pop(key, None)
+            self.addon.setSetting(f'rating_cache_{api_type}', json.dumps(cache))
+            utils.log(f"[rating v{__version__}] RatingService._patch_ratings_cache() "
+                      f"Cache updated: {media_type} rating → {rating}")
+        except Exception as e:
+            utils.log(f"[rating v{__version__}] RatingService._patch_ratings_cache() "
+                      f"Failed to patch ratings cache: {e}", xbmc.LOGWARNING)
 
     def get_current_rating(self, media_type, simkl_id=None, imdb_id=None,
                            tmdb_id=None, tvdb_id=None):
@@ -493,8 +532,11 @@ class RatingService:
                 if dialog.selected_rating == 0:
                     # Unrate - remove rating from SIMKL
                     success = self.remove_rating_from_simkl(media_info)
-                    
+
                     if success:
+                        # Remove from cache so re-rating guard doesn't block the
+                        # dialog if this item is watched again in the same session.
+                        self._patch_ratings_cache(media_type, media_info, None)
                         xbmcgui.Dialog().notification(
                             getString(SIMKL),
                             f"Rating removed: {title}",
@@ -513,11 +555,15 @@ class RatingService:
                 else:
                     # Submit rating to SIMKL
                     success = self.submit_rating(media_info, dialog.selected_rating)
-                    
+
                     if success:
+                        # Patch the cache immediately so the re-rating guard fires
+                        # correctly if the same show's next episode is scrobbled
+                        # before the next sync writes a fresh cache.
+                        self._patch_ratings_cache(media_type, media_info, dialog.selected_rating)
                         # Get the localized rating description
                         desc = get_rating_description(dialog.selected_rating)
-                        
+
                         xbmcgui.Dialog().notification(
                             getString(SIMKL),
                             getString(RATED_AS).format(

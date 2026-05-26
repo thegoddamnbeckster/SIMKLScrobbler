@@ -20,7 +20,7 @@ from resources.lib.utils import log, log_module_init, set_setting, get_setting
 # that penalty. Only action=auth actually needs the dialog.
 
 # Module version
-__version__ = '7.8.5'
+__version__ = '7.8.6'
 
 # Log module initialization
 log_module_init('auth.py', __version__)
@@ -110,7 +110,13 @@ class SimklAuth:
             
             log(f"[auth v{__version__}] SimklAuth.clear_authentication() Clearing simkl_usercode...")
             set_setting("simkl_usercode", "")
-            
+
+            # Clear ratings cache so a subsequent login to a different account
+            # doesn't show stale ratings from the previous account's last sync.
+            log(f"[auth v{__version__}] SimklAuth.clear_authentication() Clearing ratings cache...")
+            set_setting("rating_cache_movies", "")
+            set_setting("rating_cache_shows", "")
+
             log(f"[auth v{__version__}] SimklAuth.clear_authentication() Authentication cleared successfully")
             log(f"[auth v{__version__}] SimklAuth.clear_authentication() ========== clear_authentication() END ==========")
             
