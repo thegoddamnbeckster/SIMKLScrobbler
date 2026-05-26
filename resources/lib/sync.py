@@ -88,7 +88,6 @@ class SyncManager:
             force_full_sync (bool): Skip delta detection, sync ALL watched items
         """
         # Create API with fresh token read to avoid stale cache on background threads
-        import xbmcaddon
         try:
             fresh_addon = xbmcaddon.Addon('script.simkl.scrobbler')
             token = fresh_addon.getSetting('access_token')
@@ -109,6 +108,10 @@ class SyncManager:
         self.force_full_sync = force_full_sync
         self.progress_dialog = None
         self.cancelled = False
+        # Tracks which tvshowids have already triggered the "no external ID"
+        # warning so _get_stable_show_key() doesn't emit N warnings for a show
+        # with N episodes — one warning per show per sync run is enough.
+        self._warned_tvshowids: set = set()
         
         # Stats for reporting
         self.stats = {
@@ -394,10 +397,13 @@ class SyncManager:
             if imdbnumber and imdbnumber.startswith('tt'):
                 return f"imdb:{imdbnumber}"
         # Fallback: tvshowid is a SQLite row ID reassigned after library rebuilds.
-        # Log a warning so users can identify shows missing external IDs.
-        log_warning(f"[sync v{__version__}] SyncManager._get_stable_show_key() "
-                    f"No external ID for tvshowid {tvshowid} — episode delta will "
-                    f"reset after a library rescan for this show")
+        # Warn once per show per sync run — _get_stable_show_key is called once
+        # per episode so without deduplication a 50-episode show floods the log.
+        if tvshowid not in self._warned_tvshowids:
+            self._warned_tvshowids.add(tvshowid)
+            log_warning(f"[sync v{__version__}] SyncManager._get_stable_show_key() "
+                        f"No external ID for tvshowid {tvshowid} — episode delta will "
+                        f"reset after a library rescan for this show")
         return f"tvshowid:{tvshowid}"
 
     def _save_ratings_cache(self, media_type, ratings_list):

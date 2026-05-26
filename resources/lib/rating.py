@@ -369,7 +369,11 @@ class RatingService:
                         cache[key] = rating
                     else:
                         cache.pop(key, None)
-            self.addon.setSetting(f'rating_cache_{api_type}', json.dumps(cache))
+            # Use explicit addon ID for the write so this is correct regardless
+            # of which addon is "active" in the calling context.
+            xbmcaddon.Addon('script.simkl.scrobbler').setSetting(
+                f'rating_cache_{api_type}', json.dumps(cache)
+            )
             utils.log(f"[rating v{__version__}] RatingService._patch_ratings_cache() "
                       f"Cache updated: {media_type} rating → {rating}")
         except Exception as e:
