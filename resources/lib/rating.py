@@ -47,7 +47,7 @@ from resources.lib.strings import (
 )
 
 # Module version
-__version__ = '7.8.6'
+__version__ = '7.8.7'
 
 # Log module initialization
 xbmc.log(f'[SIMKL Scrobbler] rating.py v{__version__} - Rating service module loading', level=xbmc.LOGINFO)
@@ -538,6 +538,13 @@ class RatingService:
                     success = self.remove_rating_from_simkl(media_info)
 
                     if success:
+                        # Clear the userrating badge in Kodi's local library
+                        # immediately so the star/badge disappears without
+                        # waiting for the next full sync to run.
+                        kodi_dbid = media_info.get('kodi_dbid')
+                        if kodi_dbid:
+                            self._clear_kodi_userrating(media_type, kodi_dbid)
+
                         # Remove from cache so re-rating guard doesn't block the
                         # dialog if this item is watched again in the same session.
                         self._patch_ratings_cache(media_type, media_info, None)
@@ -595,6 +602,63 @@ class RatingService:
             utils.log(f"[rating v{__version__}] RatingService.prompt_for_rating() Error prompting for rating: {e}", xbmc.LOGERROR)
             return False
     
+    def _clear_kodi_userrating(self, media_type, dbid):
+        """
+        Set userrating = 0 in Kodi's local library immediately after a
+        rating removal so the star/badge clears without waiting for the
+        next bidirectional sync.
+
+        Only called from prompt_for_rating() when kodi_dbid is available
+        (i.e. when the action was triggered via the context menu, which
+        always has the Kodi library DBID in scope). The scrobbler
+        after-playback path does not supply kodi_dbid so this is a no-op
+        in that context.
+
+        Args:
+            media_type (str): 'movie', 'show', or 'episode'.
+                              Episodes are always resolved to their parent
+                              show by context.simkl before reaching here,
+                              so 'episode' is handled as a show.
+            dbid (int | str): Kodi database ID of the item.
+        """
+        if not dbid:
+            return
+        try:
+            import json as _json
+            if media_type == 'movie':
+                rpc = _json.dumps({
+                    "jsonrpc": "2.0", "id": 1,
+                    "method": "VideoLibrary.SetMovieDetails",
+                    "params": {"movieid": int(dbid), "userrating": 0}
+                })
+            elif media_type in ('show', 'episode'):
+                # context.simkl resolves episodes → show DBID before calling
+                # the scrobbler, so both 'show' and 'episode' here carry a
+                # tvshowid rather than an episodeid.
+                rpc = _json.dumps({
+                    "jsonrpc": "2.0", "id": 1,
+                    "method": "VideoLibrary.SetTVShowDetails",
+                    "params": {"tvshowid": int(dbid), "userrating": 0}
+                })
+            else:
+                utils.log(
+                    f"[rating v{__version__}] RatingService._clear_kodi_userrating() "
+                    f"Unknown media_type '{media_type}' — cannot clear Kodi userrating",
+                    xbmc.LOGWARNING
+                )
+                return
+            xbmc.executeJSONRPC(rpc)
+            utils.log(
+                f"[rating v{__version__}] RatingService._clear_kodi_userrating() "
+                f"Cleared Kodi userrating for {media_type} DBID {dbid}"
+            )
+        except Exception as e:
+            utils.log(
+                f"[rating v{__version__}] RatingService._clear_kodi_userrating() "
+                f"Failed to clear Kodi userrating: {e}",
+                xbmc.LOGWARNING
+            )
+
     def remove_rating_from_simkl(self, media_info):
         """
         Remove rating from SIMKL API

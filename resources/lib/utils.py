@@ -19,7 +19,7 @@ import xbmcgui
 import xbmcvfs
 
 # Module version
-__version__ = '7.8.4'
+__version__ = '7.8.7'
 
 # Log module initialization
 xbmc.log(f'[SIMKL Scrobbler] utils.py v{__version__} - Utility module loading', level=xbmc.LOGINFO)
@@ -65,15 +65,25 @@ def log_error(message):
 
 def log_debug(message):
     """
-    Log a debug message.
-    
-    Only actually logs if debug_logging is enabled in settings.
-    
+    Log a verbose/debug message, gated by the 'debug_logging' addon setting.
+
+    When debug_logging is OFF (default): message is suppressed entirely.
+    When debug_logging is ON: message is emitted at LOGINFO level so it
+    appears in the standard Kodi log without requiring Kodi's own debug
+    mode to be active.
+
+    Using LOGINFO instead of LOGDEBUG is intentional: LOGDEBUG is only
+    surfaced by Kodi when Kodi's global debug mode is enabled, making an
+    addon-level toggle that writes at LOGDEBUG effectively invisible to
+    users who haven't also enabled Kodi's debug mode. LOGINFO is always
+    written, which is the expected behaviour for "enable verbose addon
+    logging for troubleshooting."
+
     Args:
         message (str): Debug message to log
     """
     if get_setting_bool("debug_logging"):
-        log(message, level=xbmc.LOGDEBUG)
+        log(message, level=xbmc.LOGINFO)
 
 
 def log_warning(message):

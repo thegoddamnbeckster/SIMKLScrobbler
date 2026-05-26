@@ -17,7 +17,7 @@ from resources.lib.auth import SimklAuth
 from resources.lib.utils import log, log_error
 
 # Version constant
-VERSION = "7.8.6"
+VERSION = "7.8.7"
 
 # Get addon instance
 addon = xbmcaddon.Addon()
@@ -370,7 +370,10 @@ def handle_rate_action(media_type, dbid):
         api = SimklAPI()
         rating_service = RatingService(api)
         
-        # Build media info for rating dialog
+        # Build media info for rating dialog.
+        # kodi_dbid is passed through so that RatingService can clear the
+        # local library userrating badge immediately when a rating is removed,
+        # without waiting for the next bidirectional sync to run.
         rating_media_info = {
             'media_type': item_info.get('media_type', 'movie'),
             'title': item_info.get('title', 'Unknown'),
@@ -378,6 +381,7 @@ def handle_rate_action(media_type, dbid):
             'imdb_id': item_info.get('ids', {}).get('imdb'),
             'tmdb_id': item_info.get('ids', {}).get('tmdb'),
             'tvdb_id': item_info.get('ids', {}).get('tvdb'),
+            'kodi_dbid': item_info.get('dbid'),
         }
         
         # For shows, we rate the show itself (not as a movie)

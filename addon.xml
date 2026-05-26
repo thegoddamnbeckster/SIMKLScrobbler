@@ -5,6 +5,20 @@ Version: 7.8.4
 Last Modified: 2026-05-25
 
 CHANGELOG:
+7.8.7 - Fix rating removal not clearing Kodi userrating; enable periodic progress
+        updates by default; fix debug logging toggle
+        Fix: removing a rating via context menu now calls VideoLibrary.SetMovieDetails /
+        SetTVShowDetails with userrating=0 immediately, so the Kodi badge clears without
+        waiting for the next sync. kodi_dbid is threaded from handle_rate_action() through
+        rating_media_info into the new RatingService._clear_kodi_userrating() helper.
+        Fix: periodic_progress_update now defaults to true so the SIMKL website "Currently
+        Watching" indicator stays alive for the full duration of playback. Without periodic
+        re-sends of /scrobble/start, SIMKL's now-watching display timed out mid-playback.
+        Fix: debug logging toggle (Settings > Notifications) now logs at LOGINFO when
+        enabled, so verbose messages appear in the standard Kodi log without also needing
+        Kodi's own debug mode active. Previously the toggle wrote at LOGDEBUG level which
+        Kodi ignores unless its global debug mode is on, making the toggle effectively
+        invisible to users.
 7.8.4 - Follow-up fixes from second code review
 7.8.3 - Code quality fixes from internal review
         Fix: imdbnumber fallback (startswith/isdigit) extracted to
@@ -217,7 +231,7 @@ CHANGELOG:
 -->
 <addon id="script.simkl.scrobbler"
        name="SIMKL Scrobbler"
-       version="7.8.6"
+       version="7.8.7"
        provider-name="Claude.ai with assistance from Michael Beck">
     
     <requires>
