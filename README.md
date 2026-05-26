@@ -4,7 +4,7 @@ Automatically track your Kodi watching activity to your [SIMKL](https://simkl.co
 
 This addon aims to provide the same quality of experience that the popular Trakt addon offers, but for SIMKL users.
 
-[![Latest Release](https://img.shields.io/github/v/release/thegoddamnbeckster/SIMKLScrobbler?label=version)](https://github.com/thegoddamnbeckster/SIMKLScrobbler/releases/latest) [![Context Menu](https://img.shields.io/github/v/release/thegoddamnbeckster/context.simkl?label=context+menu)](https://github.com/thegoddamnbeckster/context.simkl/releases/latest)
+[![SIMKL Scrobbler](https://img.shields.io/github/v/release/thegoddamnbeckster/SIMKLScrobbler?label=SIMKL+Scrobbler)](https://github.com/thegoddamnbeckster/SIMKLScrobbler/releases/latest) [![context.simkl](https://img.shields.io/github/v/release/thegoddamnbeckster/context.simkl?label=context.simkl)](https://github.com/thegoddamnbeckster/context.simkl/releases/latest)
 
 ## Features
 
