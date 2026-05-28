@@ -1,4 +1,34 @@
 
+[7.8.9] - 2026-05-28
+BUGFIX: Code-review follow-up — complete ID type fix across all call paths + unit tests
+
+- FIXED (High): _build_rating_info() in scrobbler.py was still calling str() on
+  tvdb_id and tmdb_id in both the movie and episode merge paths. Same root bug as
+  7.8.8 (string IDs rejected by SIMKL) but in the post-playback rating flow.
+
+- FIXED (High): sync.py _extract_ids() was storing tmdb and tvdb as str() for ALL
+  sync and rating-export payloads (export_movies_to_simkl, export_episodes_to_simkl,
+  export_ratings_to_simkl). Any item that passed through the sync flow was sending
+  string IDs to SIMKL's /sync/history and /sync/ratings endpoints.
+
+- FIXED (Medium): imdbnumber TVDB fallback in _extract_ids() stored a digit string
+  (e.g. "81189") directly; it now calls int() — isdigit() already guarantees success.
+
+- FIXED (Low): except (ValueError, TypeError) narrowed to except ValueError in
+  scrobbler.py paths where the preceding if-guard already prevents None input.
+  TypeError was dead code that masked what failure was actually being handled.
+
+- FIXED (Medium): _identify_episode() else branch (no external IDs) was calling
+  search_tv(show_title, year) where year is the episode's air year. A show like
+  ReBoot (1994) searched with year=1997 (an episode's air year) returned zero
+  results. Now calls search_tv(show_title) with no year argument.
+
+- NEW: tests/test_id_building.py — 23 unit tests covering ID type contracts and
+  year-handling in scrobbler._identify_episode(), _identify_movie(),
+  _build_rating_info(), and sync._extract_ids(). Includes tests/kodi_stubs.py to
+  stub xbmc/xbmcaddon/xbmcgui/xbmcvfs so the test suite runs without Kodi.
+  All 23 pass.
+
 [7.8.8] - 2026-05-28
 BUGFIX: Fix scrobble 404 "content not found" for TV episodes — nothing marked watched on SIMKL
 

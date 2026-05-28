@@ -35,7 +35,7 @@ from resources.lib.strings import (
 )
 
 # Module version
-__version__ = '7.8.8'
+__version__ = '7.8.9'
 
 # Log module initialization
 xbmc.log(f'[SIMKL Scrobbler] scrobbler.py v{__version__} - Core scrobbler engine loading', level=xbmc.LOGINFO)
@@ -397,7 +397,10 @@ class SimklScrobbler:
             if self.current_video.get("imdb_id") and "imdb" not in ids:
                 ids["imdb"] = self.current_video["imdb_id"]
             if self.current_video.get("tmdb_id") and "tmdb" not in ids:
-                ids["tmdb"] = str(self.current_video["tmdb_id"])
+                try:
+                    ids["tmdb"] = int(self.current_video["tmdb_id"])
+                except (ValueError, TypeError):
+                    pass
             
             return {
                 "title": self.current_video.get("title", "Unknown"),
@@ -414,9 +417,15 @@ class SimklScrobbler:
             if self.current_video.get("imdb_id") and "imdb" not in ids:
                 ids["imdb"] = self.current_video["imdb_id"]
             if self.current_video.get("tvdb_id") and "tvdb" not in ids:
-                ids["tvdb"] = str(self.current_video["tvdb_id"])
+                try:
+                    ids["tvdb"] = int(self.current_video["tvdb_id"])
+                except (ValueError, TypeError):
+                    pass
             if self.current_video.get("tmdb_id") and "tmdb" not in ids:
-                ids["tmdb"] = str(self.current_video["tmdb_id"])
+                try:
+                    ids["tmdb"] = int(self.current_video["tmdb_id"])
+                except (ValueError, TypeError):
+                    pass
             
             return {
                 "title": self.current_video.get("title"),
@@ -557,13 +566,14 @@ class SimklScrobbler:
             # Ensure tt prefix for SIMKL compatibility
             if not imdb_id.startswith("tt") and imdb_id.isdigit():
                 imdb_id = f"tt{imdb_id}"
-            ids["imdb"] = imdb_id
+            ids["imdb"] = imdb_id  # IMDb IDs are always strings ("tt1234567"); never cast to int
         if tmdb_id:
-            # SIMKL requires tmdb as integer, not string
+            # SIMKL API requires tmdb as an integer; Kodi delivers it as a string.
             try:
                 ids["tmdb"] = int(tmdb_id)
-            except (ValueError, TypeError):
-                ids["tmdb"] = tmdb_id
+            except ValueError:
+                log_warning(f"[scrobbler v{__version__}] SimklScrobbler._identify_movie() "
+                            f"tmdb_id {tmdb_id!r} is not numeric — skipping")
 
         # If we have IDs, we can use them directly
         if ids:
@@ -632,19 +642,21 @@ class SimklScrobbler:
             # Ensure tt prefix for SIMKL compatibility
             if not imdb_id.startswith("tt") and imdb_id.isdigit():
                 imdb_id = f"tt{imdb_id}"
-            ids["imdb"] = imdb_id
+            ids["imdb"] = imdb_id  # IMDb IDs are always strings ("tt1234567"); never cast to int
         if tvdb_id:
-            # SIMKL requires tvdb as integer, not string
+            # SIMKL API requires tvdb as an integer; Kodi delivers it as a string.
             try:
                 ids["tvdb"] = int(tvdb_id)
-            except (ValueError, TypeError):
-                ids["tvdb"] = tvdb_id
+            except ValueError:
+                log_warning(f"[scrobbler v{__version__}] SimklScrobbler._identify_episode() "
+                            f"tvdb_id {tvdb_id!r} is not numeric — skipping")
         if tmdb_id:
-            # SIMKL requires tmdb as integer, not string
+            # SIMKL API requires tmdb as an integer; Kodi delivers it as a string.
             try:
                 ids["tmdb"] = int(tmdb_id)
-            except (ValueError, TypeError):
-                ids["tmdb"] = tmdb_id
+            except ValueError:
+                log_warning(f"[scrobbler v{__version__}] SimklScrobbler._identify_episode() "
+                            f"tmdb_id {tmdb_id!r} is not numeric — skipping")
 
         # Build show info
         show_info = {
@@ -658,13 +670,13 @@ class SimklScrobbler:
             show_info["ids"] = ids
             log(f"[scrobbler v{__version__}] SimklScrobbler._identify_episode() Using IDs for show lookup: {ids}")
         else:
-            # No IDs — include year for title+year search (show year isn't known
-            # here but omitting it is worse; SIMKL will still try title alone)
-            if year:
-                show_info["year"] = year
-            # Search for show on SIMKL
+            # No IDs available. Search by title only — do NOT pass year because
+            # video_data["year"] is the episode's air year, not the show's premiere
+            # year. Passing it filters out shows that premiered in a different year
+            # (e.g. "ReBoot" year=1997 misses the 1994 premiere), producing zero
+            # results even when the show is on SIMKL.
             log(f"[scrobbler v{__version__}] SimklScrobbler._identify_episode() Searching SIMKL for show: {show_title}")
-            results = self.api.search_tv(show_title, year)
+            results = self.api.search_tv(show_title)
             
             if results:
                 show = results[0]

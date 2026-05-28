@@ -1,10 +1,26 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
 SIMKL Scrobbler for Kodi
-Version: 7.8.8
+Version: 7.8.9
 Last Modified: 2026-05-28
 
 CHANGELOG:
+7.8.9 - Code review follow-up: complete ID type fix across all call paths
+        Fix: _build_rating_info() was still converting tvdb/tmdb to str() in the
+        merge path for both movies and episodes — same root bug as 7.8.8 but in the
+        rating flow.
+        Fix: sync.py _extract_ids() was converting tmdb/tvdb to str() for all sync
+        and rating-export payloads sent to SIMKL.
+        Fix: imdbnumber TVDB fallback in _extract_ids() stored a string; now int.
+        Fix: except (ValueError, TypeError) narrowed to except ValueError in scrobbler
+        paths where the if-guard already prevents None — TypeError was dead code.
+        Fix: _identify_episode() else branch was passing episode air year to
+        search_tv(), which filtered out shows that premiered in a different year.
+        Now calls search_tv(title) with no year argument.
+        New: tests/test_id_building.py — 23 unit tests covering ID type contracts
+        and year-handling across scrobbler._identify_episode(), _identify_movie(),
+        _build_rating_info(), and sync._extract_ids(). Includes kodi_stubs.py to
+        satisfy top-level Kodi imports without a running Kodi instance.
 7.8.8 - Fix scrobble 404 "content not found" for TV episodes
         Root cause: tvdb and tmdb IDs were sent to the SIMKL API as strings
         (e.g. "105448") but the API requires integers. When SIMKL couldn't match
@@ -244,7 +260,7 @@ CHANGELOG:
 -->
 <addon id="script.simkl.scrobbler"
        name="SIMKL Scrobbler"
-       version="7.8.8"
+       version="7.8.9"
        provider-name="Claude.ai with assistance from Michael Beck">
     
     <requires>

@@ -32,7 +32,7 @@ from resources.lib.utils import (
 from resources.lib.api import SimklAPI
 
 # Module version
-__version__ = '7.8.6'
+__version__ = '7.8.9'
 
 # Log module initialization
 xbmc.log(f'[SIMKL Scrobbler] sync.py v{__version__} - Sync manager module loading', level=xbmc.LOGINFO)
@@ -755,25 +755,34 @@ class SyncManager:
             uniqueid = item["uniqueid"]
             
             if "imdb" in uniqueid and uniqueid["imdb"]:
-                ids["imdb"] = uniqueid["imdb"]
-            
+                ids["imdb"] = uniqueid["imdb"]  # IMDb IDs are strings ("tt1234567"); never cast to int
+
             if "tmdb" in uniqueid and uniqueid["tmdb"]:
-                ids["tmdb"] = str(uniqueid["tmdb"])
-            
+                # SIMKL API requires tmdb as integer; Kodi may deliver string or int
+                try:
+                    ids["tmdb"] = int(uniqueid["tmdb"])
+                except (ValueError, TypeError):
+                    pass  # skip malformed ID
+
             if "tvdb" in uniqueid and uniqueid["tvdb"]:
-                ids["tvdb"] = str(uniqueid["tvdb"])
-        
+                # SIMKL API requires tvdb as integer; Kodi may deliver string or int
+                try:
+                    ids["tvdb"] = int(uniqueid["tvdb"])
+                except (ValueError, TypeError):
+                    pass  # skip malformed ID
+
         # Check imdbnumber field (older Kodi / fallback)
         if "imdbnumber" in item and item["imdbnumber"]:
             imdb = item["imdbnumber"]
-            
+
             # IMDb IDs start with 'tt'
             if imdb.startswith("tt"):
                 ids["imdb"] = imdb
-            # Otherwise might be TVDB ID (numeric)
+            # Otherwise might be TVDB ID stored as a digit string by older scrapers.
+            # isdigit() guarantees int() succeeds here; SIMKL requires integer.
             elif imdb.isdigit():
                 if "tvdb" not in ids:
-                    ids["tvdb"] = imdb
+                    ids["tvdb"] = int(imdb)
         
         return ids if ids else None
     
