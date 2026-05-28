@@ -39,7 +39,7 @@ QUALITY: Code-review follow-up — consistent error handling + test hardening (3
 - TESTS: Added imdbnumber 'tt'-prefix test for _extract_ids() (IMDb ID in the
   older Kodi fallback field must stay a string).
 
-- Total unit tests: 32 (was 23).
+- Total unit tests: 35 (was 23).
 
 [7.8.9] - 2026-05-28
 BUGFIX: Code-review follow-up — complete ID type fix across all call paths + unit tests

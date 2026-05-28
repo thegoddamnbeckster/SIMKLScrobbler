@@ -758,18 +758,22 @@ class SyncManager:
                 ids["imdb"] = uniqueid["imdb"]  # IMDb IDs are strings ("tt1234567"); never cast to int
 
             if "tmdb" in uniqueid and uniqueid["tmdb"]:
-                # SIMKL API requires tmdb as integer; Kodi may deliver string or int
+                # SIMKL API requires tmdb as integer; Kodi may deliver string or int.
+                # (ValueError, TypeError): string cast fails with ValueError; a
+                # non-string/non-int value from a pathological JSONRPC response
+                # would raise TypeError — catch both to avoid crashing the sync.
                 try:
                     ids["tmdb"] = int(uniqueid["tmdb"])
-                except ValueError:
+                except (ValueError, TypeError):
                     log_warning(f"[sync v{__version__}] SyncManager._extract_ids() "
                                 f"tmdb {uniqueid['tmdb']!r} is not numeric — skipping")
 
             if "tvdb" in uniqueid and uniqueid["tvdb"]:
-                # SIMKL API requires tvdb as integer; Kodi may deliver string or int
+                # SIMKL API requires tvdb as integer; Kodi may deliver string or int.
+                # (ValueError, TypeError): same rationale as tmdb above.
                 try:
                     ids["tvdb"] = int(uniqueid["tvdb"])
-                except ValueError:
+                except (ValueError, TypeError):
                     log_warning(f"[sync v{__version__}] SyncManager._extract_ids() "
                                 f"tvdb {uniqueid['tvdb']!r} is not numeric — skipping")
 

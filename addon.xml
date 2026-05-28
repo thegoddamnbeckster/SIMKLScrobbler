@@ -29,8 +29,7 @@ CHANGELOG:
         produce a log_warning, not silent failure.
         Tests: added IMDb prefix-normalisation tests (bare "0782533" → "tt0782533").
         Tests: added imdbnumber tt-prefix test for _extract_ids().
-        Total: 32 unit tests (was 23).
-7.9.0 - (see above)
+        Total: 35 unit tests (was 23).
 7.8.9 - Code review follow-up: complete ID type fix across all call paths
         Fix: _build_rating_info() was still converting tvdb/tmdb to str() in the
         merge path for both movies and episodes — same root bug as 7.8.8 but in the

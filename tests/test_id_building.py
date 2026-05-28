@@ -285,6 +285,14 @@ class TestBuildRatingInfoIdTypes(unittest.TestCase):
             mock_warn.assert_called_once()
             self.assertIn('tvdb_id', mock_warn.call_args[0][0])
 
+    def test_malformed_tmdb_logs_warning_in_rating_info(self):
+        """Episode tmdb_id drop path also produces a log_warning."""
+        self._setup_episode_state(tmdb_id='broken')
+        with patch('resources.lib.scrobbler.log_warning') as mock_warn:
+            self.s._build_rating_info()
+            mock_warn.assert_called_once()
+            self.assertIn('tmdb_id', mock_warn.call_args[0][0])
+
     def test_movie_tmdb_is_integer_in_rating_info(self):
         self.s.current_video = {
             'type': 'movie', 'title': 'Fight Club', 'year': 1999,
@@ -295,6 +303,18 @@ class TestBuildRatingInfoIdTypes(unittest.TestCase):
         self.assertIsNotNone(info)
         self.assertIsInstance(info['ids']['tmdb'], int)
         self.assertEqual(info['ids']['tmdb'], 550)
+
+    def test_malformed_movie_tmdb_logs_warning_in_rating_info(self):
+        """Movie tmdb_id drop path also produces a log_warning."""
+        self.s.current_video = {
+            'type': 'movie', 'title': 'Fight Club', 'year': 1999,
+            'imdb_id': 'tt0137523', 'tmdb_id': 'broken',
+        }
+        self.s.current_video_info = {'title': 'Fight Club', 'year': 1999, 'ids': {}}
+        with patch('resources.lib.scrobbler.log_warning') as mock_warn:
+            self.s._build_rating_info()
+            mock_warn.assert_called_once()
+            self.assertIn('tmdb_id', mock_warn.call_args[0][0])
 
 
 # ---------------------------------------------------------------------------
@@ -358,6 +378,7 @@ class TestExtractIds(unittest.TestCase):
         with patch('resources.lib.sync.log_warning') as mock_warn:
             self._extract({'uniqueid': {'tvdb': 'not-a-number'}})
             mock_warn.assert_called_once()
+            self.assertIn('tvdb', mock_warn.call_args[0][0])
 
     def test_malformed_tmdb_from_uniqueid_is_dropped(self):
         item = {'uniqueid': {'tmdb': 'broken'}}
@@ -369,6 +390,7 @@ class TestExtractIds(unittest.TestCase):
         with patch('resources.lib.sync.log_warning') as mock_warn:
             self._extract({'uniqueid': {'tmdb': 'broken'}})
             mock_warn.assert_called_once()
+            self.assertIn('tmdb', mock_warn.call_args[0][0])
 
 
 if __name__ == '__main__':
