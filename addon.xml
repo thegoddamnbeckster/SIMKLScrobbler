@@ -1,10 +1,36 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
 SIMKL Scrobbler for Kodi
-Version: 7.8.9
+Version: 7.9.0
 Last Modified: 2026-05-28
 
 CHANGELOG:
+7.9.0 - Code review follow-up: consistent error handling + test hardening
+        Fix: _build_rating_info() was silently swallowing malformed IDs with no
+        log entry — same as _identify_episode() now logs a warning when tvdb_id
+        or tmdb_id is non-numeric so rating failures are diagnosable.
+        Fix: sync._extract_ids() was also silent on malformed IDs — now also
+        emits log_warning for non-numeric tmdb/tvdb in uniqueid.
+        Fix: except (ValueError, TypeError) narrowed to except ValueError in
+        _build_rating_info() and _extract_ids() — the if-guard already prevents
+        None so TypeError was dead code masking what failure was being handled.
+        Fix: _identify_episode() else-branch comment updated to acknowledge the
+        same-name show ambiguity (e.g. Doctor Who 1963 vs 2005) introduced by
+        dropping the year argument — the limitation is now documented in code.
+        Tests: all _ids() helpers now guard with assertIsNotNone() so a None
+        return from the production code surfaces as a clear failure not a
+        confusing TypeError inside the helper.
+        Tests: SyncManager setUp now calls __init__ normally (with SimklAPI
+        patched) instead of __new__() + manual attribute injection, which was
+        fragile against future __init__ changes.
+        Tests: test_integer_tvdb_passthrough renamed to test_native_int_tvdb_accepted
+        with an honest docstring (int(int) is trivially a no-op).
+        Tests: added warning-fires tests for every drop path — malformed ID must
+        produce a log_warning, not silent failure.
+        Tests: added IMDb prefix-normalisation tests (bare "0782533" → "tt0782533").
+        Tests: added imdbnumber tt-prefix test for _extract_ids().
+        Total: 32 unit tests (was 23).
+7.9.0 - (see above)
 7.8.9 - Code review follow-up: complete ID type fix across all call paths
         Fix: _build_rating_info() was still converting tvdb/tmdb to str() in the
         merge path for both movies and episodes — same root bug as 7.8.8 but in the
@@ -260,7 +286,7 @@ CHANGELOG:
 -->
 <addon id="script.simkl.scrobbler"
        name="SIMKL Scrobbler"
-       version="7.8.9"
+       version="7.9.0"
        provider-name="Claude.ai with assistance from Michael Beck">
     
     <requires>

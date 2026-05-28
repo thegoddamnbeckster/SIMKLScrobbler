@@ -5,7 +5,9 @@ Tests for SIMKL API ID building in scrobbler.py and sync.py.
 Core invariants being tested:
   - tvdb and tmdb IDs sent to SIMKL must be integers (the API rejects strings)
   - imdb IDs must stay strings ("tt1234567" format is never numeric)
+  - Bare numeric imdb strings (no "tt" prefix) are normalised to "tt{n}"
   - Malformed (non-numeric) tvdb/tmdb values are dropped, not forwarded
+  - Malformed tvdb/tmdb values produce a log_warning (not silent failure)
   - Episode air year is never placed on the show object
   - search_tv() is called without year when episode IDs are absent
     (video_data["year"] is the episode's air year, not the show's premiere year)
@@ -74,6 +76,7 @@ class TestIdentifyEpisodeIdTypes(unittest.TestCase):
 
     def _ids(self, **overrides):
         result = self.s._identify_episode(_episode_data(**overrides))
+        self.assertIsNotNone(result, "_identify_episode() returned None — check for an unhandled error")
         return result['show']['ids']
 
     def test_tvdb_is_integer(self):
@@ -94,9 +97,19 @@ class TestIdentifyEpisodeIdTypes(unittest.TestCase):
         self.assertIsInstance(ids['imdb'], str)
         self.assertEqual(ids['imdb'], 'tt0782533')
 
+    def test_imdb_bare_numeric_gets_tt_prefix(self):
+        """A bare numeric imdb string (no 'tt' prefix) must be normalised to 'tt{n}'."""
+        ids = self._ids(imdb_id='0782533')
+        self.assertEqual(ids['imdb'], 'tt0782533')
+
+    def test_imdb_already_prefixed_unchanged(self):
+        """An already-prefixed 'tt...' string must pass through unmodified."""
+        ids = self._ids(imdb_id='tt0782533')
+        self.assertEqual(ids['imdb'], 'tt0782533')
+
     def test_numeric_string_tvdb_still_correct_value(self):
-        """A string like '105448' must round-trip to int 105448, not something else."""
-        ids = self._ids(tvdb_id='0105448')   # leading zero — int() strips it
+        """A string like '0105448' must round-trip to int 105448 (leading zero stripped)."""
+        ids = self._ids(tvdb_id='0105448')
         self.assertEqual(ids['tvdb'], 105448)
 
     def test_malformed_tvdb_is_dropped_not_forwarded(self):
@@ -104,14 +117,33 @@ class TestIdentifyEpisodeIdTypes(unittest.TestCase):
         ids = self._ids(tvdb_id='abc-broken', tmdb_id=None)
         self.assertNotIn('tvdb', ids)
 
+    def test_malformed_tvdb_logs_warning(self):
+        """A non-numeric tvdb_id must emit a log_warning so the failure is diagnosable."""
+        with patch('resources.lib.scrobbler.log_warning') as mock_warn:
+            self._ids(tvdb_id='abc-broken', tmdb_id=None)
+            mock_warn.assert_called_once()
+            self.assertIn('tvdb_id', mock_warn.call_args[0][0])
+
     def test_malformed_tmdb_is_dropped_not_forwarded(self):
         """A non-numeric tmdb_id must not appear in the payload at all."""
         ids = self._ids(tmdb_id='not-a-number', tvdb_id=None)
         self.assertNotIn('tmdb', ids)
 
-    def test_integer_tvdb_passthrough(self):
-        """If Kodi already sends an int (future-proofing), it must pass through."""
+    def test_malformed_tmdb_logs_warning(self):
+        """A non-numeric tmdb_id must emit a log_warning so the failure is diagnosable."""
+        with patch('resources.lib.scrobbler.log_warning') as mock_warn:
+            self._ids(tmdb_id='not-a-number', tvdb_id=None)
+            mock_warn.assert_called_once()
+            self.assertIn('tmdb_id', mock_warn.call_args[0][0])
+
+    def test_native_int_tvdb_accepted(self):
+        """
+        int() on a native int is a no-op — documents that the cast does not raise
+        if the value is already an int.  Kodi currently always delivers IDs as
+        strings, so this path is theoretical; kept as a regression guard.
+        """
         ids = self._ids(tvdb_id=105448)
+        self.assertIsInstance(ids['tvdb'], int)
         self.assertEqual(ids['tvdb'], 105448)
 
 
@@ -131,6 +163,7 @@ class TestIdentifyEpisodeYear(unittest.TestCase):
         SIMKL may use it for validation and reject the show if years don't match.
         """
         result = self.s._identify_episode(_episode_data())
+        self.assertIsNotNone(result, "_identify_episode() returned None")
         self.assertNotIn('year', result['show'])
 
     def test_search_tv_called_without_year_when_no_ids(self):
@@ -139,7 +172,7 @@ class TestIdentifyEpisodeYear(unittest.TestCase):
         year argument.  video_data['year'] is the episode air year; passing it
         filters out shows that premiered in a different year.
         """
-        result = self.s._identify_episode(_episode_data(
+        self.s._identify_episode(_episode_data(
             imdb_id=None, tvdb_id=None, tmdb_id=None
         ))
         self.s.api.search_tv.assert_called_once_with('ReBoot')
@@ -161,6 +194,7 @@ class TestIdentifyMovieIdTypes(unittest.TestCase):
 
     def _ids(self, **overrides):
         result = self.s._identify_movie(_movie_data(**overrides))
+        self.assertIsNotNone(result, "_identify_movie() returned None — check for an unhandled error")
         return result['ids']
 
     def test_tmdb_is_integer(self):
@@ -173,9 +207,21 @@ class TestIdentifyMovieIdTypes(unittest.TestCase):
         self.assertIsInstance(ids['imdb'], str)
         self.assertEqual(ids['imdb'], 'tt0137523')
 
+    def test_imdb_bare_numeric_gets_tt_prefix(self):
+        """A bare numeric imdb string (no 'tt' prefix) must be normalised to 'tt{n}'."""
+        ids = self._ids(imdb_id='0137523')
+        self.assertEqual(ids['imdb'], 'tt0137523')
+
     def test_malformed_tmdb_is_dropped(self):
         ids = self._ids(tmdb_id='not-a-number')
         self.assertNotIn('tmdb', ids)
+
+    def test_malformed_tmdb_logs_warning(self):
+        """A non-numeric tmdb_id must emit a log_warning so the failure is diagnosable."""
+        with patch('resources.lib.scrobbler.log_warning') as mock_warn:
+            self._ids(tmdb_id='not-a-number')
+            mock_warn.assert_called_once()
+            self.assertIn('tmdb_id', mock_warn.call_args[0][0])
 
 
 # ---------------------------------------------------------------------------
@@ -185,7 +231,8 @@ class TestIdentifyMovieIdTypes(unittest.TestCase):
 class TestBuildRatingInfoIdTypes(unittest.TestCase):
     """
     _build_rating_info() merges IDs from current_video_info (already fixed) with
-    raw player data (current_video).  The merge path must also cast to int.
+    raw player data (current_video).  The merge path must also cast to int and
+    log a warning on failure.
     """
 
     def setUp(self):
@@ -213,19 +260,30 @@ class TestBuildRatingInfoIdTypes(unittest.TestCase):
     def test_episode_tvdb_is_integer_in_rating_info(self):
         self._setup_episode_state()
         info = self.s._build_rating_info()
+        self.assertIsNotNone(info)
         self.assertIsInstance(info['ids']['tvdb'], int)
         self.assertEqual(info['ids']['tvdb'], 105448)
 
     def test_episode_tmdb_is_integer_in_rating_info(self):
         self._setup_episode_state()
         info = self.s._build_rating_info()
+        self.assertIsNotNone(info)
         self.assertIsInstance(info['ids']['tmdb'], int)
         self.assertEqual(info['ids']['tmdb'], 147601)
 
     def test_malformed_tvdb_dropped_in_rating_info(self):
         self._setup_episode_state(tvdb_id='broken')
         info = self.s._build_rating_info()
+        self.assertIsNotNone(info)
         self.assertNotIn('tvdb', info['ids'])
+
+    def test_malformed_tvdb_logs_warning_in_rating_info(self):
+        """Silent failure in rating path is diagnosed via log_warning."""
+        self._setup_episode_state(tvdb_id='broken')
+        with patch('resources.lib.scrobbler.log_warning') as mock_warn:
+            self.s._build_rating_info()
+            mock_warn.assert_called_once()
+            self.assertIn('tvdb_id', mock_warn.call_args[0][0])
 
     def test_movie_tmdb_is_integer_in_rating_info(self):
         self.s.current_video = {
@@ -234,6 +292,7 @@ class TestBuildRatingInfoIdTypes(unittest.TestCase):
         }
         self.s.current_video_info = {'title': 'Fight Club', 'year': 1999, 'ids': {}}
         info = self.s._build_rating_info()
+        self.assertIsNotNone(info)
         self.assertIsInstance(info['ids']['tmdb'], int)
         self.assertEqual(info['ids']['tmdb'], 550)
 
@@ -245,11 +304,14 @@ class TestBuildRatingInfoIdTypes(unittest.TestCase):
 class TestExtractIds(unittest.TestCase):
 
     def setUp(self):
-        # SyncManager.__init__ makes API calls; bypass with a mock
+        # Patch SimklAPI so __init__ doesn't make real network calls, then call
+        # __init__ normally so all instance attributes are correctly initialised.
+        # This is safer than __new__() + manual attribute injection, which silently
+        # breaks when __init__ adds new attributes that _extract_ids() later reads.
         with patch('resources.lib.sync.SimklAPI'):
-            self.manager = SyncManager.__new__(SyncManager)
-            self.manager.api = MagicMock()
-            self.manager._warned_tvshowids = set()
+            self.manager = SyncManager(show_progress=False, silent=True)
+        # Provide a clean api mock (not needed by _extract_ids, but kept for clarity)
+        self.manager.api = MagicMock()
 
     def _extract(self, item):
         return self.manager._extract_ids(item)
@@ -279,15 +341,34 @@ class TestExtractIds(unittest.TestCase):
         self.assertIsInstance(ids['tvdb'], int)
         self.assertEqual(ids['tvdb'], 81189)
 
+    def test_imdb_from_imdbnumber_tt_prefix_stays_string(self):
+        """imdbnumber starting with 'tt' is an IMDb ID — must stay a string."""
+        item = {'imdbnumber': 'tt0903747'}
+        ids = self._extract(item)
+        self.assertIsInstance(ids['imdb'], str)
+        self.assertEqual(ids['imdb'], 'tt0903747')
+
     def test_malformed_tvdb_from_uniqueid_is_dropped(self):
         item = {'uniqueid': {'tvdb': 'not-a-number'}}
         ids = self._extract(item)
         self.assertIsNone(ids)  # nothing valid → returns None
 
+    def test_malformed_tvdb_logs_warning(self):
+        """Malformed tvdb must emit a log_warning so sync failures are diagnosable."""
+        with patch('resources.lib.sync.log_warning') as mock_warn:
+            self._extract({'uniqueid': {'tvdb': 'not-a-number'}})
+            mock_warn.assert_called_once()
+
     def test_malformed_tmdb_from_uniqueid_is_dropped(self):
         item = {'uniqueid': {'tmdb': 'broken'}}
         ids = self._extract(item)
         self.assertIsNone(ids)
+
+    def test_malformed_tmdb_logs_warning(self):
+        """Malformed tmdb must emit a log_warning so sync failures are diagnosable."""
+        with patch('resources.lib.sync.log_warning') as mock_warn:
+            self._extract({'uniqueid': {'tmdb': 'broken'}})
+            mock_warn.assert_called_once()
 
 
 if __name__ == '__main__':

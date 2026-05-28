@@ -1,4 +1,46 @@
 
+[7.9.0] - 2026-05-28
+QUALITY: Code-review follow-up — consistent error handling + test hardening (32 tests)
+
+- FIXED (High): _build_rating_info() was silently dropping malformed IDs with no
+  log entry. Now emits log_warning for non-numeric tvdb_id or tmdb_id in both the
+  movie and episode merge paths, consistent with _identify_episode() behaviour.
+  Silent rating failures are now diagnosable from the log.
+
+- FIXED (High): sync._extract_ids() was also silent on malformed IDs. Now emits
+  log_warning for non-numeric tmdb or tvdb in uniqueid, so export/import failures
+  leave a trace.
+
+- FIXED (Low): except (ValueError, TypeError) narrowed to except ValueError in
+  _build_rating_info() and _extract_ids() — the preceding if-guard already
+  prevents None input, so TypeError was dead code masking what actually failed.
+
+- IMPROVED: _identify_episode() else-branch comment now explicitly documents the
+  same-name show ambiguity introduced by dropping the year argument (e.g. Doctor
+  Who 1963 vs 2005). The limitation is acknowledged in code rather than hidden.
+
+- TESTS: All _ids() helpers now assert result is not None before subscripting, so
+  a None return from production code produces a clear failure message.
+
+- TESTS: TestExtractIds.setUp() now calls SyncManager.__init__() normally with
+  SimklAPI patched, instead of __new__() + manual attribute injection which would
+  silently break if __init__ added new attributes _extract_ids() later reads.
+
+- TESTS: test_integer_tvdb_passthrough renamed to test_native_int_tvdb_accepted
+  with an honest docstring — int(int) is trivially a no-op; the old "future-
+  proofing" claim was misleading.
+
+- TESTS: Added warning-fires assertions for every malformed-ID drop path across
+  _identify_episode(), _identify_movie(), _build_rating_info(), _extract_ids().
+
+- TESTS: Added IMDb prefix-normalisation tests (bare "0782533" → "tt0782533") for
+  both _identify_episode() and _identify_movie().
+
+- TESTS: Added imdbnumber 'tt'-prefix test for _extract_ids() (IMDb ID in the
+  older Kodi fallback field must stay a string).
+
+- Total unit tests: 32 (was 23).
+
 [7.8.9] - 2026-05-28
 BUGFIX: Code-review follow-up — complete ID type fix across all call paths + unit tests
 

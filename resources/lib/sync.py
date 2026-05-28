@@ -32,7 +32,7 @@ from resources.lib.utils import (
 from resources.lib.api import SimklAPI
 
 # Module version
-__version__ = '7.8.9'
+__version__ = '7.9.0'
 
 # Log module initialization
 xbmc.log(f'[SIMKL Scrobbler] sync.py v{__version__} - Sync manager module loading', level=xbmc.LOGINFO)
@@ -761,15 +761,17 @@ class SyncManager:
                 # SIMKL API requires tmdb as integer; Kodi may deliver string or int
                 try:
                     ids["tmdb"] = int(uniqueid["tmdb"])
-                except (ValueError, TypeError):
-                    pass  # skip malformed ID
+                except ValueError:
+                    log_warning(f"[sync v{__version__}] SyncManager._extract_ids() "
+                                f"tmdb {uniqueid['tmdb']!r} is not numeric — skipping")
 
             if "tvdb" in uniqueid and uniqueid["tvdb"]:
                 # SIMKL API requires tvdb as integer; Kodi may deliver string or int
                 try:
                     ids["tvdb"] = int(uniqueid["tvdb"])
-                except (ValueError, TypeError):
-                    pass  # skip malformed ID
+                except ValueError:
+                    log_warning(f"[sync v{__version__}] SyncManager._extract_ids() "
+                                f"tvdb {uniqueid['tvdb']!r} is not numeric — skipping")
 
         # Check imdbnumber field (older Kodi / fallback)
         if "imdbnumber" in item and item["imdbnumber"]:
