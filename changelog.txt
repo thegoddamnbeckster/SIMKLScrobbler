@@ -1,4 +1,19 @@
 
+[7.8.8] - 2026-05-28
+BUGFIX: Fix scrobble 404 "content not found" for TV episodes — nothing marked watched on SIMKL
+
+- FIXED (Critical): tvdb and tmdb IDs were sent to the SIMKL scrobble API as strings
+  (e.g. "105448") rather than integers. The API silently rejected string IDs and fell
+  back to title+year matching. The year in the show object was the episode's air year
+  (e.g. 1997 for a ReBoot S03 episode) rather than the show's premiere year (1994),
+  so that fallback also failed, returning 404 "content not found" on every
+  /scrobble/start, /scrobble/stop, and /sync/history call. Net effect: every TV episode
+  was silently unscrobbled regardless of watch percentage or periodic update settings.
+  Fix: tvdb and tmdb IDs are now cast to int before being sent. The episode year is no
+  longer included in the show object when IDs are present — it was never the show's
+  premiere year. The same int-cast is applied to tmdb in movie identification for
+  consistency.
+
 [7.8.6] - 2026-05-26
 BUGFIX: Code review follow-up — 13 correctness issues resolved
 

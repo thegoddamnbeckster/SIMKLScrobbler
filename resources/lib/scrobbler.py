@@ -35,7 +35,7 @@ from resources.lib.strings import (
 )
 
 # Module version
-__version__ = '7.8.4'
+__version__ = '7.8.8'
 
 # Log module initialization
 xbmc.log(f'[SIMKL Scrobbler] scrobbler.py v{__version__} - Core scrobbler engine loading', level=xbmc.LOGINFO)
@@ -559,8 +559,12 @@ class SimklScrobbler:
                 imdb_id = f"tt{imdb_id}"
             ids["imdb"] = imdb_id
         if tmdb_id:
-            ids["tmdb"] = str(tmdb_id)
-        
+            # SIMKL requires tmdb as integer, not string
+            try:
+                ids["tmdb"] = int(tmdb_id)
+            except (ValueError, TypeError):
+                ids["tmdb"] = tmdb_id
+
         # If we have IDs, we can use them directly
         if ids:
             log(f"[scrobbler v{__version__}] SimklScrobbler._identify_movie() Using IDs for movie lookup: {ids}")
@@ -630,20 +634,34 @@ class SimklScrobbler:
                 imdb_id = f"tt{imdb_id}"
             ids["imdb"] = imdb_id
         if tvdb_id:
-            ids["tvdb"] = str(tvdb_id)
+            # SIMKL requires tvdb as integer, not string
+            try:
+                ids["tvdb"] = int(tvdb_id)
+            except (ValueError, TypeError):
+                ids["tvdb"] = tvdb_id
         if tmdb_id:
-            ids["tmdb"] = str(tmdb_id)
-        
+            # SIMKL requires tmdb as integer, not string
+            try:
+                ids["tmdb"] = int(tmdb_id)
+            except (ValueError, TypeError):
+                ids["tmdb"] = tmdb_id
+
         # Build show info
         show_info = {
             "title": show_title,
         }
-        if year:
-            show_info["year"] = year
         if ids:
+            # Intentionally omit year when IDs are present: video_data["year"] is
+            # the episode's air year, not the show's premiere year. Passing the
+            # wrong year alongside valid IDs can cause SIMKL to return 404 when
+            # it uses year for additional validation after ID lookup fails.
             show_info["ids"] = ids
             log(f"[scrobbler v{__version__}] SimklScrobbler._identify_episode() Using IDs for show lookup: {ids}")
         else:
+            # No IDs — include year for title+year search (show year isn't known
+            # here but omitting it is worse; SIMKL will still try title alone)
+            if year:
+                show_info["year"] = year
             # Search for show on SIMKL
             log(f"[scrobbler v{__version__}] SimklScrobbler._identify_episode() Searching SIMKL for show: {show_title}")
             results = self.api.search_tv(show_title, year)
