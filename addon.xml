@@ -1,10 +1,17 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
 SIMKL Scrobbler for Kodi
-Version: 7.9.1
+Version: 7.9.2
 Last Modified: 2026-05-28
 
 CHANGELOG:
+7.9.2 - Add focus indicator to rating dialog star buttons
+        All 11 buttons (10 stars + unrate) in the rating dialog now show a
+        62% white glow (colordiffuse="A0FFFFFF") via texturefocus when they
+        have D-pad or keyboard focus, making it clear which position is active.
+        The glow is semi-transparent so the gold/grey star underneath remains
+        visible. texturenofocus stays invisible ("-") so unfocused buttons
+        look the same as before.
 7.9.1 - Fix: cannot unrate an item via D-pad/keyboard navigation
         Root cause: star 1's <onleft> pointed directly to the Rate button,
         so there was no way to navigate into a zero-star / "remove rating"
@@ -296,7 +303,7 @@ CHANGELOG:
 -->
 <addon id="script.simkl.scrobbler"
        name="SIMKL Scrobbler"
-       version="7.9.1"
+       version="7.9.2"
        provider-name="Claude.ai with assistance from Michael Beck">
     
     <requires>

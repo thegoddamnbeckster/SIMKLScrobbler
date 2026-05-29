@@ -35,7 +35,7 @@ from resources.lib.strings import (
 )
 
 # Module version
-__version__ = '7.9.1'
+__version__ = '7.9.2'
 
 # Log module initialization
 xbmc.log(f'[SIMKL Scrobbler] scrobbler.py v{__version__} - Core scrobbler engine loading', level=xbmc.LOGINFO)

@@ -1,4 +1,20 @@
 
+[7.9.2] - 2026-05-28
+IMPROVEMENT: Add visible focus indicator to rating dialog
+
+- All 11 buttons in the rating dialog (10 stars + the unrate button left of
+  star 1) now show a semi-transparent white glow when focused via D-pad or
+  keyboard. The glow uses texturefocus colordiffuse="A0FFFFFF" (62% white)
+  on the transparent button overlays in script-simkl-rate.xml.
+
+- The glow is layered on top of the gold/grey star images but is semi-
+  transparent, so the star colour remains clearly visible underneath. On an
+  unfocused button texturenofocus stays as "-" (invisible), so the visual
+  appearance of unselected stars is unchanged.
+
+- No Python changes — focus highlight is handled entirely by Kodi's native
+  button rendering based on the texturefocus declaration in the XML.
+
 [7.9.1] - 2026-05-28
 BUGFIX: Cannot unrate an item via D-pad/keyboard navigation
 

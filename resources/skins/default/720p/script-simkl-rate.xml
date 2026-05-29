@@ -216,8 +216,9 @@
             </control>
 
             <!-- =================================================================== -->
-            <!-- TRANSPARENT BUTTON OVERLAYS for click/focus detection                 -->
-            <!-- Same positions/sizes as star images, no visible texture               -->
+            <!-- BUTTON OVERLAYS for click/focus detection                               -->
+            <!-- texturefocus: 62% white glow shows which button has D-pad focus       -->
+            <!-- texturenofocus: invisible (no texture)                                -->
             <!-- =================================================================== -->
             <!-- Unrate button: left of star 1. Navigating here clears all stars
                  and sets the description to "Remove rating". Submitting from
@@ -228,7 +229,7 @@
                 <posy>115</posy>
                 <width>52</width>
                 <height>52</height>
-                <texturefocus>-</texturefocus>
+                <texturefocus colordiffuse="A0FFFFFF" border="3">white.png</texturefocus>
                 <texturenofocus>-</texturenofocus>
                 <font>-</font>
                 <onleft>11</onleft>
@@ -241,7 +242,7 @@
                 <posy>115</posy>
                 <width>54</width>
                 <height>52</height>
-                <texturefocus>-</texturefocus>
+                <texturefocus colordiffuse="A0FFFFFF" border="3">white.png</texturefocus>
                 <texturenofocus>-</texturenofocus>
                 <font>-</font>
                 <onleft>11</onleft>
@@ -254,7 +255,7 @@
                 <posy>115</posy>
                 <width>54</width>
                 <height>52</height>
-                <texturefocus>-</texturefocus>
+                <texturefocus colordiffuse="A0FFFFFF" border="3">white.png</texturefocus>
                 <texturenofocus>-</texturenofocus>
                 <font>-</font>
                 <onleft>1</onleft>
@@ -267,7 +268,7 @@
                 <posy>115</posy>
                 <width>54</width>
                 <height>52</height>
-                <texturefocus>-</texturefocus>
+                <texturefocus colordiffuse="A0FFFFFF" border="3">white.png</texturefocus>
                 <texturenofocus>-</texturenofocus>
                 <font>-</font>
                 <onleft>2</onleft>
@@ -280,7 +281,7 @@
                 <posy>115</posy>
                 <width>54</width>
                 <height>52</height>
-                <texturefocus>-</texturefocus>
+                <texturefocus colordiffuse="A0FFFFFF" border="3">white.png</texturefocus>
                 <texturenofocus>-</texturenofocus>
                 <font>-</font>
                 <onleft>3</onleft>
@@ -293,7 +294,7 @@
                 <posy>115</posy>
                 <width>54</width>
                 <height>52</height>
-                <texturefocus>-</texturefocus>
+                <texturefocus colordiffuse="A0FFFFFF" border="3">white.png</texturefocus>
                 <texturenofocus>-</texturenofocus>
                 <font>-</font>
                 <onleft>4</onleft>
@@ -306,7 +307,7 @@
                 <posy>115</posy>
                 <width>54</width>
                 <height>52</height>
-                <texturefocus>-</texturefocus>
+                <texturefocus colordiffuse="A0FFFFFF" border="3">white.png</texturefocus>
                 <texturenofocus>-</texturenofocus>
                 <font>-</font>
                 <onleft>5</onleft>
@@ -319,7 +320,7 @@
                 <posy>115</posy>
                 <width>54</width>
                 <height>52</height>
-                <texturefocus>-</texturefocus>
+                <texturefocus colordiffuse="A0FFFFFF" border="3">white.png</texturefocus>
                 <texturenofocus>-</texturenofocus>
                 <font>-</font>
                 <onleft>6</onleft>
@@ -332,7 +333,7 @@
                 <posy>115</posy>
                 <width>54</width>
                 <height>52</height>
-                <texturefocus>-</texturefocus>
+                <texturefocus colordiffuse="A0FFFFFF" border="3">white.png</texturefocus>
                 <texturenofocus>-</texturenofocus>
                 <font>-</font>
                 <onleft>7</onleft>
@@ -345,7 +346,7 @@
                 <posy>115</posy>
                 <width>54</width>
                 <height>52</height>
-                <texturefocus>-</texturefocus>
+                <texturefocus colordiffuse="A0FFFFFF" border="3">white.png</texturefocus>
                 <texturenofocus>-</texturenofocus>
                 <font>-</font>
                 <onleft>8</onleft>
@@ -358,7 +359,7 @@
                 <posy>115</posy>
                 <width>54</width>
                 <height>52</height>
-                <texturefocus>-</texturefocus>
+                <texturefocus colordiffuse="A0FFFFFF" border="3">white.png</texturefocus>
                 <texturenofocus>-</texturenofocus>
                 <font>-</font>
                 <onleft>9</onleft>
