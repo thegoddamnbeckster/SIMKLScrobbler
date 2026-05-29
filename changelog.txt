@@ -1,4 +1,27 @@
 
+[7.9.1] - 2026-05-28
+BUGFIX: Cannot unrate an item via D-pad/keyboard navigation
+
+- FIXED (High): Pressing left from star 1 in the rating dialog jumped focus
+  directly to the Rate button, making it impossible to navigate into a zero-
+  star / "remove rating" state using a remote or keyboard.
+
+  Root cause: star 1's <onleft> navigation target in script-simkl-rate.xml
+  was hardcoded to 9010 (Rate button). There was no "unrate" stop in the
+  navigation chain; the only way to reach selected_rating=0 was to click an
+  already-selected star with a mouse cursor.
+
+  Fix: added a transparent unrate button (ID 11) at position x=65, left of
+  star 1 (x=131), in the rating dialog XML. Star 1's <onleft> now points to
+  button 11. When focused, button 11 clears all gold stars and shows "Remove
+  rating" in the description label. Pressing Select on it (or navigating to
+  Rate from it) submits selected_rating=0, which triggers the existing unrate
+  API call in RatingService.prompt_for_rating() → remove_rating_from_simkl().
+
+  No changes to the unrate submission path — that code was already correct.
+
+- Also: rating.py __version__ aligned to addon version (was still at 7.8.7).
+
 [7.9.0] - 2026-05-28
 QUALITY: Code-review follow-up — consistent error handling + test hardening (32 tests)
 

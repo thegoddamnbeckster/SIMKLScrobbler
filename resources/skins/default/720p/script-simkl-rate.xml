@@ -219,6 +219,23 @@
             <!-- TRANSPARENT BUTTON OVERLAYS for click/focus detection                 -->
             <!-- Same positions/sizes as star images, no visible texture               -->
             <!-- =================================================================== -->
+            <!-- Unrate button: left of star 1. Navigating here clears all stars
+                 and sets the description to "Remove rating". Submitting from
+                 this state (or after clicking it) sends selected_rating=0,
+                 which triggers the unrate API call in prompt_for_rating(). -->
+            <control type="button" id="11">
+                <posx>65</posx>
+                <posy>115</posy>
+                <width>52</width>
+                <height>52</height>
+                <texturefocus>-</texturefocus>
+                <texturenofocus>-</texturenofocus>
+                <font>-</font>
+                <onleft>11</onleft>
+                <onright>1</onright>
+                <onup>11</onup>
+                <ondown>9000</ondown>
+            </control>
             <control type="button" id="1">
                 <posx>131</posx>
                 <posy>115</posy>
@@ -227,7 +244,7 @@
                 <texturefocus>-</texturefocus>
                 <texturenofocus>-</texturenofocus>
                 <font>-</font>
-                <onleft>9010</onleft>
+                <onleft>11</onleft>
                 <onright>2</onright>
                 <onup>1</onup>
                 <ondown>9000</ondown>

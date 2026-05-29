@@ -1,10 +1,21 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
 SIMKL Scrobbler for Kodi
-Version: 7.9.0
+Version: 7.9.1
 Last Modified: 2026-05-28
 
 CHANGELOG:
+7.9.1 - Fix: cannot unrate an item via D-pad/keyboard navigation
+        Root cause: star 1's <onleft> pointed directly to the Rate button,
+        so there was no way to navigate into a zero-star / "remove rating"
+        state without clicking the already-selected star with a mouse.
+        Fix: added a transparent unrate button (ID 11) to the left of star 1
+        in the rating dialog XML. Navigating left past star 1 now reaches this
+        button, clears all gold stars, and shows "Remove rating" in the
+        description. Pressing Select or the Rate button from this position
+        submits selected_rating=0, which triggers the existing unrate API
+        call path in RatingService.prompt_for_rating().
+        Also: rating.py version aligned to 7.9.1 (was still at 7.8.7).
 7.9.0 - Code review follow-up: consistent error handling + test hardening
         Fix: _build_rating_info() was silently swallowing malformed IDs with no
         log entry — same as _identify_episode() now logs a warning when tvdb_id
@@ -285,7 +296,7 @@ CHANGELOG:
 -->
 <addon id="script.simkl.scrobbler"
        name="SIMKL Scrobbler"
-       version="7.9.0"
+       version="7.9.1"
        provider-name="Claude.ai with assistance from Michael Beck">
     
     <requires>

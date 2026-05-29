@@ -47,7 +47,7 @@ from resources.lib.strings import (
 )
 
 # Module version
-__version__ = '7.8.7'
+__version__ = '7.9.1'
 
 # Log module initialization
 xbmc.log(f'[SIMKL Scrobbler] rating.py v{__version__} - Rating service module loading', level=xbmc.LOGINFO)
@@ -181,6 +181,16 @@ class RatingDialog(xbmcgui.WindowXMLDialog):
                 self._update_description(controlId)
                 self._highlight_stars(controlId)
 
+        # Unrate button (ID 11) — left of star 1
+        elif controlId == 11:
+            self.selected_rating = 0
+            self._focused_star = None
+            self._highlight_stars(0)
+            try:
+                self.getControl(101).setLabel("Remove rating")
+            except Exception:
+                pass
+
         # Submit button
         elif controlId == 9010:
             # If the user navigated to a star via D-pad (onFocus fired) but never
@@ -225,6 +235,16 @@ class RatingDialog(xbmcgui.WindowXMLDialog):
             self._focused_star = controlId
             self._update_description(controlId)
             self._highlight_stars(controlId)
+        elif controlId == 11:
+            # Unrate button — preview zero stars and signal removal intent.
+            # _focused_star=0 so onClick(Submit) promotes it to selected_rating=0
+            # if the user never explicitly clicked the button.
+            self._focused_star = 0
+            self._highlight_stars(0)
+            try:
+                self.getControl(101).setLabel("Remove rating")
+            except Exception:
+                pass
         else:
             # Focus moved away from star row — restore visual to actual selection
             # so the hover preview doesn't persist and mislead the user.
