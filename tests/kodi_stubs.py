@@ -35,6 +35,11 @@ def _install():
     xbmcgui = types.ModuleType('xbmcgui')
     xbmcgui.Dialog = MagicMock
     xbmcgui.DialogProgress = MagicMock
+    xbmcgui.WindowXMLDialog = MagicMock
+    xbmcgui.NOTIFICATION_INFO = 0
+    xbmcgui.NOTIFICATION_WARNING = 1
+    xbmcgui.NOTIFICATION_ERROR = 2
+    xbmcgui.Window = MagicMock
 
     xbmcvfs = types.ModuleType('xbmcvfs')
     xbmcvfs.translatePath = MagicMock(return_value='')

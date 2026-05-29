@@ -15,6 +15,9 @@ Core invariants being tested:
 
 import sys
 import os
+import shutil
+import tempfile
+import time
 import unittest
 from unittest.mock import MagicMock, patch
 
@@ -22,8 +25,9 @@ from unittest.mock import MagicMock, patch
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import tests.kodi_stubs  # noqa: F401 — side-effect: stubs xbmc/xbmcaddon/xbmcgui
 
-from resources.lib.scrobbler import SimklScrobbler
+from resources.lib.scrobbler import SimklScrobbler, _KEEPALIVE_FAILURE_LIMIT
 from resources.lib.sync import SyncManager
+from resources.lib.utils import resolve_sync_interval_hours, get_ratings_cache_path
 
 
 # ---------------------------------------------------------------------------
@@ -391,6 +395,223 @@ class TestExtractIds(unittest.TestCase):
             self._extract({'uniqueid': {'tmdb': 'broken'}})
             mock_warn.assert_called_once()
             self.assertIn('tmdb', mock_warn.call_args[0][0])
+
+
+# ---------------------------------------------------------------------------
+# resolve_sync_interval_hours() — v7.9.4 labelenum migration
+# ---------------------------------------------------------------------------
+
+class TestSyncIntervalMigration(unittest.TestCase):
+    """
+    resolve_sync_interval_hours() must handle both old stored values (actual
+    hours, written by pre-v7.9.4 type="select") and new stored values (labelenum
+    index, written by v7.9.4+).  0 and 1 are identical in both schemes.
+    """
+
+    def _h(self, stored):
+        return resolve_sync_interval_hours(stored)
+
+    # Old format: stored hours values
+    def test_old_zero_hours_disabled(self):
+        self.assertEqual(self._h('0'), 0)
+
+    def test_old_one_hour(self):
+        self.assertEqual(self._h('1'), 1)
+
+    def test_old_six_hours(self):
+        self.assertEqual(self._h('6'), 6)
+
+    def test_old_twelve_hours(self):
+        self.assertEqual(self._h('12'), 12)
+
+    def test_old_twenty_four_hours(self):
+        self.assertEqual(self._h('24'), 24)
+
+    # New format: labelenum index values
+    def test_index_0_is_disabled(self):
+        self.assertEqual(self._h('0'), 0)
+
+    def test_index_1_is_one_hour(self):
+        self.assertEqual(self._h('1'), 1)
+
+    def test_index_2_is_six_hours(self):
+        self.assertEqual(self._h('2'), 6)
+
+    def test_index_3_is_twelve_hours(self):
+        self.assertEqual(self._h('3'), 12)
+
+    def test_index_4_is_twenty_four_hours(self):
+        self.assertEqual(self._h('4'), 24)
+
+    # Edge cases
+    def test_empty_string_defaults_to_six_hours(self):
+        """Fresh install with no stored value → default 6 h (index 2 fallback)."""
+        self.assertEqual(self._h(''), 6)
+
+    def test_none_defaults_to_six_hours(self):
+        self.assertEqual(self._h(None), 6)
+
+    def test_corrupt_value_defaults_to_six_hours(self):
+        self.assertEqual(self._h('garbage'), 6)
+
+    def test_out_of_range_index_defaults_to_six_hours(self):
+        """An index like 99 that maps to no known value → 6 h fallback."""
+        self.assertEqual(self._h('99'), 6)
+
+
+# ---------------------------------------------------------------------------
+# Keepalive circuit-breaker — transition_check()
+# ---------------------------------------------------------------------------
+
+class TestKeepaliveCircuitBreaker(unittest.TestCase):
+    """
+    After _KEEPALIVE_FAILURE_LIMIT consecutive keepalive failures the scrobbler
+    must stop sending /scrobble/start for the rest of the session.  This prevents
+    hundreds of 404s when content is absent from SIMKL's database.
+    """
+
+    def _make_playing_scrobbler(self):
+        s = _make_scrobbler()
+        s.is_playing = True
+        s.is_paused = False
+        s.current_video = {'type': 'episode', 'file': 'test.mkv'}
+        s.current_video_info = {
+            'show': {'title': 'Test', 'ids': {'tvdb': 123}},
+            'episode': {'season': 1, 'number': 1},
+        }
+        s.watched_time = 100
+        s.video_duration = 1000
+        s.last_progress_update = 0      # forces keepalive to fire immediately
+        s.last_transition_check = time.time()  # suppresses 60 s progress log
+        return s
+
+    def _run_transition_check(self, scrobbler, mock_scrobble_result):
+        """Call transition_check() with all Kodi player calls mocked out."""
+        with patch('resources.lib.scrobbler.xbmc.Player') as MockPlayer, \
+             patch('resources.lib.scrobbler.get_setting_bool', return_value=True):
+            instance = MagicMock()
+            instance.isPlayingVideo.return_value = True
+            instance.getPlayingFile.return_value = 'test.mkv'
+            instance.getTime.return_value = 100.0
+            MockPlayer.return_value = instance
+            with patch.object(scrobbler, '_scrobble', return_value=mock_scrobble_result):
+                scrobbler.last_progress_update = 0  # ensure keepalive fires
+                scrobbler.transition_check()
+
+    def test_failure_counter_increments_on_none_response(self):
+        s = self._make_playing_scrobbler()
+        self._run_transition_check(s, mock_scrobble_result=None)
+        self.assertEqual(s._keepalive_failures, 1)
+
+    def test_failure_counter_resets_on_success(self):
+        s = self._make_playing_scrobbler()
+        s._keepalive_failures = 2
+        self._run_transition_check(s, mock_scrobble_result={'result': 'ok'})
+        self.assertEqual(s._keepalive_failures, 0)
+
+    def test_keepalive_suspended_after_limit(self):
+        """Once the limit is reached, no further _scrobble calls are made."""
+        s = self._make_playing_scrobbler()
+        s._keepalive_failures = _KEEPALIVE_FAILURE_LIMIT  # already at limit
+
+        with patch('resources.lib.scrobbler.xbmc.Player') as MockPlayer, \
+             patch('resources.lib.scrobbler.get_setting_bool', return_value=True):
+            instance = MagicMock()
+            instance.isPlayingVideo.return_value = True
+            instance.getPlayingFile.return_value = 'test.mkv'
+            instance.getTime.return_value = 100.0
+            MockPlayer.return_value = instance
+            with patch.object(s, '_scrobble') as mock_scrobble:
+                s.last_progress_update = 0
+                s.transition_check()
+                mock_scrobble.assert_not_called()
+
+    def test_reset_state_clears_failure_counter(self):
+        s = self._make_playing_scrobbler()
+        s._keepalive_failures = _KEEPALIVE_FAILURE_LIMIT
+        s._reset_state()
+        self.assertEqual(s._keepalive_failures, 0)
+
+
+# ---------------------------------------------------------------------------
+# File-based ratings cache — read / write / patch
+# ---------------------------------------------------------------------------
+
+class TestRatingsCacheFile(unittest.TestCase):
+    """
+    Ratings cache must be written atomically and read back correctly.
+    Uses a real temp directory so the file I/O is exercised end-to-end.
+    """
+
+    def setUp(self):
+        self.tmp_dir = tempfile.mkdtemp()
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp_dir, ignore_errors=True)
+
+    def _cache_path(self, media_type):
+        return os.path.join(self.tmp_dir, f'rating_cache_{media_type}.json')
+
+    # ---- _save_ratings_cache (sync.py) ----
+
+    def test_save_writes_correct_entries(self):
+        with patch('resources.lib.sync.SimklAPI'):
+            mgr = SyncManager(show_progress=False, silent=True)
+        mgr.api = MagicMock()
+
+        ratings = [{'movie': {'ids': {'imdb': 'tt0137523', 'tmdb': 550}},
+                    'user_rating': 8}]
+
+        with patch('resources.lib.sync.get_ratings_cache_path',
+                   side_effect=self._cache_path):
+            mgr._save_ratings_cache('movies', ratings)
+
+        import json
+        with open(self._cache_path('movies'), 'r') as f:
+            cache = json.load(f)
+        self.assertEqual(cache['imdb:tt0137523'], 8)
+        self.assertEqual(cache['tmdb:550'], 8)
+
+    def test_save_is_atomic_no_tmp_left_behind(self):
+        """The .tmp file must be renamed away; it should not persist."""
+        with patch('resources.lib.sync.SimklAPI'):
+            mgr = SyncManager(show_progress=False, silent=True)
+        mgr.api = MagicMock()
+
+        with patch('resources.lib.sync.get_ratings_cache_path',
+                   side_effect=self._cache_path):
+            mgr._save_ratings_cache('movies', [])
+
+        tmp = self._cache_path('movies') + '.tmp'
+        self.assertFalse(os.path.exists(tmp), '.tmp file should be gone after atomic rename')
+        self.assertTrue(os.path.exists(self._cache_path('movies')))
+
+    # ---- _load_ratings_cache (rating.py) ----
+
+    def test_load_returns_none_when_file_absent(self):
+        from resources.lib.rating import RatingService
+        svc = RatingService.__new__(RatingService)
+        svc.addon = MagicMock()
+
+        with patch('resources.lib.rating.get_ratings_cache_path',
+                   side_effect=self._cache_path):
+            result = svc._load_ratings_cache('movies')
+        self.assertIsNone(result)
+
+    def test_load_returns_dict_after_save(self):
+        import json
+        cache = {'imdb:tt0137523': 8}
+        with open(self._cache_path('movies'), 'w') as f:
+            json.dump(cache, f)
+
+        from resources.lib.rating import RatingService
+        svc = RatingService.__new__(RatingService)
+        svc.addon = MagicMock()
+
+        with patch('resources.lib.rating.get_ratings_cache_path',
+                   side_effect=self._cache_path):
+            result = svc._load_ratings_cache('movies')
+        self.assertEqual(result, {'imdb:tt0137523': 8})
 
 
 if __name__ == '__main__':

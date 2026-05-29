@@ -29,7 +29,11 @@ from collections import deque
 # Import our modules
 from resources.lib.scrobbler import SimklScrobbler
 from resources.lib.api import SimklAPI
-from resources.lib.utils import log, log_error, log_debug, get_setting, get_setting_bool, get_setting_int
+from resources.lib.utils import (
+    log, log_error, log_debug, log_warning,
+    get_setting, get_setting_bool, get_setting_int,
+    resolve_sync_interval_hours,
+)
 from resources.lib.exclusions import check_exclusion, get_exclusion_summary
 from resources.lib.sync import SyncManager
 from resources.lib.strings import (
@@ -45,18 +49,10 @@ from resources.lib.strings import (
 )
 
 # Module version
-__version__ = '7.9.4'
+__version__ = '7.9.5'
 
 # Log module initialization
 xbmc.log(f'[SIMKL Scrobbler] service.py v{__version__} - Main service module loading', level=xbmc.LOGINFO)
-
-# auto_sync_interval index→hours table.
-# Settings switched to type="labelenum" in v7.9.4, which stores the selected
-# INDEX. Values > 4 are the old type="select" hours stored by pre-v7.9.4
-# installs; they are used directly. 0 and 1 are valid in both schemes and
-# produce the same result, so there is no ambiguity for those two positions.
-_SYNC_INTERVAL_VALID_HOURS = {0, 1, 6, 12, 24}
-_SYNC_INTERVAL_BY_INDEX = {0: 0, 1: 1, 2: 6, 3: 12, 4: 24}
 
 
 class SimklService:
@@ -81,6 +77,7 @@ class SimklService:
         self._startup_sync_pending = False        # True if startup sync was deferred due to active scan
         self._init_activity_timestamps()
         self._load_last_sync_time()
+        self._migrate_sync_interval_setting()
         log(f"[service v{__version__}] SimklService.__init__() SimklService initialized - ready to scrobble!")
     
     def _dispatch_to_queue(self, data):
@@ -184,6 +181,32 @@ class SimklService:
             log_error(f"[service v{__version__}] SimklService._load_last_sync_time() Error loading last sync time: {e}")
             self._last_sync_time = None
     
+    def _migrate_sync_interval_setting(self):
+        """
+        One-time migration: rewrite auto_sync_interval from old hours-value to
+        the new labelenum index so the settings UI shows the correct selection.
+
+        v7.9.4 changed the setting from type="select" (stored the option VALUE,
+        e.g. "6") to type="labelenum" (stores the selected INDEX, e.g. "2" for
+        6 hours).  Without this migration, users who had "6", "12", or "24"
+        stored would see the dropdown appear blank/misconfigured after upgrading
+        even though the sync would still run at the correct interval.
+
+        "0" and "1" need no rewrite — they are valid in both schemes.
+        """
+        OLD_VALUE_TO_INDEX = {'6': '2', '12': '3', '24': '4'}
+        try:
+            addon = xbmcaddon.Addon('script.simkl.scrobbler')
+            stored = addon.getSetting('auto_sync_interval')
+            if stored in OLD_VALUE_TO_INDEX:
+                new_index = OLD_VALUE_TO_INDEX[stored]
+                addon.setSetting('auto_sync_interval', new_index)
+                log(f"[service v{__version__}] SimklService._migrate_sync_interval_setting() "
+                    f"Migrated auto_sync_interval: '{stored}' (hours) → '{new_index}' (index)")
+        except Exception as e:
+            log_warning(f"[service v{__version__}] SimklService._migrate_sync_interval_setting() "
+                        f"Migration failed (non-fatal): {e}")
+
     def _save_last_sync_time(self):
         """Save the current sync timestamp to addon settings."""
         try:
@@ -247,18 +270,9 @@ class SimklService:
         Returns True if sync was triggered, False otherwise.
         """
         try:
-            # auto_sync_interval is type="labelenum" (v7.9.4+), storing the
-            # selected index (0–4). Pre-v7.9.4 installs stored actual hours
-            # (0/1/6/12/24). Both are handled via module-level constants.
-            interval_str = get_setting('auto_sync_interval')
-            try:
-                val = int(interval_str) if interval_str else 2
-                if val in _SYNC_INTERVAL_VALID_HOURS:
-                    interval_hours = val
-                else:
-                    interval_hours = _SYNC_INTERVAL_BY_INDEX.get(val, 6)
-            except (ValueError, TypeError):
-                interval_hours = 6
+            # resolve_sync_interval_hours() handles both old (hours) and new
+            # (labelenum index) storage formats transparently.
+            interval_hours = resolve_sync_interval_hours(get_setting('auto_sync_interval'))
             
             if interval_hours == 0:
                 return False  # Scheduled sync is disabled

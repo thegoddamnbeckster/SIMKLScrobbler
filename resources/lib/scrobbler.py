@@ -35,10 +35,16 @@ from resources.lib.strings import (
 )
 
 # Module version
-__version__ = '7.9.4'
+__version__ = '7.9.5'
 
 # Log module initialization
 xbmc.log(f'[SIMKL Scrobbler] scrobbler.py v{__version__} - Core scrobbler engine loading', level=xbmc.LOGINFO)
+
+# Number of consecutive keepalive failures before pings are suspended for the
+# rest of the playback session.  Prevents hundreds of 404s when content is
+# absent from SIMKL's database (the initial start failed but is_playing stays
+# True, so the keepalive would retry every 15 s for the entire movie).
+_KEEPALIVE_FAILURE_LIMIT = 3
 
 
 class SimklScrobbler:
@@ -79,6 +85,10 @@ class SimklScrobbler:
         # Rewatch detection: True if Kodi's playcount was > 0 when playback started,
         # meaning the user has watched this item before and this is a rewatch.
         self._was_previously_watched = False
+
+        # Circuit-breaker: counts consecutive keepalive failures.  Pings are
+        # suspended for the session once this reaches _KEEPALIVE_FAILURE_LIMIT.
+        self._keepalive_failures = 0
 
         log(f"[scrobbler v{__version__}] SimklScrobbler.__init__() SimklScrobbler initialized")
     
@@ -492,11 +502,24 @@ class SimklScrobbler:
             # interval and keeps the progress percentage on SIMKL current throughout
             # long playback sessions.
             # Gated behind the "periodic_progress_update" setting (default: ON).
-            if get_setting_bool("periodic_progress_update") and now - self.last_progress_update >= 15:
+            # Circuit-breaker: if _KEEPALIVE_FAILURE_LIMIT consecutive calls all
+            # return None (e.g. content not in SIMKL's database), pings stop for
+            # the rest of the session to avoid hundreds of 404s per movie.
+            if (get_setting_bool("periodic_progress_update")
+                    and now - self.last_progress_update >= 15
+                    and self._keepalive_failures < _KEEPALIVE_FAILURE_LIMIT):
                 self.last_progress_update = now
                 progress = self._calculate_watched_percent()
                 log(f"[scrobbler v{__version__}] SimklScrobbler.transition_check() Keepalive — sending scrobble/start to SIMKL at {progress:.1f}%")
-                self._scrobble("start")
+                result = self._scrobble("start")
+                if result:
+                    self._keepalive_failures = 0
+                else:
+                    self._keepalive_failures += 1
+                    if self._keepalive_failures >= _KEEPALIVE_FAILURE_LIMIT:
+                        log_warning(f"[scrobbler v{__version__}] SimklScrobbler.transition_check() "
+                                    f"Keepalive suspended after {_KEEPALIVE_FAILURE_LIMIT} consecutive "
+                                    f"failures — content may not be in SIMKL's database")
                     
         except Exception as e:
             # This happens normally when playback stops
@@ -856,6 +879,7 @@ class SimklScrobbler:
         self._is_library_item = False
         self._resume_key = None
         self._was_previously_watched = False
+        self._keepalive_failures = 0
 
     def _get_resume_key(self):
         """

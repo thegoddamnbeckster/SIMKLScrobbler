@@ -32,9 +32,9 @@ import os
 import xbmc
 import xbmcgui
 import xbmcaddon
-import xbmcvfs
 
 from resources.lib import utils
+from resources.lib.utils import get_ratings_cache_path
 from resources.lib.strings import (
     get_rating_description,
     getString,
@@ -49,7 +49,7 @@ from resources.lib.strings import (
 )
 
 # Module version
-__version__ = '7.9.4'
+__version__ = '7.9.5'
 
 # Log module initialization
 xbmc.log(f'[SIMKL Scrobbler] rating.py v{__version__} - Rating service module loading', level=xbmc.LOGINFO)
@@ -333,18 +333,13 @@ class RatingService:
                 return False
         return False
     
-    def _ratings_cache_path(self, api_type):
-        """Return the filesystem path for the ratings cache file."""
-        profile = self.addon.getAddonInfo('profile')
-        return xbmcvfs.translatePath(f"{profile}rating_cache_{api_type}.json")
-
     def _load_ratings_cache(self, api_type):
         """
         Load the flat ratings cache written by SyncManager._save_ratings_cache().
 
         The cache is stored as a JSON file in the addon's profile directory
-        (rather than in addon settings, which has a ~65 KB limit on some
-        platforms that would silently truncate the movie ratings cache).
+        (via get_ratings_cache_path from utils — the same path used by the
+        write side in sync.py, guaranteed to match).
         Keys are like "imdb:tt1234567", "simkl:12345". Values are ratings (1-10).
 
         Args:
@@ -355,7 +350,7 @@ class RatingService:
                           None if the file is absent (cache not yet written)
         """
         try:
-            path = self._ratings_cache_path(api_type)
+            path = get_ratings_cache_path(api_type)
             with open(path, 'r', encoding='utf-8') as fh:
                 return json.loads(fh.read())
         except FileNotFoundError:
@@ -375,6 +370,9 @@ class RatingService:
         re-rating guard (rating_allow_rerating=false) is bypassed for any item
         rated during the current session because the cache still shows "unrated".
 
+        Written atomically (temp file + os.replace) so a crash mid-write never
+        leaves a corrupt cache file.
+
         Args:
             media_type (str): 'movie' or 'episode'
             media_info (dict): Media info dict with *_id fields
@@ -382,7 +380,7 @@ class RatingService:
         """
         try:
             api_type = 'movies' if media_type == 'movie' else 'shows'
-            path = self._ratings_cache_path(api_type)
+            path = get_ratings_cache_path(api_type)
             try:
                 with open(path, 'r', encoding='utf-8') as fh:
                     cache = json.loads(fh.read())
@@ -400,9 +398,13 @@ class RatingService:
                         cache[key] = rating
                     else:
                         cache.pop(key, None)
-            os.makedirs(os.path.dirname(path), exist_ok=True)
-            with open(path, 'w', encoding='utf-8') as fh:
+            dir_name = os.path.dirname(path)
+            if dir_name:
+                os.makedirs(dir_name, exist_ok=True)
+            tmp_path = path + '.tmp'
+            with open(tmp_path, 'w', encoding='utf-8') as fh:
                 fh.write(json.dumps(cache))
+            os.replace(tmp_path, path)
             utils.log(f"[rating v{__version__}] RatingService._patch_ratings_cache() "
                       f"Cache updated: {media_type} rating → {rating}")
         except Exception as e:

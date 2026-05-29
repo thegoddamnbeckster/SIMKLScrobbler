@@ -1,10 +1,35 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
 SIMKL Scrobbler for Kodi
-Version: 7.9.4
+Version: 7.9.5
 Last Modified: 2026-05-28
 
 CHANGELOG:
+7.9.5 - Code review follow-up: circuit-breaker, deduplication, atomic writes,
+        settings UI migration, tests
+        Fix: keepalive sent /scrobble/start every 15 s indefinitely even when
+        SIMKL returned a persistent 404 (content not in database) — 360+ failed
+        API calls per movie. Added circuit-breaker: pings suspend after 3
+        consecutive failures; reset on next playback.
+        Fix: _ratings_cache_path duplicated between sync.py and rating.py (each
+        with different Addon() construction strategies). Moved to shared
+        get_ratings_cache_path() in utils.py, reusing the existing lazy-cached
+        _ADDON singleton — no extra Addon() construction per call.
+        Fix: file writes were non-atomic (crash mid-write → corrupt JSON → API
+        call on every rating dialog open). Both write paths now use
+        write-to-temp + os.replace().
+        Fix: os.makedirs(os.path.dirname(path)) raised FileNotFoundError when
+        dirname returned '' for a bare filename. Added empty-dirname guard.
+        Fix: resolve_sync_interval_hours() and the _SYNC_INTERVAL_* constants
+        were duplicated in service.py. Moved to utils.py and made importable.
+        Fix: existing users with '6', '12', or '24' stored from old type="select"
+        saw a blank dropdown after upgrading to v7.9.4. One-time migration in
+        SimklService.__init__() rewrites the stored value to the correct
+        labelenum index so the UI shows the right selection.
+        Added WindowXMLDialog/Window/NOTIFICATION_* to Kodi stubs (were absent,
+        prevented importing rating.py in tests).
+        Tests: 57 (+22 vs v7.9.4) — added TestSyncIntervalMigration (14),
+        TestKeepaliveCircuitBreaker (4), TestRatingsCacheFile (4).
 7.9.4 - Fix: constant "failed to parse old setting definition for auto_sync_interval"
         log warnings
         Root cause: type="select" with nested <option> children is new-format
@@ -327,7 +352,7 @@ CHANGELOG:
 -->
 <addon id="script.simkl.scrobbler"
        name="SIMKL Scrobbler"
-       version="7.9.4"
+       version="7.9.5"
        provider-name="Claude.ai with assistance from Michael Beck">
     
     <requires>

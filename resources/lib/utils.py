@@ -13,6 +13,7 @@ Professional code - suitable for public distribution
 Attribution: Claude.ai with assistance from Michael Beck
 """
 
+import os
 import xbmc
 import xbmcaddon
 import xbmcgui
@@ -314,6 +315,68 @@ def format_progress(percent):
         str: Formatted percentage string
     """
     return f"{percent:.1f}%"
+
+
+# ---------------------------------------------------------------------------
+# Ratings-cache path helper
+# ---------------------------------------------------------------------------
+# Shared by sync.py (write) and rating.py (read/patch).  Both modules call
+# the same function so they always use identical paths without each
+# constructing their own Addon() instance.
+
+
+def get_ratings_cache_path(media_type):
+    """
+    Return the filesystem path for the ratings cache JSON file.
+
+    Delegates to get_addon_profile() which is already backed by the lazily-
+    initialised _ADDON singleton, so no extra Addon() construction occurs
+    after the first call.
+
+    Args:
+        media_type (str): 'movies' or 'shows'
+
+    Returns:
+        str: Absolute filesystem path to the cache file
+    """
+    return os.path.join(get_addon_profile(), f'rating_cache_{media_type}.json')
+
+
+# ---------------------------------------------------------------------------
+# auto_sync_interval resolution
+# ---------------------------------------------------------------------------
+# v7.9.4 switched the setting from type="select" (stored actual hours:
+# 0/1/6/12/24) to type="labelenum" (stores the selected index: 0–4).
+# Values in _SYNC_INTERVAL_VALID_HOURS are used as-is (old stored hours);
+# other values are looked up as labelenum indices.  0 and 1 exist in both
+# schemes and map to the same result, so they are unambiguous.
+
+_SYNC_INTERVAL_VALID_HOURS = frozenset({0, 1, 6, 12, 24})
+_SYNC_INTERVAL_BY_INDEX = {0: 0, 1: 1, 2: 6, 3: 12, 4: 24}
+
+
+def resolve_sync_interval_hours(stored_value):
+    """
+    Convert the stored auto_sync_interval setting to hours.
+
+    Handles both old-format (hours value) and new-format (labelenum index)
+    storage so existing user settings are preserved across the v7.9.4
+    migration without a separate migration step.
+
+    Args:
+        stored_value (str): Raw value from getSetting('auto_sync_interval'),
+                            or None/empty for a fresh install.
+
+    Returns:
+        int: Sync interval in hours.  0 means disabled; 6 is the default.
+    """
+    try:
+        val = int(stored_value) if stored_value else 2  # '' → default index 2 → 6 h
+        if val in _SYNC_INTERVAL_VALID_HOURS:
+            return val                                   # Old format: stored hours
+        return _SYNC_INTERVAL_BY_INDEX.get(val, 6)      # New format: stored index
+    except (ValueError, TypeError):
+        return 6                                         # Corrupt value → 6 h fallback
 
 
 # End of utils.py

@@ -1,4 +1,53 @@
 
+[7.9.5] - 2026-05-28
+Code review follow-up: circuit-breaker, deduplication, atomic writes, migration, tests
+
+BUGFIX: Keepalive circuit-breaker
+- Persistent 404s (content absent from SIMKL's database) caused the 15-second
+  keepalive to fire for the entire playback session — 360+ failed API calls per
+  movie. Added a consecutive-failure counter (_keepalive_failures). After 3
+  failures the keepalive is suspended for the rest of the session and a warning
+  is logged. Counter resets on success or on new playback (_reset_state).
+
+REFACTOR: Deduplicated _ratings_cache_path
+- The path helper existed separately in sync.py (as a @staticmethod that
+  constructed a new Addon() on every call) and rating.py (as an instance method
+  that reused self.addon). Moved to a single get_ratings_cache_path(media_type)
+  function in utils.py that reuses the existing lazy-cached _ADDON singleton.
+  Both sync.py and rating.py now import from utils.
+
+BUGFIX: Atomic cache writes
+- Both _save_ratings_cache and _patch_ratings_cache wrote directly to the
+  target file. A crash mid-write left corrupt JSON, causing a 4-second API
+  call on every subsequent rating dialog open. Both paths now write to
+  path + '.tmp' and rename atomically with os.replace().
+
+BUGFIX: os.makedirs empty-dirname edge case
+- os.path.dirname() returns '' for a bare filename (no directory component).
+  os.makedirs('', exist_ok=True) raises FileNotFoundError. Added a guard:
+  only call makedirs when dirname is non-empty.
+
+REFACTOR: Sync interval resolution moved to utils
+- resolve_sync_interval_hours() and the _SYNC_INTERVAL_* constants were
+  duplicated in service.py. Moved to utils.py; service.py now imports
+  and calls the shared function. Code in service.py reduced to one line.
+
+BUGFIX: Settings UI migration for labelenum
+- Users who had '6', '12', or '24' stored (old type="select" hours) saw a
+  blank or misconfigured dropdown after upgrading to v7.9.4. Added
+  _migrate_sync_interval_setting() to SimklService.__init__() which rewrites
+  the stored value to the correct labelenum index on first startup.
+
+TEST: 57 tests (was 35 — +22 new)
+- TestSyncIntervalMigration (14 tests): covers all stored values, both old
+  hours and new index formats, empty/None/corrupt/out-of-range edge cases.
+- TestKeepaliveCircuitBreaker (4 tests): failure counter increments, resets
+  on success, blocks further calls at limit, clears on _reset_state.
+- TestRatingsCacheFile (4 tests): atomic write leaves no .tmp, correct
+  entries persisted, load returns None when absent, round-trip read-back.
+- Added WindowXMLDialog/Window/NOTIFICATION_* constants to kodi_stubs.py
+  (were absent, preventing import of rating.py in tests).
+
 [7.9.4] - 2026-05-28
 BUGFIX: Constant "auto_sync_interval" parse warnings in Kodi log
 
