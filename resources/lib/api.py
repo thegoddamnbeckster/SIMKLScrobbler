@@ -33,7 +33,7 @@ import xbmcaddon
 from resources.lib.utils import log, log_error, log_debug, log_warning, log_module_init, get_setting
 
 # Module version
-__version__ = '7.9.2'
+__version__ = '7.9.3'
 
 # Log module initialization
 log_module_init('api.py', __version__)

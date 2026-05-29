@@ -35,7 +35,7 @@ from resources.lib.strings import (
 )
 
 # Module version
-__version__ = '7.9.2'
+__version__ = '7.9.3'
 
 # Log module initialization
 xbmc.log(f'[SIMKL Scrobbler] scrobbler.py v{__version__} - Core scrobbler engine loading', level=xbmc.LOGINFO)
@@ -485,24 +485,18 @@ class SimklScrobbler:
                 progress = self._calculate_watched_percent()
                 log(f"[scrobbler v{__version__}] SimklScrobbler.transition_check() Scrobble progress: {progress:.1f}%")
             
-            # Send periodic progress update to SIMKL every 15 minutes.
-            # This re-sends a "start" scrobble to keep the SIMKL session alive
-            # and update the server-side progress percentage.
-            #
-            # Per SIMKL team feedback (Ennergizer, 2026-02-25): this is NOT needed
-            # by default. Kodi already sends pause/stop events which update SIMKL,
-            # and the transition_check() loop calls this every second already to
-            # detect multi-episode transitions. The periodic re-send is only useful
-            # for specific Kodi setups where playback events may not fire reliably.
-            #
-            # This is gated behind the "periodic_progress_update" setting (default: OFF)
-            # to avoid unnecessary API requests. Users who need it can enable it
-            # in Settings > Scrobbling > "Send periodic progress updates".
-            if get_setting_bool("periodic_progress_update") and now - self.last_progress_update >= 900:  # 900 seconds = 15 minutes
+            # Send periodic keepalive to SIMKL every 15 seconds.
+            # SIMKL's "Currently Watching" banner requires repeated /scrobble/start
+            # calls to stay alive; without them the banner disappears within a minute
+            # of the initial call. 15 seconds matches the Trakt addon's keepalive
+            # interval and keeps the progress percentage on SIMKL current throughout
+            # long playback sessions.
+            # Gated behind the "periodic_progress_update" setting (default: ON).
+            if get_setting_bool("periodic_progress_update") and now - self.last_progress_update >= 15:
                 self.last_progress_update = now
                 progress = self._calculate_watched_percent()
-                log(f"[scrobbler v{__version__}] SimklScrobbler.transition_check() Periodic progress update enabled - sending scrobble/start to SIMKL at {progress:.1f}%")
-                self._scrobble("start")  # Re-sending "start" updates the progress on SIMKL
+                log(f"[scrobbler v{__version__}] SimklScrobbler.transition_check() Keepalive — sending scrobble/start to SIMKL at {progress:.1f}%")
+                self._scrobble("start")
                     
         except Exception as e:
             # This happens normally when playback stops

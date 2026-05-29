@@ -1,10 +1,18 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
 SIMKL Scrobbler for Kodi
-Version: 7.9.2
+Version: 7.9.3
 Last Modified: 2026-05-28
 
 CHANGELOG:
+7.9.3 - Fix: "Currently Watching" banner never appeared on SIMKL website
+        Root cause: periodic keepalive was firing every 15 minutes (900 s)
+        instead of every 15 seconds. SIMKL's banner requires repeated
+        /scrobble/start calls at short intervals; without them the banner
+        disappears within a minute of the initial call.
+        Fix: reduced keepalive interval to 15 seconds to match the Trakt
+        addon's behaviour and keep the SIMKL progress percentage current.
+        Also: service.py version aligned to 7.9.3 (was stale at 7.8.4).
 7.9.2 - Add focus indicator to rating dialog star buttons
         All 11 buttons (10 stars + unrate) in the rating dialog now show a
         62% white glow (colordiffuse="A0FFFFFF") via texturefocus when they
@@ -303,7 +311,7 @@ CHANGELOG:
 -->
 <addon id="script.simkl.scrobbler"
        name="SIMKL Scrobbler"
-       version="7.9.2"
+       version="7.9.3"
        provider-name="Claude.ai with assistance from Michael Beck">
     
     <requires>

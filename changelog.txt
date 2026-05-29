@@ -1,4 +1,24 @@
 
+[7.9.3] - 2026-05-28
+BUGFIX: "Currently Watching" banner never appeared on SIMKL website
+
+- Root cause: the periodic keepalive in transition_check() was firing every
+  15 minutes (900 s) instead of every 15 seconds. SIMKL's "Currently
+  Watching" banner on the website requires repeated /scrobble/start calls
+  at short intervals to stay alive; without them the banner disappears
+  roughly a minute after the initial call.
+
+- Fix: reduced the keepalive interval from 900 s to 15 s to match the
+  Trakt addon's behaviour. The banner now appears when playback starts and
+  remains visible throughout the session with an up-to-date progress
+  percentage.
+
+- The "periodic_progress_update" setting (default: ON) still gates this
+  behaviour so users can disable it if desired.
+
+- Also: service.py version string was stale at 7.8.4; aligned to 7.9.3
+  alongside all other modules. (35 tests, all passing.)
+
 [7.9.2] - 2026-05-28
 IMPROVEMENT: Add visible focus indicator to rating dialog
 

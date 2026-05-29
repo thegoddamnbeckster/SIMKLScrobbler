@@ -47,7 +47,7 @@ from resources.lib.strings import (
 )
 
 # Module version
-__version__ = '7.9.2'
+__version__ = '7.9.3'
 
 # Log module initialization
 xbmc.log(f'[SIMKL Scrobbler] rating.py v{__version__} - Rating service module loading', level=xbmc.LOGINFO)
