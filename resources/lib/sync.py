@@ -20,10 +20,12 @@ Attribution: Claude.ai with assistance from Michael Beck
 """
 
 import json
+import os
 import time
 import xbmc
 import xbmcaddon
 import xbmcgui
+import xbmcvfs
 from datetime import datetime, timezone
 from resources.lib.utils import (
     log, log_error, log_debug, log_warning,
@@ -32,7 +34,7 @@ from resources.lib.utils import (
 from resources.lib.api import SimklAPI
 
 # Module version
-__version__ = '7.9.3'
+__version__ = '7.9.4'
 
 # Log module initialization
 xbmc.log(f'[SIMKL Scrobbler] sync.py v{__version__} - Sync manager module loading', level=xbmc.LOGINFO)
@@ -406,10 +408,21 @@ class SyncManager:
                         f"reset after a library rescan for this show")
         return f"tvshowid:{tvshowid}"
 
+    @staticmethod
+    def _ratings_cache_path(media_type):
+        """Return the filesystem path for the ratings cache JSON file."""
+        profile = xbmcaddon.Addon('script.simkl.scrobbler').getAddonInfo('profile')
+        return xbmcvfs.translatePath(f"{profile}rating_cache_{media_type}.json")
+
     def _save_ratings_cache(self, media_type, ratings_list):
         """
-        Persist a flat {id_key: rating} lookup to addon settings so the rating
-        dialog can resolve current ratings instantly without an API call.
+        Persist a flat {id_key: rating} lookup to a JSON file in the addon's
+        profile directory so the rating dialog can resolve current ratings
+        instantly without an API call.
+
+        Stored as a file rather than an addon setting because the movie ratings
+        cache routinely exceeds 65 KB — the ceiling that Kodi's settings store
+        enforces on some platforms, which would silently truncate the JSON.
 
         Written after every ratings fetch during sync (both export and import
         paths). The dialog reads this cache before falling back to the API.
@@ -442,15 +455,10 @@ class SyncManager:
                 if ids.get('tvdb'):
                     cache[f"tvdb:{ids['tvdb']}"] = rating
             serialized = json.dumps(cache)
-            # Warn if the cache is approaching Kodi's settings XML size ceiling.
-            # Truncated JSON causes silent cache misses → 4s API call on every
-            # rating dialog open.
-            if len(serialized) > 65536:
-                log_warning(f"[sync v{__version__}] SyncManager._save_ratings_cache() "
-                            f"Ratings cache is {len(serialized)} bytes — may be truncated "
-                            f"by Kodi settings on some platforms")
-            addon = xbmcaddon.Addon('script.simkl.scrobbler')
-            addon.setSetting(f'rating_cache_{media_type}', serialized)
+            path = self._ratings_cache_path(media_type)
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            with open(path, 'w', encoding='utf-8') as fh:
+                fh.write(serialized)
             log_debug(f"[sync v{__version__}] SyncManager._save_ratings_cache() "
                       f"Cached {len(cache)} {media_type} rating lookups "
                       f"({len(serialized)} bytes)")

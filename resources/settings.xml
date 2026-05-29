@@ -26,13 +26,10 @@
         <setting id="scrobble_episode" type="bool" label="32203" default="true"/>
         <setting id="scrobble_threshold" type="slider" label="32204" default="70" range="50,5,90" option="int"/>
         
-        <!-- Periodic progress update: re-sends scrobble/start every 15 minutes.      -->
-        <!-- Required to keep the "Currently Watching" indicator alive on the SIMKL  -->
-        <!-- website for the full duration of playback. Without periodic updates,     -->
-        <!-- SIMKL's "Now Watching" display times out mid-playback and the website    -->
-        <!-- no longer reflects what is currently playing.                            -->
-        <!-- Enabled by default so the SIMKL website always shows currently playing.  -->
-        <!-- Users on metered connections can disable this to reduce API traffic.      -->
+        <!-- Periodic keepalive: re-sends scrobble/start every 15 seconds.             -->
+        <!-- Required to keep the "Currently Watching" banner alive on the SIMKL     -->
+        <!-- website. Without periodic pings the banner disappears ~60 s after        -->
+        <!-- playback starts. Enabled by default.                                     -->
         <setting id="periodic_progress_update" type="bool" label="32205" default="true"/>
     </category>
 
@@ -94,13 +91,10 @@
         <!-- Automatic sync triggers -->
         <setting id="sync_on_startup" type="bool" label="32402" default="true"/>
         <setting id="sync_on_update" type="bool" label="32403" default="true"/>
-        <setting id="auto_sync_interval" type="select" label="32405" default="2">
-            <option label="32410">0</option>
-            <option label="32411">1</option>
-            <option label="32412">6</option>
-            <option label="32413">12</option>
-            <option label="32414">24</option>
-        </setting>
+        <!-- type="labelenum" is the valid old-format equivalent of a labelled        -->
+        <!-- dropdown. It stores the selected index (0–4) and returns it via        -->
+        <!-- getSetting(). Service code maps index→hours: 0→0h 1→1h 2→6h 3→12h 4→24h -->
+        <setting id="auto_sync_interval" type="labelenum" label="32405" default="2" lvalues="32410|32411|32412|32413|32414"/>
         <setting id="show_library_sync_notifications" type="bool" label="32404" default="true"/>
         
         <!-- Sync direction settings -->

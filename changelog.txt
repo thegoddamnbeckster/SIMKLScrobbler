@@ -1,4 +1,30 @@
 
+[7.9.4] - 2026-05-28
+BUGFIX: Constant "auto_sync_interval" parse warnings in Kodi log
+
+- type="select" with nested <option> children is new-format Kodi settings
+  syntax. Without a version attribute on <settings>, Kodi uses the old-format
+  parser, which cannot parse type="select" and logs a warning on every
+  getSetting/setSetting call in the addon (~30 times per startup session).
+
+- Fix: changed auto_sync_interval to type="labelenum" lvalues="32410|32411|
+  32412|32413|32414" which is the valid old-format equivalent. Service code
+  updated to map the returned index (0–4) to hours (0/1/6/12/24). Old stored
+  hours-values from pre-v7.9.4 installs are detected by range check and used
+  directly, so existing settings survive the migration without resetting.
+
+BUGFIX: Ratings cache truncation risk
+
+- The movie ratings cache serialises to ~191 KB. Kodi's settings store
+  silently truncates values larger than ~65 KB on some platforms, which
+  would cause the cache to be invalid, forcing a 4-second API call on
+  every rating dialog open.
+
+- Fix: ratings cache is now written as a JSON file to the addon's profile
+  directory (e.g. .kodi/userdata/addon_data/script.simkl.scrobbler/
+  rating_cache_movies.json) instead of an addon setting. No size limit.
+  (35 tests, all passing.)
+
 [7.9.3] - 2026-05-28
 BUGFIX: "Currently Watching" banner never appeared on SIMKL website
 

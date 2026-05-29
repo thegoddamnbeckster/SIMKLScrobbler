@@ -28,9 +28,11 @@ Professional code - Project 4 standards
 """
 
 import json
+import os
 import xbmc
 import xbmcgui
 import xbmcaddon
+import xbmcvfs
 
 from resources.lib import utils
 from resources.lib.strings import (
@@ -47,7 +49,7 @@ from resources.lib.strings import (
 )
 
 # Module version
-__version__ = '7.9.3'
+__version__ = '7.9.4'
 
 # Log module initialization
 xbmc.log(f'[SIMKL Scrobbler] rating.py v{__version__} - Rating service module loading', level=xbmc.LOGINFO)
@@ -331,32 +333,37 @@ class RatingService:
                 return False
         return False
     
+    def _ratings_cache_path(self, api_type):
+        """Return the filesystem path for the ratings cache file."""
+        profile = self.addon.getAddonInfo('profile')
+        return xbmcvfs.translatePath(f"{profile}rating_cache_{api_type}.json")
+
     def _load_ratings_cache(self, api_type):
         """
         Load the flat ratings cache written by SyncManager._save_ratings_cache().
 
-        The cache is stored in addon settings as JSON under 'rating_cache_movies'
-        or 'rating_cache_shows'. Keys are like "imdb:tt1234567", "simkl:12345",
-        "tmdb:12345", "tvdb:81189". Values are integer ratings (1-10).
-
-        Uses self.addon rather than constructing a new Addon() instance, saving
-        the addon.xml parse overhead on every call.
+        The cache is stored as a JSON file in the addon's profile directory
+        (rather than in addon settings, which has a ~65 KB limit on some
+        platforms that would silently truncate the movie ratings cache).
+        Keys are like "imdb:tt1234567", "simkl:12345". Values are ratings (1-10).
 
         Args:
             api_type (str): 'movies' or 'shows'
 
         Returns:
-            dict or None: {id_key: rating} if the setting is populated,
-                          None if the setting is missing/empty (cache not yet written)
+            dict or None: {id_key: rating} if the file exists and is valid,
+                          None if the file is absent (cache not yet written)
         """
         try:
-            raw = self.addon.getSetting(f'rating_cache_{api_type}')
-            if raw:
-                return json.loads(raw)
+            path = self._ratings_cache_path(api_type)
+            with open(path, 'r', encoding='utf-8') as fh:
+                return json.loads(fh.read())
+        except FileNotFoundError:
+            return None
         except Exception as e:
             utils.log(f"[rating v{__version__}] RatingService._load_ratings_cache() "
                       f"Failed to read ratings cache: {e}", xbmc.LOGWARNING)
-        return None
+            return None
 
     def _patch_ratings_cache(self, media_type, media_info, rating):
         """
@@ -375,8 +382,12 @@ class RatingService:
         """
         try:
             api_type = 'movies' if media_type == 'movie' else 'shows'
-            raw = self.addon.getSetting(f'rating_cache_{api_type}')
-            cache = json.loads(raw) if raw else {}
+            path = self._ratings_cache_path(api_type)
+            try:
+                with open(path, 'r', encoding='utf-8') as fh:
+                    cache = json.loads(fh.read())
+            except (FileNotFoundError, json.JSONDecodeError):
+                cache = {}
             for prefix, value in (
                 ('simkl', media_info.get('simkl_id')),
                 ('imdb',  media_info.get('imdb_id')),
@@ -389,11 +400,9 @@ class RatingService:
                         cache[key] = rating
                     else:
                         cache.pop(key, None)
-            # Use explicit addon ID for the write so this is correct regardless
-            # of which addon is "active" in the calling context.
-            xbmcaddon.Addon('script.simkl.scrobbler').setSetting(
-                f'rating_cache_{api_type}', json.dumps(cache)
-            )
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            with open(path, 'w', encoding='utf-8') as fh:
+                fh.write(json.dumps(cache))
             utils.log(f"[rating v{__version__}] RatingService._patch_ratings_cache() "
                       f"Cache updated: {media_type} rating → {rating}")
         except Exception as e:

@@ -1,10 +1,26 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
 SIMKL Scrobbler for Kodi
-Version: 7.9.3
+Version: 7.9.4
 Last Modified: 2026-05-28
 
 CHANGELOG:
+7.9.4 - Fix: constant "failed to parse old setting definition for auto_sync_interval"
+        log warnings
+        Root cause: type="select" with nested <option> children is new-format
+        Kodi settings syntax. Because settings.xml carries no version attribute,
+        Kodi uses the old-format parser which does not understand type="select",
+        logs the warning, and re-logs it on every getSetting/setSetting call in
+        the addon (~30 times per session at startup).
+        Fix: changed auto_sync_interval to type="labelenum" lvalues="..."
+        which is the valid old-format equivalent. service.py updated to map
+        labelenum index→hours; old stored hours-values (from pre-v7.9.4) are
+        detected and used directly so existing settings survive the migration.
+        Fix: ratings cache moved from addon settings (capped ~65 KB on some
+        platforms) to a JSON file in the addon profile directory. The movie
+        ratings cache was 191 KB — large enough to be silently truncated,
+        causing persistent cache misses and a 4-second API call on every
+        rating dialog open.
 7.9.3 - Fix: "Currently Watching" banner never appeared on SIMKL website
         Root cause: periodic keepalive was firing every 15 minutes (900 s)
         instead of every 15 seconds. SIMKL's banner requires repeated
@@ -311,7 +327,7 @@ CHANGELOG:
 -->
 <addon id="script.simkl.scrobbler"
        name="SIMKL Scrobbler"
-       version="7.9.3"
+       version="7.9.4"
        provider-name="Claude.ai with assistance from Michael Beck">
     
     <requires>

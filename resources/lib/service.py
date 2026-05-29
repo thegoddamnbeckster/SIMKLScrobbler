@@ -45,10 +45,18 @@ from resources.lib.strings import (
 )
 
 # Module version
-__version__ = '7.9.3'
+__version__ = '7.9.4'
 
 # Log module initialization
 xbmc.log(f'[SIMKL Scrobbler] service.py v{__version__} - Main service module loading', level=xbmc.LOGINFO)
+
+# auto_sync_interval index→hours table.
+# Settings switched to type="labelenum" in v7.9.4, which stores the selected
+# INDEX. Values > 4 are the old type="select" hours stored by pre-v7.9.4
+# installs; they are used directly. 0 and 1 are valid in both schemes and
+# produce the same result, so there is no ambiguity for those two positions.
+_SYNC_INTERVAL_VALID_HOURS = {0, 1, 6, 12, 24}
+_SYNC_INTERVAL_BY_INDEX = {0: 0, 1: 1, 2: 6, 3: 12, 4: 24}
 
 
 class SimklService:
@@ -239,14 +247,18 @@ class SimklService:
         Returns True if sync was triggered, False otherwise.
         """
         try:
-            # Get interval setting (in hours, 0 = off)
-            # Note: This is a <select> setting - getSettingInt returns the index,
-            # not the value. Use get_setting() to get the actual option value text.
+            # auto_sync_interval is type="labelenum" (v7.9.4+), storing the
+            # selected index (0–4). Pre-v7.9.4 installs stored actual hours
+            # (0/1/6/12/24). Both are handled via module-level constants.
             interval_str = get_setting('auto_sync_interval')
             try:
-                interval_hours = int(interval_str) if interval_str else 0
+                val = int(interval_str) if interval_str else 2
+                if val in _SYNC_INTERVAL_VALID_HOURS:
+                    interval_hours = val
+                else:
+                    interval_hours = _SYNC_INTERVAL_BY_INDEX.get(val, 6)
             except (ValueError, TypeError):
-                interval_hours = 0
+                interval_hours = 6
             
             if interval_hours == 0:
                 return False  # Scheduled sync is disabled
