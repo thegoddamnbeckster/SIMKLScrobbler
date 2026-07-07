@@ -1,10 +1,51 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
 SIMKL Scrobbler for Kodi
-Version: 7.9.5
-Last Modified: 2026-05-28
+Version: 7.9.6
+Last Modified: 2026-07-06
 
 CHANGELOG:
+7.9.6 - Fix: rewatching a show whose title couldn't be matched to SIMKL wiped
+        its entire watch history back to unwatched in Kodi
+        Root cause 1: Kodi's scraper stores some titles with the single
+        Unicode ellipsis character (e.g. "Marvel's What If…?") while SIMKL
+        returns three ASCII periods ("What If...?"). The title+year fallback
+        match compared these with a plain .lower().strip(), so they never
+        matched. Added normalize_title() (utils.py) which folds the Unicode
+        ellipsis and curly quotes to their ASCII equivalents before
+        lower()/strip(); applied at all 8 title+year matching call sites in
+        sync.py (movies, shows, and ratings).
+        Root cause 2 (the actual data-loss bug): when a show failed to match
+        SIMKL for ANY reason — the ellipsis mismatch above, a missing/
+        non-overlapping ID, etc. — _build_simkl_episode_set() silently
+        contributed none of that show's episodes to the "on SIMKL" set, and
+        _unmark_episodes_not_on_simkl() then treated every currently-watched
+        Kodi episode of that show as "confirmed absent from SIMKL" and reset
+        it to unwatched. A local matching failure is not proof a show is
+        missing from SIMKL. _build_simkl_episode_set() now also returns
+        matched_tvshowids (shows it successfully identified); the unmark pass
+        only evaluates episodes belonging to those shows and leaves
+        unmatched shows' watch state untouched, logging a warning instead.
+        Hardening beyond the reported case: normalize_title() now also runs
+        Unicode NFKC compatibility normalization first (folds non-breaking
+        spaces, full-width punctuation, ligatures, etc. — anything Unicode
+        itself defines as compatibility-equivalent) and collapses repeated
+        whitespace, so the same class of mismatch is closed for titles
+        beyond just the ellipsis case. Also added find_imdb_id_in_uniqueid()
+        (utils.py): some Kodi scraper configs file an IMDb id under a
+        generic "unknown" uniqueid key instead of tagging it "imdb", which
+        made an otherwise-correctly-identified show look like it had no IDs
+        at all and forced it onto the same fragile title+year path. Since an
+        IMDb id's "tt\d+" format is unambiguous regardless of key name, it
+        is rescued safely in _extract_ids(), _build_kodi_show_index(), and
+        _build_kodi_movie_index() without risk of misclassifying a tvdb/tmdb
+        id (which cannot be disambiguated from a bare key name and are left
+        alone).
+        Tests: 73 (was 57 — +16 new, test_title_matching.py) — ellipsis/
+        curly-quote/NBSP normalization, a false-match sanity guard, IMDb
+        rescue from a mislabeled key, title+year fallback across ellipsis
+        variants, and the unmark safety net (unmatched show untouched;
+        matched show still unmarks a genuinely SIMKL-absent episode).
 7.9.5 - Code review follow-up: circuit-breaker, deduplication, atomic writes,
         settings UI migration, tests
         Fix: keepalive sent /scrobble/start every 15 s indefinitely even when
@@ -352,7 +393,7 @@ CHANGELOG:
 -->
 <addon id="script.simkl.scrobbler"
        name="SIMKL Scrobbler"
-       version="7.9.5"
+       version="7.9.6"
        provider-name="Claude.ai with assistance from Michael Beck">
     
     <requires>

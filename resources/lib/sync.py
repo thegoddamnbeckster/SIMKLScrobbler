@@ -28,12 +28,13 @@ import xbmcgui
 from datetime import datetime, timezone
 from resources.lib.utils import (
     log, log_error, log_debug, log_warning,
-    get_setting_bool, notify, get_ratings_cache_path,
+    get_setting_bool, notify, get_ratings_cache_path, normalize_title,
+    find_imdb_id_in_uniqueid,
 )
 from resources.lib.api import SimklAPI
 
 # Module version
-__version__ = '7.9.5'
+__version__ = '7.9.6'
 
 # Log module initialization
 xbmc.log(f'[SIMKL Scrobbler] sync.py v{__version__} - Sync manager module loading', level=xbmc.LOGINFO)
@@ -785,6 +786,16 @@ class SyncManager:
                     log_warning(f"[sync v{__version__}] SyncManager._extract_ids() "
                                 f"tvdb {uniqueid['tvdb']!r} is not numeric — skipping")
 
+            # Rescue an IMDb ID filed under a non-standard key (e.g. "unknown"
+            # or "unspecified") — some scraper configs don't tag the provider.
+            # An IMDb ID is unambiguous ("tt\d+") regardless of its key name.
+            if "imdb" not in ids:
+                rescued_imdb = find_imdb_id_in_uniqueid(uniqueid)
+                if rescued_imdb:
+                    ids["imdb"] = rescued_imdb
+                    log_debug(f"[sync v{__version__}] SyncManager._extract_ids() "
+                              f"Rescued IMDb id {rescued_imdb!r} from a non-standard uniqueid key")
+
         # Check imdbnumber field (older Kodi / fallback)
         if "imdbnumber" in item and item["imdbnumber"]:
             imdb = item["imdbnumber"]
@@ -1258,7 +1269,7 @@ class SyncManager:
         # overlaps with what the Kodi scraper recorded (e.g. SIMKL only returns
         # simkl/slug IDs, or Kodi used a different scraper source).
         if show_title and show_year:
-            key = (show_title.lower().strip(), int(show_year))
+            key = (normalize_title(show_title), int(show_year))
             if key in kodi_shows_by_id.get("title_year", {}):
                 log_debug(f"[sync v{__version__}] SyncManager._match_show_to_kodi() "
                           f"Matched by title+year: '{show_title}' ({show_year})")
@@ -1278,18 +1289,25 @@ class SyncManager:
         for movie in kodi_movies:
             # Index by uniqueid
             uniqueid = movie.get("uniqueid", {})
-            
+
             if uniqueid.get("imdb"):
                 index["imdb"][uniqueid["imdb"]] = movie
-            
+
             if uniqueid.get("tmdb"):
                 index["tmdb"][str(uniqueid["tmdb"])] = movie
-            
+
             # Also check imdbnumber field
             imdbnumber = movie.get("imdbnumber", "")
             if imdbnumber.startswith("tt"):
                 index["imdb"][imdbnumber] = movie
-        
+
+            # Rescue an IMDb ID filed under a non-standard uniqueid key (e.g.
+            # "unknown") that the checks above missed.
+            if not uniqueid.get("imdb") and not imdbnumber.startswith("tt"):
+                rescued_imdb = find_imdb_id_in_uniqueid(uniqueid)
+                if rescued_imdb:
+                    index["imdb"][rescued_imdb] = movie
+
         return index
     
     def _build_kodi_show_index(self, kodi_shows):
@@ -1321,13 +1339,22 @@ class SyncManager:
             elif imdbnumber.isdigit():
                 index["tvdb"][imdbnumber] = show
 
+            # Rescue an IMDb ID filed under a non-standard uniqueid key (e.g.
+            # "unknown") that the checks above missed. Unlike tvdb/tmdb, an
+            # IMDb id's "tt\d+" format is unambiguous regardless of key name,
+            # so this can't accidentally misclassify a tvdb/tmdb id as imdb.
+            if not uniqueid.get("imdb") and not imdbnumber.startswith("tt"):
+                rescued_imdb = find_imdb_id_in_uniqueid(uniqueid)
+                if rescued_imdb:
+                    index["imdb"][rescued_imdb] = show
+
             # Title+year fallback — populated for every show that has both fields.
             # Used when SIMKL returns no ID that overlaps with what Kodi scraped.
             title = show.get("title", "")
             year = show.get("year")
             if title and year:
                 try:
-                    index["title_year"][(title.lower().strip(), int(year))] = show
+                    index["title_year"][(normalize_title(title), int(year))] = show
                 except (ValueError, TypeError):
                     pass  # malformed year from Kodi — skip title+year index entry
 
@@ -1458,7 +1485,7 @@ class SyncManager:
                 simkl_movie_ids.add(("tmdb", tmdb_key))
             if title and year:
                 try:
-                    simkl_by_title_year[(title.lower().strip(), int(year))] = simkl_movie
+                    simkl_by_title_year[(normalize_title(title), int(year))] = simkl_movie
                 except (ValueError, TypeError):
                     log_warning(f"[sync v{__version__}] SyncManager.import_movies_from_simkl() "
                                 f"Could not parse year {year!r} for '{title}' — skipping title+year index")
@@ -1491,7 +1518,7 @@ class SyncManager:
                 if title and kodi_year:
                     try:
                         simkl_movie = simkl_by_title_year.get(
-                            (title.lower().strip(), int(kodi_year))
+                            (normalize_title(title), int(kodi_year))
                         )
                     except (ValueError, TypeError):
                         pass  # malformed year — skip title+year lookup
@@ -1734,7 +1761,7 @@ class SyncManager:
                 simkl_by_tmdb[tmdb_key] = simkl_show
             if title and year:
                 try:
-                    simkl_by_title_year[(title.lower().strip(), int(year))] = simkl_show
+                    simkl_by_title_year[(normalize_title(title), int(year))] = simkl_show
                 except (ValueError, TypeError):
                     log_warning(f"[sync v{__version__}] SyncManager.import_episodes_from_simkl() "
                                 f"Could not parse year {year!r} for '{title}' — skipping title+year index")
@@ -1800,7 +1827,7 @@ class SyncManager:
                 if show_title and kodi_show_year:
                     try:
                         simkl_show = simkl_by_title_year.get(
-                            (show_title.lower().strip(), int(kodi_show_year))
+                            (normalize_title(show_title), int(kodi_show_year))
                         )
                     except (ValueError, TypeError):
                         pass  # malformed year — skip title+year lookup
@@ -1881,8 +1908,8 @@ class SyncManager:
                 if self.progress_dialog:
                     self.progress_dialog.update(80, "Checking for episodes to unmark...")
                 # Build set of watched episodes on SIMKL for checking
-                simkl_episodes = self._build_simkl_episode_set(all_shows, show_index)
-                unmarked = self._unmark_episodes_not_on_simkl(kodi_episodes, simkl_episodes)
+                simkl_episodes, matched_tvshowids = self._build_simkl_episode_set(all_shows, show_index)
+                unmarked = self._unmark_episodes_not_on_simkl(kodi_episodes, simkl_episodes, matched_tvshowids)
                 self.stats['episodes_unmarked'] = unmarked
                 log(f"[sync v{__version__}] SyncManager.import_episodes_from_simkl() Unmarked {unmarked} episodes not found on SIMKL")
 
@@ -1894,78 +1921,118 @@ class SyncManager:
     def _build_simkl_episode_set(self, simkl_shows, kodi_show_index):
         """
         Build a set of (tvshowid, season, episode) tuples for episodes on SIMKL.
-        
+
         Args:
             simkl_shows (list): Shows from SIMKL
             kodi_show_index (dict): Kodi show index for matching
-            
+
         Returns:
-            set: Set of (tvshowid, season, episode) tuples
+            tuple: (episode_set, matched_tvshowids)
+                episode_set (set): (tvshowid, season, episode) tuples watched
+                    on SIMKL.
+                matched_tvshowids (set): Kodi tvshowids that were successfully
+                    identified as existing on SIMKL at all (independent of
+                    which specific episodes are watched). A show whose
+                    tvshowid is NOT in this set could not be matched to any
+                    SIMKL entry by ID or by title+year — that does not prove
+                    the show is absent from SIMKL, only that our local match
+                    failed (e.g. a title punctuation mismatch, or the Kodi
+                    scraper not recording an ID SIMKL also returns). Callers
+                    must treat "unmatched" as "unknown", not "confirmed
+                    absent" — see _unmark_episodes_not_on_simkl().
         """
         episode_set = set()
-        
+        matched_tvshowids = set()
+
         for simkl_show in simkl_shows:
             show_data = simkl_show.get("show", {})
             show_ids = show_data.get("ids", {})
+            show_title = show_data.get("title", "")
 
             # Find show in Kodi — try IDs first, fall back to title+year
             kodi_show = self._match_show_to_kodi(
                 show_ids, kodi_show_index,
-                show_title=show_data.get("title", ""),
+                show_title=show_title,
                 show_year=show_data.get("year")
             )
             if not kodi_show:
+                log_debug(f"[sync v{__version__}] SyncManager._build_simkl_episode_set() "
+                          f"Could not match SIMKL show to Kodi library: '{show_title}' "
+                          f"(ids={show_ids}) — its Kodi episodes will be left untouched "
+                          f"by the unmark pass rather than treated as confirmed-absent")
                 continue
-            
+
             kodi_tvshowid = kodi_show.get("tvshowid")
+            matched_tvshowids.add(kodi_tvshowid)
             seasons = simkl_show.get("seasons", [])
-            
+
             for season_data in seasons:
                 season_num = season_data.get("number", 0)
                 episodes = season_data.get("episodes", [])
-                
+
                 for ep_data in episodes:
                     ep_num = ep_data.get("number", 0)
                     episode_set.add((kodi_tvshowid, season_num, ep_num))
-        
-        return episode_set
+
+        return episode_set, matched_tvshowids
     
-    def _unmark_episodes_not_on_simkl(self, kodi_episodes, simkl_episodes):
+    def _unmark_episodes_not_on_simkl(self, kodi_episodes, simkl_episodes, matched_tvshowids):
         """
         Unmark episodes in Kodi that are watched but not on SIMKL.
-        
+
+        Only evaluates episodes belonging to shows in matched_tvshowids — shows
+        that _build_simkl_episode_set() successfully identified on SIMKL. A show
+        that could not be matched at all is left completely untouched here: a
+        matching failure means "unknown", not "confirmed absent from SIMKL", and
+        treating it as the latter would reset every watched episode of that show
+        back to unwatched even though it is genuinely watched on SIMKL.
+
         Args:
             kodi_episodes (list): All episodes from Kodi
             simkl_episodes (set): Set of (tvshowid, season, episode) tuples from SIMKL
-            
+            matched_tvshowids (set): Kodi tvshowids successfully matched to a SIMKL show
+
         Returns:
             int: Number of episodes unmarked
         """
         log(f"[sync v{__version__}] SyncManager._unmark_episodes_not_on_simkl() Checking for episodes to unmark (not on SIMKL)...")
         unmarked = 0
-        
+        skipped_shows = set()
+
         for episode in kodi_episodes:
             # Skip if not watched
             if episode.get("playcount", 0) == 0:
                 continue
-            
-            # Check if this episode is on SIMKL
+
             tvshowid = episode.get("tvshowid")
+
+            # Show could not be matched to any SIMKL entry — leave it alone
+            # rather than risk wiping a genuinely-watched show's history.
+            if tvshowid not in matched_tvshowids:
+                skipped_shows.add(tvshowid)
+                continue
+
+            # Check if this episode is on SIMKL
             season = episode.get("season", 0)
             episode_num = episode.get("episode", 0)
-            
+
             if (tvshowid, season, episode_num) not in simkl_episodes:
                 # Not on SIMKL, unmark it
                 episode_id = episode.get("episodeid")
                 title = episode.get("showtitle", "Unknown")
-                
+
                 if self._set_episode_playcount(episode_id, 0):
                     log(f"[sync v{__version__}] SyncManager._unmark_episodes_not_on_simkl() Unmarked (not on SIMKL): {title} S{season:02d}E{episode_num:02d}")
                     unmarked += 1
                 else:
                     log_error(f"[sync v{__version__}] SyncManager._unmark_episodes_not_on_simkl() Failed to unmark: {title} S{season:02d}E{episode_num:02d}")
                     self.stats['errors'] += 1
-        
+
+        if skipped_shows:
+            log_warning(f"[sync v{__version__}] SyncManager._unmark_episodes_not_on_simkl() "
+                        f"Skipped unmark check for {len(skipped_shows)} show(s) that couldn't be "
+                        f"matched to a SIMKL entry — left untouched (not treated as confirmed-absent)")
+
         return unmarked
     
     # ========== Rating Sync ==========
@@ -2276,7 +2343,7 @@ class SyncManager:
                     simkl_show_rating_by_tmdb[str(ids["tmdb"])] = rating
                 if title and year:
                     try:
-                        simkl_show_rating_by_title_year[(title.lower().strip(), int(year))] = rating
+                        simkl_show_rating_by_title_year[(normalize_title(title), int(year))] = rating
                     except (ValueError, TypeError):
                         log_warning(f"[sync v{__version__}] SyncManager.import_ratings_from_simkl() "
                                     f"Could not parse year {year!r} for '{title}' — skipping title+year index")
@@ -2306,7 +2373,7 @@ class SyncManager:
             if simkl_rating is None and title and year:
                 try:
                     simkl_rating = simkl_show_rating_by_title_year.get(
-                        (title.lower().strip(), int(year))
+                        (normalize_title(title), int(year))
                     )
                 except (ValueError, TypeError):
                     pass  # malformed year — skip title+year lookup

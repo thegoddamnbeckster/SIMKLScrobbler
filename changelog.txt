@@ -1,4 +1,65 @@
 
+[7.9.6] - 2026-07-06
+Rewatching a show reset its entire watch history to unwatched in Kodi
+
+BUGFIX: Destructive unmark on show-matching failure
+- Root cause: import_episodes_from_simkl()'s "unmark not on SIMKL" pass
+  conflated "couldn't match this show to SIMKL" with "confirmed absent from
+  SIMKL". _build_simkl_episode_set() silently skipped a SIMKL show's episodes
+  whenever _match_show_to_kodi() failed (bad/missing IDs, title mismatch,
+  etc.), and _unmark_episodes_not_on_simkl() then treated every one of that
+  show's already-watched Kodi episodes as "not on SIMKL" and reset them to
+  unwatched — even though the show was fully watched on SIMKL. Reported via
+  a rewatch of "Marvel's What If...?": seasons 1-2 were wiped back to
+  unwatched in Kodi on every sync despite SIMKL correctly showing them
+  watched.
+- Fix: _build_simkl_episode_set() now also returns matched_tvshowids (the
+  set of Kodi shows it actually matched to a SIMKL entry).
+  _unmark_episodes_not_on_simkl() only evaluates episodes belonging to shows
+  in that set; a show that failed to match at all is left completely
+  untouched and a log_warning is emitted instead of destroying its watch
+  history.
+
+BUGFIX: Title+year fallback failed on Unicode ellipsis / curly-quote titles
+- Root cause: some Kodi scrapers store titles using the single Unicode
+  ellipsis character (U+2026, "What If…?") while SIMKL returns the same
+  title spelled with three ASCII periods ("What If...?"). The title+year
+  matching fallback (used across movies, shows, and ratings sync) compared
+  these with plain .lower().strip(), which does not fold different code
+  points, so visually-identical titles never matched — this was the
+  proximate trigger for the destructive unmark above.
+- Fix: added normalize_title() in utils.py, which folds the Unicode ellipsis
+  and curly quotes/apostrophes to their ASCII equivalents before
+  lower()/strip(). Applied at all 8 title+year key-building call sites in
+  sync.py.
+
+HARDENING: Broader Unicode normalization + mislabeled-ID rescue
+- normalize_title() now runs Unicode NFKC compatibility normalization before
+  the explicit ellipsis/quote mapping, so any codepoint Unicode itself
+  defines as compatibility-equivalent (non-breaking space vs regular space,
+  full-width punctuation, ligatures) is folded automatically instead of
+  needing a hand-written map entry per case. Repeated whitespace is also
+  collapsed. This closes the same class of bug for titles beyond the
+  reported ellipsis case, without risking false matches between genuinely
+  different titles (NFKC only folds Unicode-defined equivalences).
+- Added find_imdb_id_in_uniqueid() in utils.py: some Kodi scraper configs
+  file an IMDb id under a generic "unknown" uniqueid key instead of tagging
+  it "imdb". That made an otherwise-correctly-identified show look like it
+  had no IDs at all, forcing it onto the same fragile title+year path this
+  whole fix is about. An IMDb id's "tt\d+" format is unambiguous regardless
+  of key name, so it's rescued safely in _extract_ids(),
+  _build_kodi_show_index(), and _build_kodi_movie_index(). A bare numeric
+  value under "unknown" is left alone — it could be a tvdb or tmdb id and
+  can't be disambiguated from the key name alone, so it is not guessed.
+
+TEST: 73 tests (was 57 — +16 new)
+- test_title_matching.py: normalize_title() ellipsis/curly-quote/NBSP
+  folding, a sanity guard that two different titles never collapse to the
+  same key, find_imdb_id_in_uniqueid() rescue and non-guessing behavior,
+  _match_show_to_kodi() title+year fallback across ellipsis variants, and
+  the unmark safety net (unmatched show left untouched; a genuinely
+  SIMKL-absent episode on a matched show still gets unmarked).
+
 [7.9.5] - 2026-05-28
 Code review follow-up: circuit-breaker, deduplication, atomic writes, migration, tests
 

@@ -14,13 +14,15 @@ Attribution: Claude.ai with assistance from Michael Beck
 """
 
 import os
+import re
+import unicodedata
 import xbmc
 import xbmcaddon
 import xbmcgui
 import xbmcvfs
 
 # Module version
-__version__ = '7.8.7'
+__version__ = '7.9.6'
 
 # Log module initialization
 xbmc.log(f'[SIMKL Scrobbler] utils.py v{__version__} - Utility module loading', level=xbmc.LOGINFO)
@@ -377,6 +379,98 @@ def resolve_sync_interval_hours(stored_value):
         return _SYNC_INTERVAL_BY_INDEX.get(val, 6)      # New format: stored index
     except (ValueError, TypeError):
         return 6                                         # Corrupt value → 6 h fallback
+
+
+# ---------------------------------------------------------------------------
+# Title normalization for title+year matching
+# ---------------------------------------------------------------------------
+# Different metadata sources encode the same title with different code
+# points for visually-identical punctuation: TheTVDB/Kodi scrapers commonly
+# use the single Unicode ellipsis character U+2026 ("What If…?"),
+# while SIMKL/TMDB commonly spell it out as three ASCII periods
+# ("What If...?"). A plain .lower().strip() treats these as different
+# strings, so the title+year fallback match silently fails for any show
+# whose title contains an ellipsis (or a curly apostrophe/quote) — even
+# though the titles are visually identical. That failure is dangerous here:
+# sync.py's "unmark not on SIMKL" pass treats an unmatched show as "confirmed
+# absent from SIMKL" and resets every locally-watched episode to unwatched.
+#
+# NFKC compatibility normalization is applied first to fold a much broader
+# class of visually-identical-but-different-codepoint variants automatically
+# (non-breaking space U+00A0 -> regular space, full-width punctuation used by
+# some anime/JP metadata sources, ligatures, etc.) without needing an
+# explicit map entry for each one. It deliberately does NOT cover the
+# ellipsis character or curly quotes below (Unicode does not define a
+# compatibility decomposition for either), so those still need the explicit
+# map. NFKC only folds codepoints Unicode itself defines as compatibility-
+# equivalent, so it cannot introduce a false match between two genuinely
+# different titles.
+_TITLE_NORMALIZE_MAP = {
+    "…": "...",  # HORIZONTAL ELLIPSIS -> three ASCII periods
+    "‘": "'",    # LEFT SINGLE QUOTATION MARK
+    "’": "'",    # RIGHT SINGLE QUOTATION MARK (curly apostrophe)
+    "“": '"',    # LEFT DOUBLE QUOTATION MARK
+    "”": '"',    # RIGHT DOUBLE QUOTATION MARK
+}
+
+_WHITESPACE_RE = re.compile(r"\s+")
+
+
+def normalize_title(title):
+    """
+    Normalize a title for use as a title+year matching key.
+
+    Applies Unicode NFKC compatibility normalization, folds punctuation
+    variants (ellipsis character, curly quotes) to their plain-ASCII
+    equivalents, lowercases, and collapses whitespace — so that titles from
+    different metadata sources compare equal even when they use different
+    code points or spacing for the same visible text.
+
+    Args:
+        title (str): Raw title string (may be None/empty).
+
+    Returns:
+        str: Normalized title, or "" if title was falsy.
+    """
+    if not title:
+        return ""
+    normalized = unicodedata.normalize("NFKC", title)
+    for src, dst in _TITLE_NORMALIZE_MAP.items():
+        normalized = normalized.replace(src, dst)
+    normalized = _WHITESPACE_RE.sub(" ", normalized)
+    return normalized.lower().strip()
+
+
+# ---------------------------------------------------------------------------
+# IMDb ID rescue from mislabeled uniqueid entries
+# ---------------------------------------------------------------------------
+# Kodi's uniqueid dict is normally keyed by provider name ("imdb", "tvdb",
+# "tmdb"), but some scraper configurations store an ID under a generic
+# "unknown"/"unspecified" key instead of tagging its provider — code that
+# only checks the named keys (uniqueid.get("imdb") etc.) silently treats
+# that show as if it had no IDs at all, even though it was correctly
+# identified by the scraper. An IMDb ID is unambiguous regardless of which
+# key it's filed under: it always matches ^tt\d+$. This scans every value in
+# a uniqueid dict for that pattern so a mislabeled IMDb ID is still found.
+_IMDB_ID_RE = re.compile(r"^tt\d+$")
+
+
+def find_imdb_id_in_uniqueid(uniqueid):
+    """
+    Find an IMDb ID anywhere in a Kodi uniqueid dict, regardless of its key.
+
+    Args:
+        uniqueid (dict): Kodi's uniqueid mapping (e.g. {"unknown": "tt123..."}).
+
+    Returns:
+        str or None: The IMDb ID ("tt1234567") if found, else None.
+    """
+    if not uniqueid:
+        return None
+    for value in uniqueid.values():
+        if isinstance(value, str) and _IMDB_ID_RE.match(value):
+            return value
+    return None
 
 
 # End of utils.py
