@@ -1,10 +1,40 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
 SIMKL Scrobbler for Kodi
-Version: 7.9.6
-Last Modified: 2026-07-06
+Version: 7.9.7
+Last Modified: 2026-07-07
 
 CHANGELOG:
+7.9.7 - Fix: confirmed via a live kodi.log that Kodi's TVDB v4 scraper had
+        attached the identical value to a show's tvdb_id AND tmdb_id
+        (both "10771832" for "What If...?"). TVDB and TMDB are independent
+        numbering spaces run by unrelated organizations — a genuine
+        collision is effectively impossible, so this meant the scraper
+        wrote one (wrong) value into both fields.
+        Real-time scrobbling trusted this bogus pair and posted it straight
+        to SIMKL's /scrobble endpoints, which resolved (or 404'd on) it
+        unpredictably, while the separate bulk-sync path correctly fell
+        back to title+year matching for the same show. That split-brain
+        disagreement between the two identification paths meant a
+        genuinely-watched episode looked "not on SIMKL" from the sync
+        path's perspective, and the v7.9.6 unmark-safety-net (which only
+        protects shows that fail to match AT ALL, not individual episodes
+        within a matched show) correctly-but-unhelpfully reset it to
+        unwatched in Kodi. Log evidence: episodes S02E06-E09 and S03E01
+        were unmarked in a single full sync immediately after S03E01 was
+        scrobbled using the bogus id pair.
+        Fix: added has_suspicious_tvdb_tmdb_collision() (utils.py) — when
+        tvdb_id and tmdb_id are identical, both are dropped and the title+
+        year fallback (already proven reliable) takes over instead. Wired
+        into the real-time path (service.py._get_video_data(), the single
+        upstream source scrobbler.py reads from) and all three sync.py ID
+        sites (_extract_ids(), _build_kodi_show_index(),
+        _build_kodi_movie_index() has no tvdb usage so was unaffected).
+        Tests: 80 (was 73 — +7 new) — collision detection across
+        str/int/None inputs, _extract_ids() dropping both ids on collision
+        while leaving genuinely-distinct pairs untouched, and
+        _build_kodi_show_index() excluding a colliding show from both id
+        indexes while still allowing title+year fallback to work.
 7.9.6 - Fix: rewatching a show whose title couldn't be matched to SIMKL wiped
         its entire watch history back to unwatched in Kodi
         Root cause 1: Kodi's scraper stores some titles with the single
@@ -393,7 +423,7 @@ CHANGELOG:
 -->
 <addon id="script.simkl.scrobbler"
        name="SIMKL Scrobbler"
-       version="7.9.6"
+       version="7.9.7"
        provider-name="Claude.ai with assistance from Michael Beck">
     
     <requires>

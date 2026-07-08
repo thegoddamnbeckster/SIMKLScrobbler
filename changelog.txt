@@ -1,4 +1,42 @@
 
+[7.9.7] - 2026-07-07
+Root cause of the v7.9.6 "What If...?" report, confirmed via a live kodi.log
+
+BUGFIX: tvdb_id/tmdb_id collision from a scraper bug
+- Root cause (confirmed from a debug log, not inferred): Kodi's TheTVDB v4
+  scraper had attached the identical value "10771832" to BOTH the show's
+  tvdb_id and tmdb_id. TVDB and TMDB are independent numbering spaces run
+  by unrelated organizations — a genuine coincidental match is effectively
+  impossible, meaning the scraper wrote one (wrong) value into both fields.
+- Real-time scrobbling (service.py -> scrobbler.py) trusted this bogus id
+  pair and posted it straight to SIMKL's /scrobble/start and /scrobble/stop
+  endpoints. The separate bulk-sync path (sync.py) independently builds its
+  own Kodi-side id index and, since the bogus tvdb/tmdb never overlapped
+  with SIMKL's real ids for the show, correctly fell back to title+year
+  matching instead. The two identification paths disagreeing about the
+  same show meant SIMKL's per-episode "watched" state (built from the
+  bogus-id scrobbles) and the sync path's expectations (built from the
+  title-matched show) went out of sync — and the v7.9.6 unmark safety net,
+  which only protects a show that fails to match AT ALL, correctly (from
+  its own logic) unmarked the specific episodes SIMKL didn't report as
+  watched for the title-matched show. Log evidence: a full sync
+  immediately after S03E01 was scrobbled (using the bogus id pair) reset
+  S02E06, S02E07, S02E08, S02E09, and S03E01 back to unwatched in Kodi.
+- Fix: added has_suspicious_tvdb_tmdb_collision() in utils.py. When
+  tvdb_id and tmdb_id are identical, both are dropped and the title+year
+  fallback (already proven reliable in v7.9.6) takes over. Wired into:
+  service.py's _get_video_data() (the single upstream source
+  scrobbler.py's real-time identification reads from), and sync.py's
+  _extract_ids() and _build_kodi_show_index() (movies were unaffected —
+  _build_kodi_movie_index() never used tvdb).
+
+TEST: 80 tests (was 73 — +7 new)
+- test_title_matching.py: collision detection across str/int/None inputs,
+  _extract_ids() dropping both ids on a collision while leaving genuinely
+  distinct pairs untouched, and _build_kodi_show_index() excluding a
+  colliding show from both id indexes while confirming title+year fallback
+  still works for it.
+
 [7.9.6] - 2026-07-06
 Rewatching a show reset its entire watch history to unwatched in Kodi
 

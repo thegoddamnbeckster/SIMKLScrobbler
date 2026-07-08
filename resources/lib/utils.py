@@ -22,7 +22,7 @@ import xbmcgui
 import xbmcvfs
 
 # Module version
-__version__ = '7.9.6'
+__version__ = '7.9.7'
 
 # Log module initialization
 xbmc.log(f'[SIMKL Scrobbler] utils.py v{__version__} - Utility module loading', level=xbmc.LOGINFO)
@@ -471,6 +471,46 @@ def find_imdb_id_in_uniqueid(uniqueid):
         if isinstance(value, str) and _IMDB_ID_RE.match(value):
             return value
     return None
+
+
+# ---------------------------------------------------------------------------
+# tvdb/tmdb collision guard
+# ---------------------------------------------------------------------------
+# Observed in the wild: a Kodi scraper attached the identical numeric value
+# to both a show's tvdb_id and tmdb_id (e.g. tvdb=10771832, tmdb=10771832).
+# TVDB and TMDB are independent numbering spaces maintained by unrelated
+# organizations — a genuine coincidental match across both, for an arbitrary
+# show, is for practical purposes impossible. This pattern means the
+# scraper wrote one (usually wrong) value into both fields rather than
+# actually resolving two distinct IDs.
+#
+# Trusting a bogus ID here is worse than having no ID at all: real-time
+# scrobbling posts it straight to SIMKL's /scrobble endpoints, which may
+# resolve it to an unrelated show or fail unpredictably, while the
+# separate bulk sync path falls back to (correct) title+year matching.
+# The result is the same episode intermittently appearing "on SIMKL" and
+# "not on SIMKL" depending on which identification path ran — and because
+# the bulk sync's "unmark not on SIMKL" safety net treats a real per-episode
+# absence as authoritative, that oscillation can flip a genuinely-watched
+# episode back to unwatched in Kodi.
+#
+# Dropping both IDs and forcing the title+year fallback (which is already
+# proven reliable and consistent across every code path) is safer than
+# guessing which of the two fields, if either, is correct.
+def has_suspicious_tvdb_tmdb_collision(tvdb_id, tmdb_id):
+    """
+    Detect a Kodi scraper bug where tvdb_id and tmdb_id are identical.
+
+    Args:
+        tvdb_id: Raw tvdb id value (str/int/None) as delivered by Kodi.
+        tmdb_id: Raw tmdb id value (str/int/None) as delivered by Kodi.
+
+    Returns:
+        bool: True if both are present and equal (as strings) — untrustworthy.
+    """
+    if not tvdb_id or not tmdb_id:
+        return False
+    return str(tvdb_id) == str(tmdb_id)
 
 
 # End of utils.py

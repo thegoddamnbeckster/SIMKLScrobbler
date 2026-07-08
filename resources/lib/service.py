@@ -32,7 +32,7 @@ from resources.lib.api import SimklAPI
 from resources.lib.utils import (
     log, log_error, log_debug, log_warning,
     get_setting, get_setting_bool, get_setting_int,
-    resolve_sync_interval_hours,
+    resolve_sync_interval_hours, has_suspicious_tvdb_tmdb_collision,
 )
 from resources.lib.exclusions import check_exclusion, get_exclusion_summary
 from resources.lib.sync import SyncManager
@@ -49,7 +49,7 @@ from resources.lib.strings import (
 )
 
 # Module version
-__version__ = '7.9.5'
+__version__ = '7.9.7'
 
 # Log module initialization
 xbmc.log(f'[SIMKL Scrobbler] service.py v{__version__} - Main service module loading', level=xbmc.LOGINFO)
@@ -816,12 +816,25 @@ class SimklPlayer(xbmc.Player):
             except:
                 pass
             
-            # If getIMDBNumber() returned a pure number (likely TMDb ID) and 
+            # If getIMDBNumber() returned a pure number (likely TMDb ID) and
             # we don't have a TMDb ID yet, use it as TMDb
             if not video_data.get("tmdb_id") and raw_imdb and raw_imdb.isdigit():
                 video_data["tmdb_id"] = raw_imdb
                 log_debug(f"[service v{__version__}] SimklPlayer._get_video_data() Using getIMDBNumber() value '{raw_imdb}' as TMDb ID (pure numeric, no tt prefix)")
-            
+
+            # Guard against a scraper bug where tvdb_id and tmdb_id end up
+            # identical (e.g. both "10771832") — TVDB and TMDB are independent
+            # numbering spaces, so a real collision is effectively impossible.
+            # Trusting either would send a bogus ID to SIMKL's scrobble
+            # endpoints; drop both and let title+year identification take
+            # over instead.
+            if has_suspicious_tvdb_tmdb_collision(video_data.get("tvdb_id"), video_data.get("tmdb_id")):
+                log_warning(f"[service v{__version__}] SimklPlayer._get_video_data() "
+                            f"tvdb_id and tmdb_id are identical ({video_data.get('tvdb_id')!r}) — "
+                            f"treating both as untrustworthy scraper data and dropping them")
+                video_data.pop("tvdb_id", None)
+                video_data.pop("tmdb_id", None)
+
             # TV-specific info
             if media_type == "episode":
                 video_data["show_title"] = info_tag.getTVShowTitle() or video_data["title"]

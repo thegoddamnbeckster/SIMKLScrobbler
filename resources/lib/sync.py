@@ -29,12 +29,12 @@ from datetime import datetime, timezone
 from resources.lib.utils import (
     log, log_error, log_debug, log_warning,
     get_setting_bool, notify, get_ratings_cache_path, normalize_title,
-    find_imdb_id_in_uniqueid,
+    find_imdb_id_in_uniqueid, has_suspicious_tvdb_tmdb_collision,
 )
 from resources.lib.api import SimklAPI
 
 # Module version
-__version__ = '7.9.6'
+__version__ = '7.9.7'
 
 # Log module initialization
 xbmc.log(f'[SIMKL Scrobbler] sync.py v{__version__} - Sync manager module loading', level=xbmc.LOGINFO)
@@ -786,6 +786,17 @@ class SyncManager:
                     log_warning(f"[sync v{__version__}] SyncManager._extract_ids() "
                                 f"tvdb {uniqueid['tvdb']!r} is not numeric — skipping")
 
+            # Guard against a scraper bug where tvdb and tmdb end up identical
+            # (e.g. both 10771832) — a real collision across these independent
+            # numbering spaces is effectively impossible, so trusting either
+            # would associate the item with a bogus/wrong id on SIMKL.
+            if has_suspicious_tvdb_tmdb_collision(ids.get("tvdb"), ids.get("tmdb")):
+                log_warning(f"[sync v{__version__}] SyncManager._extract_ids() "
+                            f"tvdb and tmdb are identical ({ids.get('tvdb')!r}) — "
+                            f"dropping both as untrustworthy scraper data")
+                ids.pop("tvdb", None)
+                ids.pop("tmdb", None)
+
             # Rescue an IMDb ID filed under a non-standard key (e.g. "unknown"
             # or "unspecified") — some scraper configs don't tag the provider.
             # An IMDb ID is unambiguous ("tt\d+") regardless of its key name.
@@ -1326,11 +1337,20 @@ class SyncManager:
             if uniqueid.get("imdb"):
                 index["imdb"][uniqueid["imdb"]] = show
 
-            if uniqueid.get("tvdb"):
-                index["tvdb"][str(uniqueid["tvdb"])] = show
+            # Guard against a scraper bug where tvdb and tmdb end up identical
+            # (e.g. both 10771832) — a real collision across these independent
+            # numbering spaces is effectively impossible, so trusting either
+            # would match this show against a bogus/wrong SIMKL id.
+            if has_suspicious_tvdb_tmdb_collision(uniqueid.get("tvdb"), uniqueid.get("tmdb")):
+                log_warning(f"[sync v{__version__}] SyncManager._build_kodi_show_index() "
+                            f"'{show.get('title', '?')}' has identical tvdb/tmdb "
+                            f"({uniqueid.get('tvdb')!r}) — skipping both as untrustworthy")
+            else:
+                if uniqueid.get("tvdb"):
+                    index["tvdb"][str(uniqueid["tvdb"])] = show
 
-            if uniqueid.get("tmdb"):
-                index["tmdb"][str(uniqueid["tmdb"])] = show
+                if uniqueid.get("tmdb"):
+                    index["tmdb"][str(uniqueid["tmdb"])] = show
 
             # Check imdbnumber field
             imdbnumber = show.get("imdbnumber", "")

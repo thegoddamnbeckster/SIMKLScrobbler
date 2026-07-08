@@ -22,6 +22,18 @@ unwatched in Kodi:
    made a correctly-scraped show look like it had no IDs at all and forced it
    onto the same fragile title+year path. An IMDb id's "tt\\d+" format is
    unambiguous regardless of key name, so it can be rescued safely.
+
+4. has_suspicious_tvdb_tmdb_collision() — confirmed live via a real kodi.log:
+   Kodi's scraper attached the identical value to both tvdb_id and tmdb_id
+   for "What If...?" (both "10771832"). TVDB and TMDB are independent
+   numbering spaces, so a genuine collision is effectively impossible —
+   this meant the scraper wrote one (wrong) value into both fields. Trusting
+   it sent a bogus id to SIMKL's real-time scrobble endpoints, which
+   intermittently matched or 404'd depending on how SIMKL resolved it,
+   while the separate bulk-sync path fell back to title+year matching. That
+   split-brain behavior caused a genuinely-watched episode's per-episode
+   status to disagree between the two paths, and the "unmark not on SIMKL"
+   pass treated the disagreement as "not watched" and reset it in Kodi.
 """
 
 import sys
@@ -33,7 +45,9 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import tests.kodi_stubs  # noqa: F401 — side-effect: stubs xbmc/xbmcaddon/xbmcgui
 
 from resources.lib.sync import SyncManager
-from resources.lib.utils import normalize_title, find_imdb_id_in_uniqueid
+from resources.lib.utils import (
+    normalize_title, find_imdb_id_in_uniqueid, has_suspicious_tvdb_tmdb_collision,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -107,6 +121,61 @@ class TestFindImdbIdInUniqueid(unittest.TestCase):
             manager = SyncManager(show_progress=False, silent=True)
         ids = manager._extract_ids({"uniqueid": {"unknown": "tt2461178"}})
         self.assertEqual(ids["imdb"], "tt2461178")
+
+
+# ---------------------------------------------------------------------------
+# has_suspicious_tvdb_tmdb_collision() — the "What If...?" root cause
+# ---------------------------------------------------------------------------
+
+class TestTvdbTmdbCollisionGuard(unittest.TestCase):
+
+    def test_identical_values_are_suspicious(self):
+        """Reproduces the exact case from the live kodi.log: both ids '10771832'."""
+        self.assertTrue(has_suspicious_tvdb_tmdb_collision("10771832", "10771832"))
+
+    def test_identical_across_str_and_int_types(self):
+        self.assertTrue(has_suspicious_tvdb_tmdb_collision("10771832", 10771832))
+
+    def test_different_values_not_suspicious(self):
+        self.assertFalse(has_suspicious_tvdb_tmdb_collision("355243", "92749"))
+
+    def test_missing_either_value_not_suspicious(self):
+        self.assertFalse(has_suspicious_tvdb_tmdb_collision(None, "92749"))
+        self.assertFalse(has_suspicious_tvdb_tmdb_collision("355243", None))
+        self.assertFalse(has_suspicious_tvdb_tmdb_collision(None, None))
+
+    def test_extract_ids_drops_both_on_collision(self):
+        """Integration check: _extract_ids() must drop both ids rather than
+        forwarding a bogus pair to SIMKL. With no other usable id, the
+        method's contract is to return None (no ids)."""
+        with patch('resources.lib.sync.SimklAPI'):
+            manager = SyncManager(show_progress=False, silent=True)
+        ids = manager._extract_ids({"uniqueid": {"tvdb": "10771832", "tmdb": "10771832"}})
+        self.assertIsNone(ids)
+
+    def test_extract_ids_keeps_distinct_ids(self):
+        """Sanity check: the guard must not affect a normal, non-colliding pair."""
+        with patch('resources.lib.sync.SimklAPI'):
+            manager = SyncManager(show_progress=False, silent=True)
+        ids = manager._extract_ids({"uniqueid": {"tvdb": "355243", "tmdb": "92749"}})
+        self.assertEqual(ids["tvdb"], 355243)
+        self.assertEqual(ids["tmdb"], 92749)
+
+    def test_build_kodi_show_index_skips_colliding_ids(self):
+        """Integration check: a show with colliding tvdb/tmdb must not be
+        indexed under either id (would otherwise let a bogus id falsely
+        match a SIMKL show and later trigger the destructive unmark path)."""
+        with patch('resources.lib.sync.SimklAPI'):
+            manager = SyncManager(show_progress=False, silent=True)
+        kodi_show = {
+            "tvshowid": 48, "title": "What If...?", "year": 2021,
+            "uniqueid": {"tvdb": "10771832", "tmdb": "10771832"},
+        }
+        index = manager._build_kodi_show_index({48: kodi_show})
+        self.assertEqual(index["tvdb"], {})
+        self.assertEqual(index["tmdb"], {})
+        # Title+year fallback must still work despite the dropped ids.
+        self.assertIn(("what if...?", 2021), index["title_year"])
 
 
 # ---------------------------------------------------------------------------
