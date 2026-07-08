@@ -1,10 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- SIMKL Scrobbler Rating Dialog v7.4.8
+<!-- SIMKL Scrobbler Rating Dialog v7.9.11
      Base resolution: 720p (1280x720) - Kodi auto-scales to actual display
      Star visual state managed entirely via Python setVisible() on image controls
      Buttons are transparent overlays for click/focus detection only
-     CRITICAL: Gold stars must NOT have <visible> tags - Python controls all visibility
-     Kodi's <visible> creates conditional expressions that override setVisible() -->
+     CRITICAL: Gold stars (301-310) must NOT have <visible> tags - Python controls
+     all visibility. Kodi's <visible> creates conditional expressions that override
+     setVisible(). The yellow focus-glow images (401-411) are NOT touched by
+     Python and safely use Control.HasFocus() for their <visible> condition. -->
 <window>
     <defaultcontrol always="true">1</defaultcontrol>
     <coordinates>
@@ -61,6 +63,109 @@
                 <aligny>center</aligny>
                 <font>font12</font>
                 <textcolor>FFC0C0C0</textcolor>
+            </control>
+
+            <!-- =================================================================== -->
+            <!-- FOCUS GLOW - bright yellow, same star silhouette scaled up 12px and  -->
+            <!-- centered behind each star (offset -6,-6). Since it's larger than the -->
+            <!-- grey/gold star drawn on top of it, only a thin ring pokes out around -->
+            <!-- the star's edges, reading as a glowing yellow star outline. Must be  -->
+            <!-- drawn BEFORE (underneath) the grey/gold star layers below. Safe to   -->
+            <!-- use <visible> here (unlike the gold stars) since Python never        -->
+            <!-- touches these controls' visibility.                                 -->
+            <!-- =================================================================== -->
+            <control type="image" id="401">
+                <posx>125</posx>
+                <posy>109</posy>
+                <width>64</width>
+                <height>64</height>
+                <texture colordiffuse="FFFFEE00">focus-star-glow.png</texture>
+                <visible>Control.HasFocus(1)</visible>
+            </control>
+            <control type="image" id="402">
+                <posx>179</posx>
+                <posy>109</posy>
+                <width>64</width>
+                <height>64</height>
+                <texture colordiffuse="FFFFEE00">focus-star-glow.png</texture>
+                <visible>Control.HasFocus(2)</visible>
+            </control>
+            <control type="image" id="403">
+                <posx>233</posx>
+                <posy>109</posy>
+                <width>64</width>
+                <height>64</height>
+                <texture colordiffuse="FFFFEE00">focus-star-glow.png</texture>
+                <visible>Control.HasFocus(3)</visible>
+            </control>
+            <control type="image" id="404">
+                <posx>287</posx>
+                <posy>109</posy>
+                <width>64</width>
+                <height>64</height>
+                <texture colordiffuse="FFFFEE00">focus-star-glow.png</texture>
+                <visible>Control.HasFocus(4)</visible>
+            </control>
+            <control type="image" id="405">
+                <posx>341</posx>
+                <posy>109</posy>
+                <width>64</width>
+                <height>64</height>
+                <texture colordiffuse="FFFFEE00">focus-star-glow.png</texture>
+                <visible>Control.HasFocus(5)</visible>
+            </control>
+            <control type="image" id="406">
+                <posx>395</posx>
+                <posy>109</posy>
+                <width>64</width>
+                <height>64</height>
+                <texture colordiffuse="FFFFEE00">focus-star-glow.png</texture>
+                <visible>Control.HasFocus(6)</visible>
+            </control>
+            <control type="image" id="407">
+                <posx>449</posx>
+                <posy>109</posy>
+                <width>64</width>
+                <height>64</height>
+                <texture colordiffuse="FFFFEE00">focus-star-glow.png</texture>
+                <visible>Control.HasFocus(7)</visible>
+            </control>
+            <control type="image" id="408">
+                <posx>503</posx>
+                <posy>109</posy>
+                <width>64</width>
+                <height>64</height>
+                <texture colordiffuse="FFFFEE00">focus-star-glow.png</texture>
+                <visible>Control.HasFocus(8)</visible>
+            </control>
+            <control type="image" id="409">
+                <posx>557</posx>
+                <posy>109</posy>
+                <width>64</width>
+                <height>64</height>
+                <texture colordiffuse="FFFFEE00">focus-star-glow.png</texture>
+                <visible>Control.HasFocus(9)</visible>
+            </control>
+            <control type="image" id="410">
+                <posx>611</posx>
+                <posy>109</posy>
+                <width>64</width>
+                <height>64</height>
+                <texture colordiffuse="FFFFEE00">focus-star-glow.png</texture>
+                <visible>Control.HasFocus(10)</visible>
+            </control>
+
+            <!-- Yellow box-outline focus ring for the Unrate button (no star icon,
+                 so it gets a hollow rounded-rect outline instead of a star glow).
+                 Centered over button 11 with a few px overhang so the outline
+                 reads clearly around the button's edge. -->
+            <control type="image" id="411">
+                <posx>60</posx>
+                <posy>110</posy>
+                <width>62</width>
+                <height>62</height>
+                <texture border="10" colordiffuse="FFFFEE00">focus-box-outline.png</texture>
+                <visible>Control.HasFocus(11)</visible>
             </control>
 
             <!-- =================================================================== -->
@@ -229,7 +334,7 @@
                 <posy>115</posy>
                 <width>52</width>
                 <height>52</height>
-                <texturefocus colordiffuse="A0FFFFFF" border="3">white.png</texturefocus>
+                <texturefocus>-</texturefocus>
                 <texturenofocus>-</texturenofocus>
                 <font>-</font>
                 <onleft>11</onleft>
@@ -242,7 +347,7 @@
                 <posy>115</posy>
                 <width>54</width>
                 <height>52</height>
-                <texturefocus colordiffuse="A0FFFFFF" border="3">white.png</texturefocus>
+                <texturefocus>-</texturefocus>
                 <texturenofocus>-</texturenofocus>
                 <font>-</font>
                 <onleft>11</onleft>
@@ -255,7 +360,7 @@
                 <posy>115</posy>
                 <width>54</width>
                 <height>52</height>
-                <texturefocus colordiffuse="A0FFFFFF" border="3">white.png</texturefocus>
+                <texturefocus>-</texturefocus>
                 <texturenofocus>-</texturenofocus>
                 <font>-</font>
                 <onleft>1</onleft>
@@ -268,7 +373,7 @@
                 <posy>115</posy>
                 <width>54</width>
                 <height>52</height>
-                <texturefocus colordiffuse="A0FFFFFF" border="3">white.png</texturefocus>
+                <texturefocus>-</texturefocus>
                 <texturenofocus>-</texturenofocus>
                 <font>-</font>
                 <onleft>2</onleft>
@@ -281,7 +386,7 @@
                 <posy>115</posy>
                 <width>54</width>
                 <height>52</height>
-                <texturefocus colordiffuse="A0FFFFFF" border="3">white.png</texturefocus>
+                <texturefocus>-</texturefocus>
                 <texturenofocus>-</texturenofocus>
                 <font>-</font>
                 <onleft>3</onleft>
@@ -294,7 +399,7 @@
                 <posy>115</posy>
                 <width>54</width>
                 <height>52</height>
-                <texturefocus colordiffuse="A0FFFFFF" border="3">white.png</texturefocus>
+                <texturefocus>-</texturefocus>
                 <texturenofocus>-</texturenofocus>
                 <font>-</font>
                 <onleft>4</onleft>
@@ -307,7 +412,7 @@
                 <posy>115</posy>
                 <width>54</width>
                 <height>52</height>
-                <texturefocus colordiffuse="A0FFFFFF" border="3">white.png</texturefocus>
+                <texturefocus>-</texturefocus>
                 <texturenofocus>-</texturenofocus>
                 <font>-</font>
                 <onleft>5</onleft>
@@ -320,7 +425,7 @@
                 <posy>115</posy>
                 <width>54</width>
                 <height>52</height>
-                <texturefocus colordiffuse="A0FFFFFF" border="3">white.png</texturefocus>
+                <texturefocus>-</texturefocus>
                 <texturenofocus>-</texturenofocus>
                 <font>-</font>
                 <onleft>6</onleft>
@@ -333,7 +438,7 @@
                 <posy>115</posy>
                 <width>54</width>
                 <height>52</height>
-                <texturefocus colordiffuse="A0FFFFFF" border="3">white.png</texturefocus>
+                <texturefocus>-</texturefocus>
                 <texturenofocus>-</texturenofocus>
                 <font>-</font>
                 <onleft>7</onleft>
@@ -346,7 +451,7 @@
                 <posy>115</posy>
                 <width>54</width>
                 <height>52</height>
-                <texturefocus colordiffuse="A0FFFFFF" border="3">white.png</texturefocus>
+                <texturefocus>-</texturefocus>
                 <texturenofocus>-</texturenofocus>
                 <font>-</font>
                 <onleft>8</onleft>
@@ -359,7 +464,7 @@
                 <posy>115</posy>
                 <width>54</width>
                 <height>52</height>
-                <texturefocus colordiffuse="A0FFFFFF" border="3">white.png</texturefocus>
+                <texturefocus>-</texturefocus>
                 <texturenofocus>-</texturenofocus>
                 <font>-</font>
                 <onleft>9</onleft>

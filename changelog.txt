@@ -1,4 +1,22 @@
 
+[7.9.11] - 2026-07-08
+Improvement: brighter, shape-aware focus highlight in the rating dialog
+
+IMPROVEMENT: Yellow star-glow / box-outline focus indicator
+- Stars and the Unrate button previously shared one flat, semi-transparent
+  white box (texturefocus colordiffuse="A0FFFFFF") for focus, which looked
+  low-contrast and didn't distinguish a star control from a plain button.
+- Focused stars (1-10) now show a bright yellow glow in the exact star
+  silhouette: the same star artwork drawn 12px larger and centered behind
+  the visible grey/gold star, shown only via Control.HasFocus() — a thin
+  yellow ring pokes out around the star's edges instead of a rectangle.
+- The Unrate button (no star icon) gets a new hollow rounded-rect outline
+  texture (focus-box-outline.png) in the same yellow, since a star glow
+  wouldn't make sense there.
+- Cancel/Submit buttons are unchanged — this only touches the star row.
+- XML/asset-only change (script-simkl-rate.xml + new focus-box-outline.png)
+  — no Python logic touched, all 89 existing tests unaffected.
+
 [7.9.10] - 2026-07-08
 Fix: restore episodes wiped by the "completed status, no season data" bug
 

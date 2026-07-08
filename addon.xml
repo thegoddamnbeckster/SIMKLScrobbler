@@ -1,10 +1,28 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
 SIMKL Scrobbler for Kodi
-Version: 7.9.10
+Version: 7.9.11
 Last Modified: 2026-07-08
 
 CHANGELOG:
+7.9.11 - Improvement: replaced the rating dialog's focus indicator. Stars
+        and the Unrate button previously highlighted with the same flat,
+        semi-transparent white box (texturefocus colordiffuse="A0FFFFFF"),
+        which didn't distinguish a star control from a plain button and
+        felt low-contrast on a bright TV. The focused star (buttons 1-10)
+        now shows a bright yellow glow in the exact star silhouette,
+        implemented as the same star artwork drawn 12px larger and
+        centered behind the visible grey/gold star, conditionally shown
+        via Control.HasFocus() — only a thin ring pokes out around the
+        star's edges, reading as a glowing star outline rather than a
+        rectangle. The Unrate button (which has no star icon) instead gets
+        a new hollow rounded-rect outline texture in the same yellow,
+        since a star-shaped highlight wouldn't make sense there. Cancel/
+        Submit were left as-is; this only touches the star-rating row.
+        No Python logic changed — this is a resources/skins/default XML
+        and asset-only change (new focus-box-outline.png plus 11 new
+        image controls in script-simkl-rate.xml), so all 89 existing
+        tests still cover the unaffected sync/scrobble logic unchanged.
 7.9.10 - Fix: 7.9.9 stopped "completed"-status shows with no SIMKL season
         data from being destructively unmarked, but a live re-test showed
         it didn't repair episodes already wiped by the original bug — a
@@ -488,7 +506,7 @@ CHANGELOG:
 -->
 <addon id="script.simkl.scrobbler"
        name="SIMKL Scrobbler"
-       version="7.9.10"
+       version="7.9.11"
        provider-name="Claude.ai with assistance from Michael Beck">
     
     <requires>
