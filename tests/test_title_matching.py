@@ -311,6 +311,49 @@ class TestUnmarkSafetyNet(unittest.TestCase):
         self.assertEqual(unmarked, 1)
         self.manager._set_episode_playcount.assert_called_once_with(701, 0)
 
+    def test_matched_show_with_empty_seasons_excluded_from_matched_set(self):
+        """Regression: SIMKL can return status="completed" for a show with an
+        EMPTY seasons array even when extended=full is requested (observed
+        live for the real "What If...?" show). A show in this state must be
+        excluded from matched_tvshowids exactly like an unmatched show —
+        otherwise every genuinely-watched Kodi episode looks "not on SIMKL"
+        and gets wiped, since there is no per-episode data to compare it to."""
+        kodi_index = self.manager._build_kodi_show_index({
+            36: {"tvshowid": 36, "title": "What If...?", "year": None,
+                 "uniqueid": {"imdb": "tt10168312", "tmdb": "91363", "tvdb": "367147"}},
+        })
+        simkl_shows = [{
+            "show": {
+                "title": "What If...?", "year": 2021,
+                "ids": {"imdb": "tt10168312", "tmdb": "91363", "tvdb": "367147"},
+            },
+            "status": "completed",
+            "seasons": [],
+        }]
+
+        episode_set, matched = self.manager._build_simkl_episode_set(simkl_shows, kodi_index)
+        self.assertEqual(episode_set, set())
+        self.assertEqual(matched, set())
+
+    def test_unmark_leaves_completed_show_with_no_season_data_untouched(self):
+        """End-to-end regression for the "What If...?" full-season wipe: a
+        show that matched by ID but whose SIMKL entry carried no season data
+        must have every one of its watched Kodi episodes left alone."""
+        kodi_episodes = [
+            {"tvshowid": 36, "season": 1, "episode": n, "episodeid": 900 + n,
+             "playcount": 1, "showtitle": "What If...?"}
+            for n in range(1, 10)
+        ]
+        simkl_episodes = set()       # show 36 matched, but contributed no episodes
+        matched_tvshowids = set()    # excluded because its seasons array was empty
+
+        unmarked = self.manager._unmark_episodes_not_on_simkl(
+            kodi_episodes, simkl_episodes, matched_tvshowids
+        )
+
+        self.assertEqual(unmarked, 0)
+        self.manager._set_episode_playcount.assert_not_called()
+
 
 if __name__ == '__main__':
     unittest.main()

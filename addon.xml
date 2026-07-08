@@ -1,10 +1,36 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
 SIMKL Scrobbler for Kodi
-Version: 7.9.8
-Last Modified: 2026-07-07
+Version: 7.9.9
+Last Modified: 2026-07-08
 
 CHANGELOG:
+7.9.9 - Fix: a fresh Kodi install with a correctly-scraped, ID-matched
+        "What If...?" (ids verified against Kodi's own uniqueid table:
+        imdb=tt10168312, tmdb=91363, tvdb=367147 — exactly the real
+        Marvel show, confirming this was not a mismatched-show problem)
+        had ALL 9 season-1 episodes unmarked as unwatched on a full sync.
+        Root cause: SIMKL's /sync/all-items endpoint can report a show's
+        overall status as "completed" while returning a completely EMPTY
+        seasons array for it, even with extended=full requested — SIMKL
+        appears to skip the per-episode breakdown once a show is marked
+        fully watched rather than tracking it episode-by-episode like an
+        in-progress "watching" show. _build_simkl_episode_set() matched
+        the show successfully (by ID) and therefore added it to
+        matched_tvshowids, but contributed zero (tvshowid, season,
+        episode) tuples to episode_set because the seasons list was
+        empty — so every one of the show's genuinely-watched Kodi
+        episodes looked "not on SIMKL" to the v7.9.6-7.9.8 safety net,
+        which only guards against a show failing to match AT ALL, not
+        against a show matching but SIMKL supplying no episode detail
+        for it. A show whose SIMKL entry has no season data is now
+        excluded from matched_tvshowids (treated the same as an
+        unmatched show), so its Kodi episodes are left untouched instead
+        of being treated as confirmed-absent.
+        Tests: 85 (was 83 — +2 new) — a "completed"-status show with an
+        empty seasons array is excluded from matched_tvshowids, and an
+        end-to-end check that all 9 of its watched episodes survive the
+        unmark pass untouched.
 7.9.8 - Improvement: the same live kodi.log showed ~90 of 168 TV shows
         falling back to the unstable "tvshowid:N" delta-sync state key
         (logged as "No external ID for tvshowid N") because none of
@@ -442,7 +468,7 @@ CHANGELOG:
 -->
 <addon id="script.simkl.scrobbler"
        name="SIMKL Scrobbler"
-       version="7.9.8"
+       version="7.9.9"
        provider-name="Claude.ai with assistance from Michael Beck">
     
     <requires>

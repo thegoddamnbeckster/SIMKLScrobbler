@@ -34,7 +34,7 @@ from resources.lib.utils import (
 from resources.lib.api import SimklAPI
 
 # Module version
-__version__ = '7.9.8'
+__version__ = '7.9.9'
 
 # Log module initialization
 xbmc.log(f'[SIMKL Scrobbler] sync.py v{__version__} - Sync manager module loading', level=xbmc.LOGINFO)
@@ -1964,7 +1964,11 @@ class SyncManager:
                     SIMKL entry by ID or by title+year — that does not prove
                     the show is absent from SIMKL, only that our local match
                     failed (e.g. a title punctuation mismatch, or the Kodi
-                    scraper not recording an ID SIMKL also returns). Callers
+                    scraper not recording an ID SIMKL also returns). A show
+                    is also excluded from this set if it matched but SIMKL
+                    returned no season/episode detail for it (observed for
+                    shows with SIMKL status "completed" — the seasons array
+                    can come back empty even with extended=full). Callers
                     must treat "unmatched" as "unknown", not "confirmed
                     absent" — see _unmark_episodes_not_on_simkl().
         """
@@ -1989,9 +1993,27 @@ class SyncManager:
                           f"by the unmark pass rather than treated as confirmed-absent")
                 continue
 
+            seasons = simkl_show.get("seasons", [])
+            if not seasons:
+                # SIMKL returned no per-episode season/episode breakdown for
+                # this show even though the show itself matched — observed
+                # for shows whose SIMKL status is "completed", where the API
+                # omits the seasons array (even with extended=full) instead
+                # of listing every episode. We have no per-episode data to
+                # check against, so this must NOT be treated as "matched,
+                # zero episodes watched" — that would make every genuinely
+                # watched Kodi episode of this show look unwatched-on-SIMKL
+                # and get destructively unmarked. Treat it the same as an
+                # unmatched show: leave its Kodi episodes untouched.
+                log_debug(f"[sync v{__version__}] SyncManager._build_simkl_episode_set() "
+                          f"Matched SIMKL show '{show_title}' (status="
+                          f"{simkl_show.get('status')}) but it has no season/episode "
+                          f"detail from SIMKL — its Kodi episodes will be left untouched "
+                          f"by the unmark pass rather than treated as confirmed-absent")
+                continue
+
             kodi_tvshowid = kodi_show.get("tvshowid")
             matched_tvshowids.add(kodi_tvshowid)
-            seasons = simkl_show.get("seasons", [])
 
             for season_data in seasons:
                 season_num = season_data.get("number", 0)

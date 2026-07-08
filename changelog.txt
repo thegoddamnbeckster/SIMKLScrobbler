@@ -1,4 +1,33 @@
 
+[7.9.9] - 2026-07-08
+Fix the "What If...?" full-season unwatch bug on a fresh Kodi install
+
+BUGFIX: Don't unmark episodes of a show SIMKL reports with no season data
+- A brand-new Kodi install, with "What If...?" correctly scraped and
+  ID-matched (imdb=tt10168312, tmdb=91363, tvdb=367147 — verified directly
+  against Kodi's own uniqueid table, confirming this was the real Marvel
+  show and not a mismatch), had all 9 season-1 episodes unmarked as
+  unwatched by a full sync.
+- Root cause: SIMKL's /sync/all-items endpoint can report a show's status
+  as "completed" while returning a completely empty seasons array for it,
+  even with extended=full — SIMKL appears to stop tracking per-episode
+  detail once a show is marked fully watched, unlike an in-progress
+  "watching" show. _build_simkl_episode_set() matched the show by ID (so
+  it went into matched_tvshowids) but added zero (tvshowid, season,
+  episode) tuples to episode_set, since the seasons list was empty. Every
+  genuinely-watched Kodi episode of that show then looked "not on SIMKL"
+  to the unmark safety net from 7.9.6-7.9.8, which only guards against a
+  show failing to match at all — not against a show matching but SIMKL
+  supplying no episode-level data for it.
+- A show whose SIMKL entry has no season data is now excluded from
+  matched_tvshowids, the same as an unmatched show, so its Kodi episodes
+  are left untouched rather than treated as confirmed-absent.
+
+TEST: 85 tests (was 83 — +2 new)
+- test_title_matching.py: a "completed"-status show with an empty seasons
+  array is excluded from matched_tvshowids, and an end-to-end check that
+  all 9 of its watched episodes survive the unmark pass untouched.
+
 [7.9.8] - 2026-07-07
 Delta-sync state key rescue, spotted in the same live kodi.log
 
