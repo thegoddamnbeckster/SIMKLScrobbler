@@ -1,10 +1,29 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
 SIMKL Scrobbler for Kodi
-Version: 7.9.7
+Version: 7.9.8
 Last Modified: 2026-07-07
 
 CHANGELOG:
+7.9.8 - Improvement: the same live kodi.log showed ~90 of 168 TV shows
+        falling back to the unstable "tvshowid:N" delta-sync state key
+        (logged as "No external ID for tvshowid N") because none of
+        tvdb/imdb/tmdb/imdbnumber were populated on those shows. That key
+        is a SQLite row ID that gets reassigned after a library rescan, so
+        every episode of an affected show looks "changed" on the next sync
+        after a rescan, forcing a full re-export instead of a real delta.
+        _get_stable_show_key() now also calls find_imdb_id_in_uniqueid()
+        (added in 7.9.6) before falling back to tvshowid, rescuing an
+        IMDb id filed under a non-standard key like "unknown" — the same
+        pattern already fixed for _extract_ids(). Shows with no rescuable
+        id at all still correctly fall back to tvshowid: this only narrows
+        the fallback to genuinely ID-less shows instead of catching ones
+        whose id was simply mislabeled.
+        Tests: 83 (was 80 — +3 new) — rescue from an 'unknown' key, a
+        properly-tagged tvdb id still taking priority over the rescue path,
+        and a bare numeric 'unknown' value (ambiguous, could be tvdb or
+        tmdb) correctly NOT being guessed and still falling back to
+        tvshowid.
 7.9.7 - Fix: confirmed via a live kodi.log that Kodi's TVDB v4 scraper had
         attached the identical value to a show's tvdb_id AND tmdb_id
         (both "10771832" for "What If...?"). TVDB and TMDB are independent
@@ -423,7 +442,7 @@ CHANGELOG:
 -->
 <addon id="script.simkl.scrobbler"
        name="SIMKL Scrobbler"
-       version="7.9.7"
+       version="7.9.8"
        provider-name="Claude.ai with assistance from Michael Beck">
     
     <requires>

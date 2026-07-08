@@ -179,6 +179,43 @@ class TestTvdbTmdbCollisionGuard(unittest.TestCase):
 
 
 # ---------------------------------------------------------------------------
+# _get_stable_show_key() — IMDb rescue for delta-sync state keys
+# ---------------------------------------------------------------------------
+# The live kodi.log showed ~90 of 168 shows falling back to the unstable
+# "tvshowid:N" key (which resets episode delta tracking on every library
+# rescan) because none of tvdb/imdb/tmdb/imdbnumber were populated. Some of
+# those shows may actually have an IMDb id filed under a non-standard
+# uniqueid key (e.g. "unknown"), the same pattern find_imdb_id_in_uniqueid()
+# already rescues elsewhere — wiring it in here should shrink that count.
+
+class TestStableShowKeyImdbRescue(unittest.TestCase):
+
+    def setUp(self):
+        with patch('resources.lib.sync.SimklAPI'):
+            self.manager = SyncManager(show_progress=False, silent=True)
+
+    def test_rescues_imdb_from_unknown_key(self):
+        kodi_shows = {48: {"tvshowid": 48, "title": "Some Show", "uniqueid": {"unknown": "tt2461178"}}}
+        key = self.manager._get_stable_show_key(48, kodi_shows)
+        self.assertEqual(key, "imdb:tt2461178")
+
+    def test_prefers_tvdb_over_rescue(self):
+        """A properly-tagged tvdb id must win; the rescue path shouldn't
+        even be consulted when a real id is already present."""
+        kodi_shows = {48: {"tvshowid": 48, "title": "Some Show",
+                            "uniqueid": {"tvdb": "355243", "unknown": "tt2461178"}}}
+        key = self.manager._get_stable_show_key(48, kodi_shows)
+        self.assertEqual(key, "tvdb:355243")
+
+    def test_falls_back_to_tvshowid_when_nothing_rescuable(self):
+        """A bare numeric 'unknown' value can't be safely guessed as any
+        particular id type, so the unstable tvshowid fallback still applies."""
+        kodi_shows = {48: {"tvshowid": 48, "title": "Some Show", "uniqueid": {"unknown": "81189"}}}
+        key = self.manager._get_stable_show_key(48, kodi_shows)
+        self.assertEqual(key, "tvshowid:48")
+
+
+# ---------------------------------------------------------------------------
 # _match_show_to_kodi() — title+year fallback with ellipsis mismatch
 # ---------------------------------------------------------------------------
 

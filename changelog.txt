@@ -1,4 +1,29 @@
 
+[7.9.8] - 2026-07-07
+Delta-sync state key rescue, spotted in the same live kodi.log
+
+IMPROVEMENT: Rescue IMDb ids for unstable delta-sync keys
+- The same log used to diagnose 7.9.7 showed ~90 of 168 TV shows falling
+  back to the unstable "tvshowid:N" delta-sync state key (visible as "No
+  external ID for tvshowid N — episode delta will reset after a library
+  rescan for this show") because none of tvdb/imdb/tmdb/imdbnumber were
+  populated on those shows. tvshowid is a SQLite row ID reassigned after a
+  library rescan, so every episode of an affected show looks "changed" on
+  the next sync after any rescan, forcing a full re-export instead of a
+  real delta for that show.
+- _get_stable_show_key() now also calls find_imdb_id_in_uniqueid() (added
+  in 7.9.6 for _extract_ids()) before falling back to tvshowid, rescuing
+  an IMDb id filed under a non-standard uniqueid key like "unknown". Shows
+  with genuinely no id anywhere still correctly fall back to tvshowid —
+  this only narrows the fallback to shows that truly have none, instead of
+  also catching ones whose id was simply mislabeled by the scraper.
+
+TEST: 83 tests (was 80 — +3 new)
+- test_title_matching.py: rescue from an 'unknown' key, a properly-tagged
+  tvdb id still taking priority over the rescue path, and a bare numeric
+  'unknown' value (ambiguous — could be tvdb or tmdb) correctly not being
+  guessed and still falling back to tvshowid.
+
 [7.9.7] - 2026-07-07
 Root cause of the v7.9.6 "What If...?" report, confirmed via a live kodi.log
 

@@ -34,7 +34,7 @@ from resources.lib.utils import (
 from resources.lib.api import SimklAPI
 
 # Module version
-__version__ = '7.9.7'
+__version__ = '7.9.8'
 
 # Log module initialization
 xbmc.log(f'[SIMKL Scrobbler] sync.py v{__version__} - Sync manager module loading', level=xbmc.LOGINFO)
@@ -398,6 +398,13 @@ class SyncManager:
             imdbnumber = show.get('imdbnumber', '')
             if imdbnumber and imdbnumber.startswith('tt'):
                 return f"imdb:{imdbnumber}"
+            # Rescue an IMDb ID filed under a non-standard uniqueid key (e.g.
+            # "unknown") that the checks above missed — same rationale as
+            # _extract_ids(). An IMDb id's "tt\d+" format is unambiguous
+            # regardless of key name.
+            rescued_imdb = find_imdb_id_in_uniqueid(uid)
+            if rescued_imdb:
+                return f"imdb:{rescued_imdb}"
         # Fallback: tvshowid is a SQLite row ID reassigned after library rebuilds.
         # Warn once per show per sync run — _get_stable_show_key is called once
         # per episode so without deduplication a 50-episode show floods the log.
