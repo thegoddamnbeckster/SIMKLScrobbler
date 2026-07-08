@@ -34,7 +34,7 @@ from resources.lib.utils import (
 from resources.lib.api import SimklAPI
 
 # Module version
-__version__ = '7.9.9'
+__version__ = '7.9.10'
 
 # Log module initialization
 xbmc.log(f'[SIMKL Scrobbler] sync.py v{__version__} - Sync manager module loading', level=xbmc.LOGINFO)
@@ -1639,6 +1639,47 @@ class SyncManager:
         
         return unmarked
 
+    def _mark_all_episodes_watched(self, kodi_tvshowid, show_title_display, show_episode_index):
+        """
+        Mark every Kodi episode of one show as watched.
+
+        Used when a SIMKL show's status is "completed" but SIMKL returned no
+        season/episode breakdown to import from — "completed" is itself
+        unambiguous proof the user finished the whole show, so every Kodi
+        episode of it should be marked watched rather than left alone just
+        because there's no per-episode detail to iterate over.
+
+        Args:
+            kodi_tvshowid: The Kodi tvshowid being marked.
+            show_title_display (str): Show title for logging.
+            show_episode_index (dict): {season: {episode: episode_obj}} for
+                this show only (i.e. episode_index.get(kodi_tvshowid, {})).
+
+        Returns:
+            tuple: (imported, already_watched, errors)
+        """
+        imported = 0
+        already_watched = 0
+        errors = 0
+
+        for season_num, episodes_by_num in show_episode_index.items():
+            for ep_num, kodi_ep in episodes_by_num.items():
+                if kodi_ep.get("playcount", 0) > 0:
+                    already_watched += 1
+                    continue
+                ep_id = kodi_ep.get("episodeid")
+                if self._set_episode_playcount(ep_id, 1):
+                    log_debug(f"[sync v{__version__}] SyncManager._mark_all_episodes_watched() "
+                              f"Marked (status=completed, no season data from SIMKL): "
+                              f"{show_title_display} S{season_num:02d}E{ep_num:02d}")
+                    imported += 1
+                else:
+                    log_error(f"[sync v{__version__}] SyncManager._mark_all_episodes_watched() "
+                              f"Failed: {show_title_display} S{season_num:02d}E{ep_num:02d}")
+                    errors += 1
+
+        return imported, already_watched, errors
+
     def import_episodes_from_simkl(self, date_from=None):
         """
         Import watched TV episodes from SIMKL to Kodi.
@@ -1872,7 +1913,18 @@ class SyncManager:
             # Get watched seasons from SIMKL
             seasons = simkl_show.get("seasons", [])
             if not seasons:
-                log_debug(f"[sync v{__version__}] SyncManager.import_episodes_from_simkl() No season data from SIMKL for: {show_title_display}")
+                if simkl_show.get("status") == "completed":
+                    show_imported, show_already_watched, show_errors = (
+                        self._mark_all_episodes_watched(
+                            kodi_tvshowid, show_title_display,
+                            episode_index.get(kodi_tvshowid, {})
+                        )
+                    )
+                    imported += show_imported
+                    already_watched += show_already_watched
+                    self.stats['errors'] += show_errors
+                else:
+                    log_debug(f"[sync v{__version__}] SyncManager.import_episodes_from_simkl() No season data from SIMKL for: {show_title_display}")
                 continue
 
             # Process each season

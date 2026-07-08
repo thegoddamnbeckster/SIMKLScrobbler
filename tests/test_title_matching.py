@@ -355,5 +355,83 @@ class TestUnmarkSafetyNet(unittest.TestCase):
         self.manager._set_episode_playcount.assert_not_called()
 
 
+# ---------------------------------------------------------------------------
+# _mark_all_episodes_watched() — repair path for "completed" shows with no
+# season data from SIMKL
+# ---------------------------------------------------------------------------
+
+class TestMarkAllEpisodesWatched(unittest.TestCase):
+    """
+    A show whose SIMKL status is "completed" but has an empty seasons array
+    (the same condition the v7.9.9 unmark fix protects against) must have
+    every one of its Kodi episodes marked watched — status=completed is
+    itself proof the whole show was watched, even without per-episode data.
+    This is the repair counterpart to the v7.9.9 "don't wipe" fix: stopping
+    the wipe alone left already-wiped episodes stuck at unwatched forever,
+    since there was never any season data to re-import from.
+    """
+
+    def setUp(self):
+        with patch('resources.lib.sync.SimklAPI'):
+            self.manager = SyncManager(show_progress=False, silent=True)
+        self.manager.api = MagicMock()
+        self.manager._set_episode_playcount = MagicMock(return_value=True)
+
+    def test_marks_all_unwatched_episodes(self):
+        show_episode_index = {
+            1: {n: {"episodeid": 900 + n, "playcount": 0} for n in range(1, 10)},
+        }
+
+        imported, already_watched, errors = self.manager._mark_all_episodes_watched(
+            36, "What If...?", show_episode_index
+        )
+
+        self.assertEqual(imported, 9)
+        self.assertEqual(already_watched, 0)
+        self.assertEqual(errors, 0)
+        self.assertEqual(self.manager._set_episode_playcount.call_count, 9)
+        for n in range(1, 10):
+            self.manager._set_episode_playcount.assert_any_call(900 + n, 1)
+
+    def test_skips_episodes_already_watched(self):
+        show_episode_index = {
+            1: {
+                1: {"episodeid": 901, "playcount": 1},   # already watched
+                2: {"episodeid": 902, "playcount": 0},   # needs marking
+            },
+        }
+
+        imported, already_watched, errors = self.manager._mark_all_episodes_watched(
+            36, "What If...?", show_episode_index
+        )
+
+        self.assertEqual(imported, 1)
+        self.assertEqual(already_watched, 1)
+        self.assertEqual(errors, 0)
+        self.manager._set_episode_playcount.assert_called_once_with(902, 1)
+
+    def test_counts_errors_without_raising(self):
+        self.manager._set_episode_playcount = MagicMock(return_value=False)
+        show_episode_index = {1: {1: {"episodeid": 901, "playcount": 0}}}
+
+        imported, already_watched, errors = self.manager._mark_all_episodes_watched(
+            36, "What If...?", show_episode_index
+        )
+
+        self.assertEqual(imported, 0)
+        self.assertEqual(errors, 1)
+
+    def test_empty_show_episode_index_is_a_noop(self):
+        """A matched "completed" show whose Kodi episode_index entry is
+        missing entirely (defensive: episode_index.get(id, {})) must not
+        raise or mark anything."""
+        imported, already_watched, errors = self.manager._mark_all_episodes_watched(
+            36, "What If...?", {}
+        )
+
+        self.assertEqual((imported, already_watched, errors), (0, 0, 0))
+        self.manager._set_episode_playcount.assert_not_called()
+
+
 if __name__ == '__main__':
     unittest.main()

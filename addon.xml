@@ -1,10 +1,30 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
 SIMKL Scrobbler for Kodi
-Version: 7.9.9
+Version: 7.9.10
 Last Modified: 2026-07-08
 
 CHANGELOG:
+7.9.10 - Fix: 7.9.9 stopped "completed"-status shows with no SIMKL season
+        data from being destructively unmarked, but a live re-test showed
+        it didn't repair episodes already wiped by the original bug — a
+        fresh full sync on "What If...?" logged "Unmarked 0 episodes" (the
+        wipe is stopped) alongside "Import results: 0 marked" (nothing
+        restored the 9 episodes to watched). The import path hit the exact
+        same "if not seasons: continue" gap: with no season/episode array
+        to iterate, it had nothing to mark, so a "completed" show's
+        already-unwatched episodes stayed unwatched forever with no way to
+        recover, since SIMKL never sends per-episode detail for it.
+        SIMKL's "completed" status is itself unambiguous proof the whole
+        show was watched, independent of whether a season breakdown came
+        back. import_episodes_from_simkl() now calls a new
+        _mark_all_episodes_watched() helper for this case, marking every
+        Kodi episode of the show watched directly instead of skipping the
+        show for lack of per-episode detail.
+        Tests: 89 (was 85 — +4 new) — marks every unwatched episode,
+        skips ones already watched, counts (but doesn't raise on)
+        SetEpisodeDetails failures, and no-ops safely if the show has no
+        entry in the local episode index.
 7.9.9 - Fix: a fresh Kodi install with a correctly-scraped, ID-matched
         "What If...?" (ids verified against Kodi's own uniqueid table:
         imdb=tt10168312, tmdb=91363, tvdb=367147 — exactly the real
@@ -468,7 +488,7 @@ CHANGELOG:
 -->
 <addon id="script.simkl.scrobbler"
        name="SIMKL Scrobbler"
-       version="7.9.9"
+       version="7.9.10"
        provider-name="Claude.ai with assistance from Michael Beck">
     
     <requires>

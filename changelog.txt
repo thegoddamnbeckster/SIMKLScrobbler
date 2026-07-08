@@ -1,4 +1,30 @@
 
+[7.9.10] - 2026-07-08
+Fix: restore episodes wiped by the "completed status, no season data" bug
+
+BUGFIX: Repair path for "completed" shows SIMKL sends no episode data for
+- 7.9.9 stopped these shows from being destructively unmarked, but a live
+  re-test after installing it showed the fix was only half done: a full
+  sync on "What If...?" logged "Unmarked 0 episodes" (good — the wipe is
+  stopped) but also "Import results: 0 marked" (the 9 already-wiped
+  episodes were never restored to watched).
+- Root cause: the import path hit the identical "if not seasons: continue"
+  gap as the unmark path. With no season/episode array from SIMKL, there
+  was nothing to iterate, so a "completed" show's episodes — once wiped —
+  had no way to ever be marked watched again, since SIMKL never sends
+  per-episode detail for this show.
+- SIMKL's "completed" status is itself unambiguous proof the whole show
+  was watched, regardless of whether a season breakdown came back.
+  import_episodes_from_simkl() now calls a new _mark_all_episodes_watched()
+  helper in this case, marking every Kodi episode of the show watched
+  directly instead of skipping it for lack of per-episode detail.
+
+TEST: 89 tests (was 85 — +4 new)
+- test_title_matching.py: marks every unwatched episode of a "completed"
+  show with no season data, skips episodes already watched, counts (but
+  doesn't raise on) a SetEpisodeDetails failure, and no-ops safely if the
+  show has no entry in the local episode index.
+
 [7.9.9] - 2026-07-08
 Fix the "What If...?" full-season unwatch bug on a fresh Kodi install
 
