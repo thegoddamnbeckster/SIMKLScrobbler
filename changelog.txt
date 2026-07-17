@@ -1,4 +1,19 @@
 
+[7.9.13] - 2026-07-16
+Fix: rating an item from the context menu didn't update Kodi's local library
+
+BUGFIX: New ratings now update Kodi's local userrating immediately
+- Rating a movie/show through the context-menu dialog sent the rating to
+  SIMKL and updated the ratings cache, but never touched Kodi's own
+  library, so the on-screen rating/star looked unchanged until the next
+  full bidirectional sync ran — easy to read as "nothing happened."
+- Removing a rating already cleared the local userrating badge immediately
+  via _clear_kodi_userrating(), but that helper was only ever called from
+  the unrate branch.
+- Generalized it into _set_kodi_userrating(media_type, dbid, rating) and
+  call it from both the submit and remove branches of prompt_for_rating(),
+  so the badge updates immediately either way.
+
 [7.9.12] - 2026-07-16
 Fix: main service loop had no exception safety net; broken timestamp conversion on Android
 

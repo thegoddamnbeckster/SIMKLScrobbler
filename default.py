@@ -371,8 +371,8 @@ def handle_rate_action(media_type, dbid):
         rating_service = RatingService(api)
         
         # Build media info for rating dialog.
-        # kodi_dbid is passed through so that RatingService can clear the
-        # local library userrating badge immediately when a rating is removed,
+        # kodi_dbid is passed through so that RatingService can update the
+        # local library userrating badge immediately (set or cleared),
         # without waiting for the next bidirectional sync to run.
         rating_media_info = {
             'media_type': item_info.get('media_type', 'movie'),

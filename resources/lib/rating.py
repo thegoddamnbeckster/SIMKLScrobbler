@@ -49,7 +49,7 @@ from resources.lib.strings import (
 )
 
 # Module version
-__version__ = '7.9.5'
+__version__ = '7.9.6'
 
 # Log module initialization
 xbmc.log(f'[SIMKL Scrobbler] rating.py v{__version__} - Rating service module loading', level=xbmc.LOGINFO)
@@ -574,7 +574,7 @@ class RatingService:
                         # waiting for the next full sync to run.
                         kodi_dbid = media_info.get('kodi_dbid')
                         if kodi_dbid:
-                            self._clear_kodi_userrating(media_type, kodi_dbid)
+                            self._set_kodi_userrating(media_type, kodi_dbid, 0)
 
                         # Remove from cache so re-rating guard doesn't block the
                         # dialog if this item is watched again in the same session.
@@ -599,6 +599,13 @@ class RatingService:
                     success = self.submit_rating(media_info, dialog.selected_rating)
 
                     if success:
+                        # Set the userrating in Kodi's local library immediately so
+                        # the star/badge reflects the new rating without waiting for
+                        # the next full sync to run (mirrors the unrate path below).
+                        kodi_dbid = media_info.get('kodi_dbid')
+                        if kodi_dbid:
+                            self._set_kodi_userrating(media_type, kodi_dbid, dialog.selected_rating)
+
                         # Patch the cache immediately so the re-rating guard fires
                         # correctly if the same show's next episode is scrobbled
                         # before the next sync writes a fresh cache.
@@ -633,11 +640,11 @@ class RatingService:
             utils.log(f"[rating v{__version__}] RatingService.prompt_for_rating() Error prompting for rating: {e}", xbmc.LOGERROR)
             return False
     
-    def _clear_kodi_userrating(self, media_type, dbid):
+    def _set_kodi_userrating(self, media_type, dbid, rating):
         """
-        Set userrating = 0 in Kodi's local library immediately after a
-        rating removal so the star/badge clears without waiting for the
-        next bidirectional sync.
+        Set userrating in Kodi's local library immediately after a rating
+        change (submit or removal) so the star/badge reflects the new value
+        without waiting for the next bidirectional sync.
 
         Only called from prompt_for_rating() when kodi_dbid is available
         (i.e. when the action was triggered via the context menu, which
@@ -651,6 +658,7 @@ class RatingService:
                               show by context.simkl before reaching here,
                               so 'episode' is handled as a show.
             dbid (int | str): Kodi database ID of the item.
+            rating (int): Rating value 0-10 (0 = unrated/removed).
         """
         if not dbid:
             return
@@ -660,7 +668,7 @@ class RatingService:
                 rpc = _json.dumps({
                     "jsonrpc": "2.0", "id": 1,
                     "method": "VideoLibrary.SetMovieDetails",
-                    "params": {"movieid": int(dbid), "userrating": 0}
+                    "params": {"movieid": int(dbid), "userrating": rating}
                 })
             elif media_type in ('show', 'episode'):
                 # context.simkl resolves episodes → show DBID before calling
@@ -669,24 +677,24 @@ class RatingService:
                 rpc = _json.dumps({
                     "jsonrpc": "2.0", "id": 1,
                     "method": "VideoLibrary.SetTVShowDetails",
-                    "params": {"tvshowid": int(dbid), "userrating": 0}
+                    "params": {"tvshowid": int(dbid), "userrating": rating}
                 })
             else:
                 utils.log(
-                    f"[rating v{__version__}] RatingService._clear_kodi_userrating() "
-                    f"Unknown media_type '{media_type}' — cannot clear Kodi userrating",
+                    f"[rating v{__version__}] RatingService._set_kodi_userrating() "
+                    f"Unknown media_type '{media_type}' — cannot set Kodi userrating",
                     xbmc.LOGWARNING
                 )
                 return
             xbmc.executeJSONRPC(rpc)
             utils.log(
-                f"[rating v{__version__}] RatingService._clear_kodi_userrating() "
-                f"Cleared Kodi userrating for {media_type} DBID {dbid}"
+                f"[rating v{__version__}] RatingService._set_kodi_userrating() "
+                f"Set Kodi userrating for {media_type} DBID {dbid} to {rating}"
             )
         except Exception as e:
             utils.log(
-                f"[rating v{__version__}] RatingService._clear_kodi_userrating() "
-                f"Failed to clear Kodi userrating: {e}",
+                f"[rating v{__version__}] RatingService._set_kodi_userrating() "
+                f"Failed to set Kodi userrating: {e}",
                 xbmc.LOGWARNING
             )
 

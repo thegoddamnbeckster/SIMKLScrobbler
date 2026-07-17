@@ -1,10 +1,21 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
 SIMKL Scrobbler for Kodi
-Version: 7.9.12
+Version: 7.9.13
 Last Modified: 2026-07-16
 
 CHANGELOG:
+7.9.13 - Fix: rating a movie/show from the context menu updated SIMKL but
+        never touched Kodi's local library, so the on-screen rating looked
+        unchanged until the next full sync ran. Removing a rating already
+        cleared the local userrating badge immediately
+        (_clear_kodi_userrating, called only from the unrate branch);
+        submitting a new rating patched the ratings cache and notified
+        SIMKL but had no equivalent call to update Kodi. Generalized the
+        clear-only helper into _set_kodi_userrating(media_type, dbid,
+        rating) and call it from both the submit and remove branches of
+        prompt_for_rating(), so the star/badge updates immediately either
+        way.
 7.9.12 - Fix: the background service's main loop (transition checks, dispatch
         queue, scheduled sync) had no top-level exception handling — a single
         uncaught error there (or during startup, before the loop even began)
@@ -526,7 +537,7 @@ CHANGELOG:
 -->
 <addon id="script.simkl.scrobbler"
        name="SIMKL Scrobbler"
-       version="7.9.12"
+       version="7.9.13"
        provider-name="Claude.ai with assistance from Michael Beck">
     
     <requires>
