@@ -1,4 +1,33 @@
 
+[7.9.12] - 2026-07-16
+Fix: main service loop had no exception safety net; broken timestamp conversion on Android
+
+BUGFIX: Service loop can no longer die from an uncaught exception
+- The background service's main loop (transition checks, dispatch queue,
+  scheduled sync) had no top-level try/except. A single uncaught error
+  there — or during startup, before the loop even began — would kill the
+  loop permanently until the next Kodi restart, silently stopping all
+  scrobbling and scheduled syncing.
+- The startup sequence and each loop iteration are now individually wrapped
+  in try/except, logged with a full traceback, and the loop keeps running.
+  main() also has a last-resort catch around service.run() so nothing can
+  take the whole service invoker down uncaught.
+- Fixed a related latent bug in _run_sync_thread(): show_notifications was
+  only assigned inside the try block, so an exception raised before that
+  line made the except handler itself raise NameError, discarding the real
+  error instead of logging it.
+
+BUGFIX: Episode/movie timestamps failing to convert on Android
+- Live kodi.log from an NVIDIA Shield showed _kodi_time_to_utc_iso() failing
+  on nearly every episode with "'NoneType' object is not callable" -
+  time.mktime() is broken (returns None) on that device's Kodi Python build,
+  the very failure mode the function's docstring already claimed to work
+  around, which didn't hold on this hardware.
+- The conversion now derives the local/UTC offset from
+  time.localtime()/time.gmtime() instead of time.mktime(), which are
+  confirmed working elsewhere in this codebase (e.g. the time.ctime() calls
+  used for last-sync-time logging).
+
 [7.9.11] - 2026-07-08
 Improvement: brighter, shape-aware focus highlight in the rating dialog
 

@@ -34,10 +34,27 @@ from resources.lib.utils import (
 from resources.lib.api import SimklAPI
 
 # Module version
-__version__ = '7.9.10'
+__version__ = '7.9.11'
 
 # Log module initialization
 xbmc.log(f'[SIMKL Scrobbler] sync.py v{__version__} - Sync manager module loading', level=xbmc.LOGINFO)
+
+
+def _local_utc_offset():
+    """
+    Return the current local-to-UTC offset as a timedelta.
+
+    Deliberately avoids time.mktime(): on some Kodi Android builds it is
+    stubbed to None, raising "'NoneType' object is not callable" (the same
+    class of bug previously seen from datetime.astimezone() on this platform).
+    time.time()/time.localtime()/time.gmtime() are confirmed working on those
+    builds elsewhere in this codebase (e.g. the time.ctime() calls used for
+    last-sync-time logging), so this uses only those.
+    """
+    now = time.time()
+    local_dt = datetime(*time.localtime(now)[:6])
+    utc_dt = datetime(*time.gmtime(now)[:6])
+    return local_dt - utc_dt
 
 
 def _kodi_time_to_utc_iso(kodi_timestamp):
@@ -47,10 +64,11 @@ def _kodi_time_to_utc_iso(kodi_timestamp):
     Kodi stores lastplayed as "YYYY-MM-DD HH:MM:SS" in local time.
     SIMKL expects ISO 8601 with "Z" suffix meaning UTC.
 
-    Uses time.mktime() which correctly interprets the naive datetime as local
-    time on all platforms, including Android where
-    datetime.now(timezone.utc).astimezone().tzinfo returns None and crashes
-    with "'NoneType' object is not callable".
+    Uses the current local/UTC offset (see _local_utc_offset) rather than
+    re-deriving it per-timestamp, so a timestamp from a different DST period
+    than "now" can be off by an hour - an acceptable trade-off since SIMKL
+    only uses this for approximate watch-history ordering, not exact playback
+    sync, and it beats losing the timestamp entirely.
 
     Args:
         kodi_timestamp: String like "2026-01-15 20:30:00"
@@ -61,11 +79,7 @@ def _kodi_time_to_utc_iso(kodi_timestamp):
     try:
         # Parse as local time (naive datetime)
         local_dt = datetime.strptime(kodi_timestamp, "%Y-%m-%d %H:%M:%S")
-        # time.mktime() treats the timetuple as local time and returns a UTC POSIX
-        # timestamp. datetime.fromtimestamp() then converts it to a UTC-aware
-        # datetime. This portable approach works on all platforms including Android.
-        posix_ts = time.mktime(local_dt.timetuple())
-        utc_dt = datetime.fromtimestamp(posix_ts, tz=timezone.utc)
+        utc_dt = (local_dt - _local_utc_offset()).replace(tzinfo=timezone.utc)
         return utc_dt.strftime("%Y-%m-%dT%H:%M:%SZ")
     except Exception as e:
         log_warning(f"[sync v{__version__}] _kodi_time_to_utc_iso() Failed to convert timestamp '{kodi_timestamp}': {e}")

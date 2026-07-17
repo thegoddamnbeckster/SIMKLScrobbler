@@ -49,7 +49,7 @@ from resources.lib.strings import (
 )
 
 # Module version
-__version__ = '7.9.7'
+__version__ = '7.9.8'
 
 # Log module initialization
 xbmc.log(f'[SIMKL Scrobbler] service.py v{__version__} - Main service module loading', level=xbmc.LOGINFO)
@@ -403,6 +403,9 @@ class SimklService:
         This method runs in a separate thread to avoid blocking.
         """
         sync_manager = None
+        # Defined before the try so the except block below can safely reference it
+        # even if an exception happens before the real assignment further down.
+        show_notifications = False
         try:
             # Mark sync as in progress (instance var + window property for cross-process visibility)
             self._sync_in_progress = True
@@ -547,51 +550,68 @@ class SimklService:
             log(f"[service v{__version__}] SimklService.run() Abort requested during startup delay")
             return
         
-        # Check auth status and show notification
-        self._check_auth_status_on_startup()
-        
-        # Trigger startup sync if enabled and authenticated
-        addon = xbmcaddon.Addon('script.simkl.scrobbler')
-        if get_setting_bool('sync_on_startup') and addon.getSetting('access_token'):
-            if self._library_scan_in_progress:
-                # Kodi is still scanning on boot - defer until onScanFinished fires
-                log(f"[service v{__version__}] SimklService.run() Sync on startup deferred - library scan in progress")
-                self._startup_sync_pending = True
-            else:
-                log(f"[service v{__version__}] SimklService.run() Sync on startup enabled - triggering initial sync")
-                self._trigger_library_sync()
-        
-        # Initialize scrobbler with API
-        api = SimklAPI()
-        self.scrobbler = SimklScrobbler(api)
-        
-        # Initialize player with callback to our dispatch queue
-        self.player = SimklPlayer(action=self._dispatch_to_queue)
-        
+        # Check auth status, trigger startup sync, and initialize scrobbler/player.
+        # Wrapped so a startup failure (e.g. bad API init) degrades the service
+        # instead of propagating out of run() and killing the whole invoker -
+        # the main loop below still starts and keeps retrying transition checks.
+        try:
+            # Check auth status and show notification
+            self._check_auth_status_on_startup()
+
+            # Trigger startup sync if enabled and authenticated
+            addon = xbmcaddon.Addon('script.simkl.scrobbler')
+            if get_setting_bool('sync_on_startup') and addon.getSetting('access_token'):
+                if self._library_scan_in_progress:
+                    # Kodi is still scanning on boot - defer until onScanFinished fires
+                    log(f"[service v{__version__}] SimklService.run() Sync on startup deferred - library scan in progress")
+                    self._startup_sync_pending = True
+                else:
+                    log(f"[service v{__version__}] SimklService.run() Sync on startup enabled - triggering initial sync")
+                    self._trigger_library_sync()
+
+            # Initialize scrobbler with API
+            api = SimklAPI()
+            self.scrobbler = SimklScrobbler(api)
+
+            # Initialize player with callback to our dispatch queue
+            self.player = SimklPlayer(action=self._dispatch_to_queue)
+        except Exception as e:
+            import traceback
+            log_error(f"[service v{__version__}] SimklService.run() Error during startup: {e}")
+            log_error(f"[service v{__version__}] SimklService.run() Traceback: {traceback.format_exc()}")
+
         log(f"[service v{__version__}] SimklService.run() Service initialized - entering main loop")
-        
+
         # Track loop iterations for scheduled sync checking
         loop_count = 0
-        
+
         # Main service loop
         while not self.monitor.abortRequested():
-            # Process any queued events
-            while self.dispatch_queue and not self.monitor.abortRequested():
-                data = self.dispatch_queue.popleft()
-                log_debug(f"[service v{__version__}] SimklService.run() Processing queued dispatch: {data}")
-                self._process_dispatch(data)
-            
-            # Do transition check if playing video
-            # This updates progress and handles multi-episode transitions
-            if xbmc.Player().isPlayingVideo():
-                self.scrobbler.transition_check()
-            
-            # Check for scheduled sync every 60 iterations (roughly every minute)
-            loop_count += 1
-            if loop_count >= 60:
-                self._check_scheduled_sync()
-                loop_count = 0
-            
+            try:
+                # Process any queued events
+                while self.dispatch_queue and not self.monitor.abortRequested():
+                    data = self.dispatch_queue.popleft()
+                    log_debug(f"[service v{__version__}] SimklService.run() Processing queued dispatch: {data}")
+                    self._process_dispatch(data)
+
+                # Do transition check if playing video
+                # This updates progress and handles multi-episode transitions
+                if self.scrobbler and xbmc.Player().isPlayingVideo():
+                    self.scrobbler.transition_check()
+
+                # Check for scheduled sync every 60 iterations (roughly every minute)
+                loop_count += 1
+                if loop_count >= 60:
+                    self._check_scheduled_sync()
+                    loop_count = 0
+            except Exception as e:
+                # Never let a single bad iteration kill the main loop - an uncaught
+                # exception here would silently stop all scrobbling and scheduled
+                # syncing until the next Kodi restart.
+                import traceback
+                log_error(f"[service v{__version__}] SimklService.run() Unhandled error in main loop iteration: {e}")
+                log_error(f"[service v{__version__}] SimklService.run() Traceback: {traceback.format_exc()}")
+
             # Wait 1 second before next iteration
             # This gives us responsive event handling while not hammering CPU
             if self.monitor.waitForAbort(1):
@@ -961,9 +981,17 @@ def main():
     # Log exclusion settings summary
     log(get_exclusion_summary())
     
-    service = SimklService()
-    service.run()
-    
+    try:
+        service = SimklService()
+        service.run()
+    except Exception as e:
+        # Last-resort safety net: an uncaught exception here would kill the
+        # background service invoker outright, stopping scrobbling and syncing
+        # for the rest of the Kodi session.
+        import traceback
+        log_error(f"[service v{__version__}] SimklMonitor.main() Fatal error - service stopped unexpectedly: {e}")
+        log_error(f"[service v{__version__}] SimklMonitor.main() Traceback: {traceback.format_exc()}")
+
     log(f"[service v{__version__}] SimklMonitor.main() " + "=" * 50)
     log(f"[service v{__version__}] SimklMonitor.main() SIMKL Scrobbler Service Stopped")
     log(f"[service v{__version__}] SimklMonitor.main() " + "=" * 50)

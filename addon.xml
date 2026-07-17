@@ -1,10 +1,30 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
 SIMKL Scrobbler for Kodi
-Version: 7.9.11
-Last Modified: 2026-07-08
+Version: 7.9.12
+Last Modified: 2026-07-16
 
 CHANGELOG:
+7.9.12 - Fix: the background service's main loop (transition checks, dispatch
+        queue, scheduled sync) had no top-level exception handling — a single
+        uncaught error there (or during startup, before the loop even began)
+        would kill the loop permanently until the next Kodi restart, with
+        scrobbling and scheduled syncing silently stopping. The startup
+        sequence and each loop iteration are now wrapped in their own
+        try/except (plus a last-resort catch in main()), so nothing can take
+        the whole service down. Also fixed a latent bug in
+        _run_sync_thread(): show_notifications was only assigned inside the
+        try block, so an exception raised before that line would make the
+        except handler itself raise NameError, discarding the real error.
+        Separately, live kodi.log from an NVIDIA Shield showed
+        _kodi_time_to_utc_iso() failing on nearly every episode timestamp
+        with "'NoneType' object is not callable" — time.mktime() is broken
+        on that Android Kodi Python build (the same class of bug the
+        function's docstring already described time.mktime() as a fix for,
+        which turned out not to hold on this hardware). The conversion now
+        derives the local/UTC offset from time.localtime()/time.gmtime()
+        instead, which are confirmed working elsewhere in this codebase
+        (e.g. the time.ctime() calls used for last-sync-time logging).
 7.9.11 - Improvement: replaced the rating dialog's focus indicator. Stars
         and the Unrate button previously highlighted with the same flat,
         semi-transparent white box (texturefocus colordiffuse="A0FFFFFF"),
@@ -506,7 +526,7 @@ CHANGELOG:
 -->
 <addon id="script.simkl.scrobbler"
        name="SIMKL Scrobbler"
-       version="7.9.11"
+       version="7.9.12"
        provider-name="Claude.ai with assistance from Michael Beck">
     
     <requires>
