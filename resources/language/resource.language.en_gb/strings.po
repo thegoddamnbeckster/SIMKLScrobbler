@@ -305,6 +305,10 @@ msgctxt "#32662"
 msgid "Include TV shows when syncing to SIMKL"
 msgstr "Include TV shows when syncing to SIMKL"
 
+msgctxt "#32663"
+msgid "Include shows with zero episodes in sync"
+msgstr "Include shows with zero episodes in sync"
+
 # Import from SIMKL (32670-32682)
 msgctxt "#32670"
 msgid "Import from SIMKL"

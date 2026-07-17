@@ -1,4 +1,52 @@
 
+[7.9.18] - 2026-07-17
+Change: 7.9.17's per-episode sub-counter was always visible whenever a show
+had more than one episode, refreshing every 2s regardless of speed. Redesigned
+per feedback: the dialog now stays exactly as it was (just the per-show "X of
+Y" line) unless a single show runs past 20 seconds with no reason for the
+outer counter to move — only then does a second "still working — N/M
+episodes" line appear, refreshing every ~2s until that show finishes. Fast
+shows never trigger it and look identical to before 7.9.17.
+
+[7.9.17] - 2026-07-17
+Fix: TV import progress dialog looked frozen on large shows (e.g. Friends,
+~236 episodes) — each episode is its own JSON-RPC call, but the dialog only
+updated once per SHOW, not per episode, so a big show could sit on screen
+unchanged for well over 20s. Now tracks sub-progress within the current show
+and refreshes the dialog every ~2s of wall-clock time while working through
+it, e.g. "Processing: Friends / (45/236 episodes)". Cancel is also now
+checked at these sub-updates, not just between shows, so clicking Cancel
+mid-show stops immediately instead of waiting for the whole show to finish.
+
+[7.9.16] - 2026-07-17
+Fix: the "(X of Y ...)" count in the TV import progress dialog was appended
+to the same line as "Importing TV episodes from SIMKL...", so it wrapped
+mid-parenthetical on screen and looked broken. Moved to its own indented
+line below.
+
+[7.9.15] - 2026-07-17
+Fix: 7.9.14's progress dialog showed the "excluded" note even with the new
+toggle off, which is the default — the whole point of excluding those shows
+by default is that the count already matches what you see in Kodi's TV Shows
+list, so no note was needed. Now only annotated when sync_include_empty_shows
+is actually on, e.g. "(12 of 170 (100 shows + 70 with 0 episodes))"; off
+(default) is just "(12 of 100)".
+
+[7.9.14] - 2026-07-17
+Feature: option to include zero-episode "ghost" shows in TV sync, and clearer progress counts
+
+- get_kodi_tvshows() now requests Kodi's "episode" property and excludes shows
+  with 0 local episodes by default. These are library entries with no episode
+  files ever matched (e.g. a source that went offline after the initial scan)
+  — they can never have anything marked watched, so counting them inflated
+  every progress total and log count this addon reports beyond what a user
+  browsing Kodi's TV Shows list actually sees.
+- New setting sync_include_empty_shows (default off) restores the old
+  behavior of including them, for users who want the raw library count.
+- The TV import progress dialog now states explicitly whether zero-episode
+  shows are included or excluded from the total shown, e.g.
+  "(100 of 100)" vs "(100 of 100 (+70 with 0 episodes excluded))".
+
 [7.9.13] - 2026-07-16
 Fix: rating an item from the context menu didn't update Kodi's local library
 

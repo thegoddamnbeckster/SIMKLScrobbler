@@ -103,6 +103,7 @@
         <setting id="sync_movies_from_kodi" type="bool" label="32655" default="true"/>
         <setting id="sync_episodes_to_kodi" type="bool" label="32673" default="true"/>
         <setting id="sync_episodes_from_kodi" type="bool" label="32674" default="true"/>
+        <setting id="sync_include_empty_shows" type="bool" label="32663" default="false"/>
         <setting id="unmark_not_on_simkl" type="bool" label="32420" default="true"/>
         
         <!-- Hidden sync state storage -->

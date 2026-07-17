@@ -34,7 +34,7 @@ from resources.lib.utils import (
 from resources.lib.api import SimklAPI
 
 # Module version
-__version__ = '7.9.11'
+__version__ = '7.9.18'
 
 # Log module initialization
 xbmc.log(f'[SIMKL Scrobbler] sync.py v{__version__} - Sync manager module loading', level=xbmc.LOGINFO)
@@ -128,6 +128,12 @@ class SyncManager:
         # warning so _get_stable_show_key() doesn't emit N warnings for a show
         # with N episodes — one warning per show per sync run is enough.
         self._warned_tvshowids: set = set()
+
+        # Set by the most recent get_kodi_tvshows() call so callers (e.g. the
+        # import progress dialog) can report how many zero-episode "ghost"
+        # shows were excluded/included without a second library fetch.
+        self._last_tvshow_total = 0
+        self._last_tvshow_empty_excluded = 0
         
         # Stats for reporting
         self.stats = {
@@ -739,28 +745,57 @@ class SyncManager:
             dict: Map of tvshowid -> show info
         """
         log(f"[sync v{__version__}] SyncManager.get_kodi_tvshows() Fetching TV shows from Kodi library...")
-        
+
         result = self._kodi_rpc("VideoLibrary.GetTVShows", {
             "properties": [
                 "title",
                 "year",
                 "imdbnumber",
                 "uniqueid",
-                "userrating"
+                "userrating",
+                "episode"
             ]
         })
-        
+
         if not result or "tvshows" not in result:
             log_warning(f"[sync v{__version__}] SyncManager.get_kodi_tvshows() No TV shows found in Kodi library")
+            self._last_tvshow_total = 0
+            self._last_tvshow_empty_excluded = 0
             return {}
-        
+
+        all_shows = result["tvshows"]
+        include_empty = get_setting_bool('sync_include_empty_shows', False)
+
+        # Kodi can retain tvshow entries with zero local episodes — e.g. a show
+        # added to the library that never matched any playable files, or whose
+        # source went offline after the initial scan. These "ghost" shows can't
+        # ever have anything marked watched (there's nothing local to match
+        # against), so counting them inflates every progress total/log count
+        # this addon reports beyond what a user browsing Kodi's TV Shows list
+        # actually sees. Excluded by default; sync_include_empty_shows re-adds
+        # them for users who want the raw library count instead.
+        if include_empty:
+            kept_shows = all_shows
+        else:
+            kept_shows = [s for s in all_shows if s.get("episode", 0) > 0]
+
+        self._last_tvshow_total = len(all_shows)
+        self._last_tvshow_empty_excluded = len(all_shows) - len(kept_shows)
+
         # Create lookup by tvshowid
         shows = {}
-        for show in result["tvshows"]:
+        for show in kept_shows:
             shows[show["tvshowid"]] = show
-        
-        log(f"[sync v{__version__}] SyncManager.get_kodi_tvshows() Found {len(shows)} TV shows in Kodi library")
-        
+
+        if self._last_tvshow_empty_excluded:
+            log(f"[sync v{__version__}] SyncManager.get_kodi_tvshows() "
+                f"Found {len(shows)} TV shows in Kodi library "
+                f"({self._last_tvshow_empty_excluded} with zero episodes "
+                f"{'included' if include_empty else 'excluded'} — "
+                f"toggle 'sync_include_empty_shows' to change this)")
+        else:
+            log(f"[sync v{__version__}] SyncManager.get_kodi_tvshows() Found {len(shows)} TV shows in Kodi library")
+
         return shows
     
     # ========== ID Extraction ==========
@@ -1862,6 +1897,16 @@ class SyncManager:
         total_shows = len(kodi_show_list)
         HEARTBEAT_INTERVAL = 10
 
+        # With the toggle off (default), total_shows already equals what a user
+        # browsing Kodi's TV Shows list sees — plain and unambiguous, no note
+        # needed. Only annotate when sync_include_empty_shows is on, since then
+        # total_shows is inflated by the zero-episode shows and needs to say so.
+        if self._last_tvshow_empty_excluded and get_setting_bool('sync_include_empty_shows', False):
+            watchable = total_shows - self._last_tvshow_empty_excluded
+            total_shows_label = f"{total_shows} ({watchable} shows + {self._last_tvshow_empty_excluded} with 0 episodes)"
+        else:
+            total_shows_label = f"{total_shows}"
+
         for show_idx, kodi_show in enumerate(kodi_show_list):
             kodi_tvshowid = kodi_show.get("tvshowid")
             # Use "" not "Unknown" so the title+year guard below correctly skips
@@ -1874,7 +1919,8 @@ class SyncManager:
             if self.progress_dialog:
                 pct = 50 + int((show_idx / max(1, total_shows)) * 30)
                 msg = (
-                    f"Importing TV episodes from SIMKL... ({show_idx + 1} of {total_shows})\n"
+                    f"Importing TV episodes from SIMKL...\n"
+                    f"    ({show_idx + 1} of {total_shows_label})\n"
                     f"Processing: {show_title_display}\n"
                     f"Episodes marked so far: {imported}"
                 )
@@ -1941,13 +1987,32 @@ class SyncManager:
                     log_debug(f"[sync v{__version__}] SyncManager.import_episodes_from_simkl() No season data from SIMKL for: {show_title_display}")
                 continue
 
-            # Process each season
+            # Process each season. A single show's episode list can be large
+            # (e.g. Friends ~236 episodes) — each episode is its own JSON-RPC
+            # call, and the outer progress dialog only updates once per SHOW.
+            # Normally that's fine and we leave the dialog alone. But if this
+            # one show runs past SLOW_SHOW_THRESHOLD seconds without the outer
+            # "X of Y shows" counter having any reason to move, it can look
+            # frozen — so once we cross that threshold we start appending a
+            # second, per-episode counter to prove it's still working, updated
+            # every EP_PROGRESS_INTERVAL seconds of wall clock time. A fast
+            # show never triggers this and the dialog looks exactly as before.
+            SLOW_SHOW_THRESHOLD = 20
+            EP_PROGRESS_INTERVAL = 2
+
+            total_ep_for_show = sum(len(s.get("episodes", [])) for s in seasons)
+            ep_processed_for_show = 0
+            show_start_time = time.time()
+            last_ep_progress_update = 0.0
+            show_cancelled = False
+
             for season_data in seasons:
                 season_num = season_data.get("number", 0)
                 episodes = season_data.get("episodes", [])
 
                 for ep_data in episodes:
                     ep_num = ep_data.get("number", 0)
+                    ep_processed_for_show += 1
 
                     # Look up the episode in Kodi by (show, season, episode).
                     kodi_ep = episode_index.get(kodi_tvshowid, {}).get(season_num, {}).get(ep_num)
@@ -1955,25 +2020,51 @@ class SyncManager:
                         # SIMKL knows about this episode but Kodi doesn't have it
                         # (e.g. not downloaded, different episode numbering scheme)
                         simkl_eps_not_in_kodi += 1
-                        continue
-
-                    # Only write — and only count — when the playcount actually
-                    # differs from what Kodi currently has.  This is the single
-                    # source of truth: the counter means "episodes genuinely
-                    # changed in Kodi", not "episodes evaluated from SIMKL".
-                    current_playcount = kodi_ep.get("playcount", 0)
-                    if current_playcount > 0:
-                        already_watched += 1
-                        continue
-
-                    ep_id = kodi_ep.get("episodeid")
-
-                    if self._set_episode_playcount(ep_id, 1):
-                        log_debug(f"[sync v{__version__}] SyncManager.import_episodes_from_simkl() Marked: {show_title_display} S{season_num:02d}E{ep_num:02d}")
-                        imported += 1
                     else:
-                        log_error(f"[sync v{__version__}] SyncManager.import_episodes_from_simkl() Failed: {show_title_display} S{season_num:02d}E{ep_num:02d}")
-                        self.stats['errors'] += 1
+                        # Only write — and only count — when the playcount actually
+                        # differs from what Kodi currently has.  This is the single
+                        # source of truth: the counter means "episodes genuinely
+                        # changed in Kodi", not "episodes evaluated from SIMKL".
+                        current_playcount = kodi_ep.get("playcount", 0)
+                        if current_playcount > 0:
+                            already_watched += 1
+                        else:
+                            ep_id = kodi_ep.get("episodeid")
+
+                            if self._set_episode_playcount(ep_id, 1):
+                                log_debug(f"[sync v{__version__}] SyncManager.import_episodes_from_simkl() Marked: {show_title_display} S{season_num:02d}E{ep_num:02d}")
+                                imported += 1
+                            else:
+                                log_error(f"[sync v{__version__}] SyncManager.import_episodes_from_simkl() Failed: {show_title_display} S{season_num:02d}E{ep_num:02d}")
+                                self.stats['errors'] += 1
+
+                    elapsed_on_show = time.time() - show_start_time
+                    if (self.progress_dialog and total_ep_for_show > 1
+                            and elapsed_on_show >= SLOW_SHOW_THRESHOLD
+                            and (time.time() - last_ep_progress_update) >= EP_PROGRESS_INTERVAL):
+                        last_ep_progress_update = time.time()
+                        pct = 50 + int((show_idx / max(1, total_shows)) * 30)
+                        msg = (
+                            f"Importing TV episodes from SIMKL...\n"
+                            f"    ({show_idx + 1} of {total_shows_label})\n"
+                            f"Processing: {show_title_display} ({int(elapsed_on_show)}s)\n"
+                            f"    still working — {ep_processed_for_show}/{total_ep_for_show} episodes\n"
+                            f"Episodes marked so far: {imported}"
+                        )
+                        self.progress_dialog.update(pct, msg)
+                        if self.progress_dialog.iscanceled():
+                            self.cancelled = True
+                            show_cancelled = True
+                            log(f"[sync v{__version__}] SyncManager.import_episodes_from_simkl() "
+                                f"Cancelled by user mid-show at {show_title_display} "
+                                f"({ep_processed_for_show}/{total_ep_for_show} episodes, {imported} episodes marked)")
+                            break
+
+                if show_cancelled:
+                    break
+
+            if show_cancelled:
+                break
 
         log(f"[sync v{__version__}] SyncManager.import_episodes_from_simkl() Import results: {imported} marked, {already_watched} already watched in Kodi")
         log(f"[sync v{__version__}] SyncManager.import_episodes_from_simkl() "
