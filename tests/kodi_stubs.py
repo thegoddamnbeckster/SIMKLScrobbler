@@ -23,7 +23,9 @@ def _install():
     xbmc.log = MagicMock()
     xbmc.sleep = MagicMock()
     xbmc.Player = MagicMock
+    xbmc.Monitor = MagicMock
     xbmc.executeJSONRPC = MagicMock(return_value='{"result": {}}')
+    xbmc.getCondVisibility = MagicMock(return_value=False)
 
     xbmcaddon = types.ModuleType('xbmcaddon')
     _addon = MagicMock()

@@ -49,7 +49,7 @@ from resources.lib.strings import (
 )
 
 # Module version
-__version__ = '7.9.8'
+__version__ = '7.9.19'
 
 # Log module initialization
 xbmc.log(f'[SIMKL Scrobbler] service.py v{__version__} - Main service module loading', level=xbmc.LOGINFO)
@@ -523,7 +523,36 @@ class SimklService:
             import time
             xbmcgui.Window(10000).setProperty('simkl.sync_completed_at', str(time.time()))
             log(f"[service v{__version__}] SimklService._run_sync_thread() Sync thread finished")
-    
+
+    def _should_defer_startup_sync(self):
+        """
+        Decide whether the startup sync should wait for onScanFinished
+        instead of running immediately.
+
+        _library_scan_in_progress is only ever set True by the onScanStarted
+        monitor callback. That callback can be missed entirely if a video
+        scan begins before SimklMonitor is constructed - observed in practice,
+        where Kodi's boot-time library scan started several seconds before
+        this service finished importing its modules. A missed callback would
+        leave _library_scan_in_progress permanently False, and the startup
+        sync would then run concurrently with the still-active scan,
+        hammering the same video database from two directions.
+
+        Cross-checking Kodi's live scan state closes that gap regardless of
+        when we started observing it. If the live check itself fails for any
+        reason, fall back to the flag-only result (pre-fix behaviour) rather
+        than deferring forever - an unexpected exception here must never be
+        able to permanently stall sync-on-startup.
+        """
+        if self._library_scan_in_progress:
+            return True
+        try:
+            return bool(xbmc.getCondVisibility('Library.IsScanningVideo'))
+        except Exception as e:
+            log_warning(f"[service v{__version__}] SimklService._should_defer_startup_sync() "
+                        f"Library.IsScanningVideo check failed ({e}) - assuming no scan in progress")
+            return False
+
     def run(self):
         """
         Main service loop - the core of the background service.
@@ -561,9 +590,10 @@ class SimklService:
             # Trigger startup sync if enabled and authenticated
             addon = xbmcaddon.Addon('script.simkl.scrobbler')
             if get_setting_bool('sync_on_startup') and addon.getSetting('access_token'):
-                if self._library_scan_in_progress:
+                if self._should_defer_startup_sync():
                     # Kodi is still scanning on boot - defer until onScanFinished fires
                     log(f"[service v{__version__}] SimklService.run() Sync on startup deferred - library scan in progress")
+                    self._library_scan_in_progress = True
                     self._startup_sync_pending = True
                 else:
                     log(f"[service v{__version__}] SimklService.run() Sync on startup enabled - triggering initial sync")

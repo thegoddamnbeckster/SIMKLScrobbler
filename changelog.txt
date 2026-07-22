@@ -1,4 +1,15 @@
 
+[7.9.19] - 2026-07-22
+Fix: startup sync could run concurrently with Kodi's boot-time video library
+scan instead of waiting for it to finish, both hammering the video database
+at once. The deferral check relied entirely on the onScanStarted callback,
+but that callback fires on the SimklMonitor object, which isn't constructed
+until partway through this addon's own startup - on slower devices Kodi's
+scan can begin several seconds before that happens, so the callback (and the
+flag it sets) was missed outright. Startup sync now also polls Kodi's live
+Library.IsScanningVideo state directly, so a missed callback can no longer
+let the two race each other.
+
 [7.9.18] - 2026-07-17
 Change: 7.9.17's per-episode sub-counter was always visible whenever a show
 had more than one episode, refreshing every 2s regardless of speed. Redesigned
