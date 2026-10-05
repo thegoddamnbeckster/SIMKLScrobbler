@@ -537,7 +537,7 @@ CHANGELOG:
 -->
 <addon id="script.simkl.scrobbler"
        name="SIMKL Scrobbler"
-       version="7.9.19"
+       version="7.9.20"
        provider-name="Claude.ai with assistance from Michael Beck">
     
     <requires>

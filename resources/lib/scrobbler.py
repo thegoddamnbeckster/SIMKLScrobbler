@@ -705,7 +705,10 @@ class SimklScrobbler:
             results = self.api.search_tv(show_title)
             
             if results:
-                show = results[0]
+                # When Kodi told us the show's own premiere year, prefer the result from that year
+                # ("Supernatural" 2005 over a same-titled show from another year); otherwise the first.
+                show_year = video_data.get("show_year")
+                show = next((r for r in results if show_year and r.get("year") == show_year), results[0])
                 show_info = {
                     "title": show.get("title"),
                     "ids": show.get("ids", {})

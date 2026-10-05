@@ -513,4 +513,66 @@ def has_suspicious_tvdb_tmdb_collision(tvdb_id, tmdb_id):
     return str(tvdb_id) == str(tmdb_id)
 
 
+# ---------------------------------------------------------------------------
+# Show identity for a playing episode
+# ---------------------------------------------------------------------------
+# The VideoInfoTag of a playing EPISODE carries the EPISODE's own ids (an episode
+# has its own imdb/tvdb/tmdb id), not its show's. Sending those as the show's ids
+# makes SIMKL fail to resolve the show by id and fall back to matching on the title
+# alone -- and a title is not unique: SIMKL's anime catalogue has an entry literally
+# titled "Supernatural" (2011), so a household watching the real Supernatural (2005)
+# had its episodes recorded against that anime. The show's own ids live on the
+# library's TV show entry; this reads them from there.
+def get_show_identity_for_episode(episode_dbid):
+    """
+    Look up the TV show that owns a library episode.
+
+    Args:
+        episode_dbid (int): The episode's Kodi library id (> 0).
+
+    Returns:
+        dict or None: {"ids": {"imdb": str, "tvdb": str, "tmdb": str} (only those
+        present), "year": int or None}; None when the episode is not in the library
+        or Kodi could not say.
+    """
+    import json
+
+    def rpc(method, params):
+        try:
+            raw = xbmc.executeJSONRPC(json.dumps(
+                {"jsonrpc": "2.0", "id": 1, "method": method, "params": params}))
+            return (json.loads(raw) or {}).get("result") or {}
+        except Exception:
+            return {}
+
+    try:
+        episode_dbid = int(episode_dbid)
+    except (TypeError, ValueError):
+        return None
+    if episode_dbid <= 0:
+        return None
+
+    episode = rpc("VideoLibrary.GetEpisodeDetails",
+                  {"episodeid": episode_dbid, "properties": ["tvshowid"]}).get("episodedetails") or {}
+    tvshowid = episode.get("tvshowid")
+    if not tvshowid or tvshowid < 0:
+        return None
+
+    show = rpc("VideoLibrary.GetTVShowDetails",
+               {"tvshowid": tvshowid, "properties": ["uniqueid", "imdbnumber", "year"]}).get("tvshowdetails") or {}
+    if not show:
+        return None
+
+    uniqueid = show.get("uniqueid") or {}
+    ids = {}
+    imdb = uniqueid.get("imdb") or find_imdb_id_in_uniqueid(uniqueid)
+    if imdb:
+        ids["imdb"] = imdb
+    for key in ("tvdb", "tmdb"):
+        if uniqueid.get(key):
+            ids[key] = str(uniqueid[key])
+    year = show.get("year")
+    return {"ids": ids, "year": year if isinstance(year, int) and year > 0 else None}
+
+
 # End of utils.py

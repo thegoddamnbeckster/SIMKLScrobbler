@@ -1,4 +1,14 @@
 
+[7.9.20] - 2026-10-05
+Fix: an episode could be scrobbled to the wrong show on SIMKL (the real
+"Supernatural" recorded as the 2011 anime also titled "Supernatural"). The
+add-on read the ids off the playing EPISODE's tag, but an episode's imdb/tvdb/
+tmdb ids are the episode's own, not its show's; sent as the show's they don't
+resolve on SIMKL, which then matched on the bare title. For a library episode
+the add-on now looks up the owning TV show in Kodi's library and sends the
+show's own ids (and its premiere year, used to pick the right title-search
+result when a show has no ids).
+
 [7.9.19] - 2026-07-22
 Fix: startup sync could run concurrently with Kodi's boot-time video library
 scan instead of waiting for it to finish, both hammering the video database

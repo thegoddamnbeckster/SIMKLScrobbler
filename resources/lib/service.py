@@ -33,6 +33,7 @@ from resources.lib.utils import (
     log, log_error, log_debug, log_warning,
     get_setting, get_setting_bool, get_setting_int,
     resolve_sync_interval_hours, has_suspicious_tvdb_tmdb_collision,
+    get_show_identity_for_episode,
 )
 from resources.lib.exclusions import check_exclusion, get_exclusion_summary
 from resources.lib.sync import SyncManager
@@ -49,7 +50,7 @@ from resources.lib.strings import (
 )
 
 # Module version
-__version__ = '7.9.19'
+__version__ = '7.9.20'
 
 # Log module initialization
 xbmc.log(f'[SIMKL Scrobbler] service.py v{__version__} - Main service module loading', level=xbmc.LOGINFO)
@@ -898,6 +899,25 @@ class SimklPlayer(xbmc.Player):
                 video_data["dbid"] = info_tag.getDbId()
             except Exception:
                 video_data["dbid"] = -1
+
+            # An episode's own tag carries the EPISODE's ids, not its show's -- sent as the show's they
+            # don't resolve on SIMKL, which then matches on the bare title (see utils.get_show_identity_for_episode).
+            # For a library episode, replace them with the show's own ids and premiere year.
+            if media_type == "episode" and video_data["dbid"] > 0:
+                show = get_show_identity_for_episode(video_data["dbid"])
+                if show is not None:
+                    for key in ("imdb_id", "tvdb_id", "tmdb_id"):
+                        video_data.pop(key, None)
+                    for src, dst in (("imdb", "imdb_id"), ("tvdb", "tvdb_id"), ("tmdb", "tmdb_id")):
+                        if show["ids"].get(src):
+                            video_data[dst] = show["ids"][src]
+                    if has_suspicious_tvdb_tmdb_collision(video_data.get("tvdb_id"), video_data.get("tmdb_id")):
+                        video_data.pop("tvdb_id", None)
+                        video_data.pop("tmdb_id", None)
+                    if show["year"]:
+                        video_data["show_year"] = show["year"]
+                    log(f"[service v{__version__}] SimklPlayer._get_video_data() Using the show's own ids "
+                        f"for the episode: {show['ids']} (year {show['year']})")
 
             # Capture playcount at the start of playback so the scrobbler can
             # detect rewatches (playcount > 0 = previously watched at least once).
