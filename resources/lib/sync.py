@@ -185,6 +185,7 @@ class SyncManager:
         # Override with fresh token if the default read got nothing
         if token and not self.api.access_token:
             self.api.access_token = token
+            self.api._use_client_id_for(token)
             self.api.session.headers.update({
                 "Authorization": f"Bearer {token}"
             })

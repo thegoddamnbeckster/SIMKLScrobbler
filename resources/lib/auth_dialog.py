@@ -22,6 +22,7 @@ import xbmcgui
 import xbmcaddon
 import xbmcvfs
 import requests
+from resources.lib import oauth2
 import threading
 import time
 import os
@@ -92,7 +93,9 @@ class SIMKLAuthDialog(xbmcgui.WindowXMLDialog):
         xbmc.log(f"[SIMKL Scrobbler] Auth: Initializing WindowXMLDialog", xbmc.LOGINFO)
         
         self.addon = xbmcaddon.Addon('script.simkl.scrobbler')
-        self.CLIENT_ID = 'ab02f10030b0d629ffada90e2bf6236c57f42256a9e94d243255392af7b391e7'
+        self.CLIENT_ID = oauth2.CLIENT_ID_V2      # AUTH V2 (SIMKL is retiring the V1 PIN login, expected around April 2027)
+        self.verification_url = 'https://simkl.com/pin'
+        self.verification_url_complete = ''
         
         # Auth state
         self.user_code = None
@@ -145,27 +148,18 @@ class SIMKLAuthDialog(xbmcgui.WindowXMLDialog):
         status_control.setLabel("Contacting SIMKL...")
         
         try:
-            url = "https://api.simkl.com/oauth/pin"
-            params = {'client_id': self.CLIENT_ID, 'redirect_uri': 'urn:ietf:wg:oauth:2.0:oob'}
-            
-            xbmc.log(f"[SIMKL Scrobbler] Auth: GET {url} with params={params}", xbmc.LOGINFO)
-            
-            # SIMKL PIN endpoint uses GET, not POST
-            response = requests.get(url, params=params, timeout=10)
-            
-            xbmc.log(f"[SIMKL Scrobbler] Auth: Response status: {response.status_code}", xbmc.LOGINFO)
-            xbmc.log(f"[SIMKL Scrobbler] Auth: Response body: {response.text[:500]}", xbmc.LOGINFO)
-            response.raise_for_status()
-            data = response.json()
-            
-            self.user_code = data.get('user_code')
-            self.device_code = data.get('device_code')
-            self.interval = data.get('interval', 5)
-            self.expires_in = data.get('expires_in', 900)
-            verification_url = data.get('verification_url', 'https://simkl.com/pin/')
-            
+            # AUTH V2 device flow (RFC 8628): POST /oauth2/device asks for a code that gives read AND write access
+            data = oauth2.request_device_code(self._post)
+
+            self.user_code = data['user_code']
+            self.device_code = data['device_code']
+            self.interval = data['interval']
+            self.expires_in = data['expires_in']
+            self.verification_url = data['verification_uri']
+            self.verification_url_complete = data['verification_uri_complete']
+
             xbmc.log(f"[SIMKL Scrobbler] Auth: user_code={self.user_code}, device_code={'YES' if self.device_code else 'NO'}", xbmc.LOGINFO)
-            xbmc.log(f"[SIMKL Scrobbler] Auth: interval={self.interval}s, expires={self.expires_in}s, verify_url={verification_url}", xbmc.LOGINFO)
+            xbmc.log(f"[SIMKL Scrobbler] Auth: interval={self.interval}s, expires={self.expires_in}s, verify_url={self.verification_url}", xbmc.LOGINFO)
             
         except Exception as e:
             xbmc.log(f"[SIMKL Scrobbler] Auth: EXCEPTION in start_auth_flow: {e}", xbmc.LOGERROR)
@@ -197,7 +191,7 @@ class SIMKLAuthDialog(xbmcgui.WindowXMLDialog):
         xbmc.log(f"[SIMKL Scrobbler] Auth: PIN displayed: {self.user_code}", xbmc.LOGINFO)
         
         # Generate QR code via web API
-        auth_url = f"https://simkl.com/pin/{self.user_code}"
+        auth_url = self.verification_url_complete or f"{self.verification_url}?user_code={self.user_code}"
         qr_path = xbmcvfs.translatePath('special://temp/simkl_qr.png')
         
         # Remove old QR image if exists
@@ -322,65 +316,43 @@ class SIMKLAuthDialog(xbmcgui.WindowXMLDialog):
             'error' - Non-recoverable error
         """
         try:
-            url = f"https://api.simkl.com/oauth/pin/{self.user_code}"
-            params = {'client_id': self.CLIENT_ID}
-            
-            xbmc.log(f"[SIMKL Scrobbler] Auth: Polling GET {url}", xbmc.LOGDEBUG)
-            
-            response = requests.get(url, params=params, timeout=10)
-            
-            xbmc.log(f"[SIMKL Scrobbler] Auth: Poll response status={response.status_code}", xbmc.LOGDEBUG)
-            xbmc.log(f"[SIMKL Scrobbler] Auth: Poll response body: {response.text[:500]}", xbmc.LOGDEBUG)
-            
-            if response.status_code == 200:
-                result = response.json()
-                
-                result_status = result.get('result')
-                access_token = result.get('access_token')
-                
-                xbmc.log(f"[SIMKL Scrobbler] Auth: Poll 200 - result='{result_status}', has_token={'YES' if access_token else 'NO'}", xbmc.LOGINFO)
-                
-                if result_status == 'OK' and access_token:
-                    xbmc.log(f"[SIMKL Scrobbler] Auth: Token received (len={len(access_token)})", xbmc.LOGINFO)
-                    self._last_saved_token = access_token
-                    # Save to both setting IDs for compatibility
-                    self.addon.setSetting('access_token', access_token)
-                    self.addon.setSetting('simkl_token', access_token)
-                    xbmc.log(f"[SIMKL Scrobbler] Auth: Token saved to access_token and simkl_token", xbmc.LOGINFO)
-                    return 'success'
-                elif access_token:
-                    # Has token but result is not 'OK' - save anyway and log
-                    xbmc.log(f"[SIMKL Scrobbler] Auth: Token received with unexpected result='{result_status}' - saving anyway", xbmc.LOGWARNING)
-                    self._last_saved_token = access_token
-                    self.addon.setSetting('access_token', access_token)
-                    self.addon.setSetting('simkl_token', access_token)
-                    return 'success'
-                else:
-                    # 200 but no token yet - still pending
-                    xbmc.log(f"[SIMKL Scrobbler] Auth: 200 but no token - result='{result_status}' - still pending", xbmc.LOGDEBUG)
-                    return 'pending'
-            
-            elif response.status_code == 404:
-                # Code not found or expired
-                xbmc.log(f"[SIMKL Scrobbler] Auth: 404 - Code not found or expired", xbmc.LOGWARNING)
-                return 'error'
-            
-            elif response.status_code == 400:
-                # Bad request
-                xbmc.log(f"[SIMKL Scrobbler] Auth: 400 - Bad request: {response.text[:200]}", xbmc.LOGWARNING)
-                return 'pending'  # Might be transient
-                
-            else:
-                # Other status - treat as pending
-                xbmc.log(f"[SIMKL Scrobbler] Auth: Unexpected status {response.status_code}: {response.text[:200]}", xbmc.LOGWARNING)
+            state, payload = oauth2.poll_device_token(self._post, self.device_code)
+            xbmc.log(f"[SIMKL Scrobbler] Auth: Poll state={state}", xbmc.LOGDEBUG)
+
+            if state == 'ok':
+                access_token = payload['access_token']
+                xbmc.log(f"[SIMKL Scrobbler] Auth: Token received (len={len(access_token)}, "
+                         f"scope='{payload.get('scope', '')}')", xbmc.LOGINFO)
+                self._last_saved_token = access_token
+                # access_token + simkl_token (the legacy id), the refresh token and when the access token runs out
+                oauth2.TokenStore(self.addon.getSetting, self.addon.setSetting).save(payload)
+                xbmc.log(f"[SIMKL Scrobbler] Auth: Tokens saved", xbmc.LOGINFO)
+                return 'success'
+            if state == 'slow_down':
+                self.interval += 5            # RFC 8628: the service asked for slower polling
                 return 'pending'
-                
-        except requests.exceptions.Timeout:
-            xbmc.log(f"[SIMKL Scrobbler] Auth: Poll timeout - will retry", xbmc.LOGDEBUG)
+            if state in ('expired', 'denied'):
+                xbmc.log(f"[SIMKL Scrobbler] Auth: login code {state}", xbmc.LOGWARNING)
+                return 'error'
             return 'pending'
+
         except Exception as e:
             xbmc.log(f"[SIMKL Scrobbler] Auth: Poll exception: {e}", xbmc.LOGERROR)
             return 'pending'
+
+    @staticmethod
+    def _post(path, body):
+        """POST to an /oauth2 endpoint: (status code, parsed JSON or None); 0 when SIMKL cannot be reached."""
+        try:
+            response = requests.post(f"https://api.simkl.com{path}", json=body, timeout=10, headers={
+                'Content-Type': 'application/json', 'User-Agent': oauth2.user_agent(oauth2.__version__)})
+        except requests.exceptions.RequestException as e:
+            xbmc.log(f"[SIMKL Scrobbler] Auth: POST {path} failed: {e}", xbmc.LOGWARNING)
+            return 0, None
+        try:
+            return response.status_code, response.json()
+        except ValueError:
+            return response.status_code, None
 
     def fetch_username(self, access_token=None):
         """
@@ -403,12 +375,13 @@ class SIMKLAuthDialog(xbmcgui.WindowXMLDialog):
             url = "https://api.simkl.com/users/settings"
             headers = {
                 'Authorization': f'Bearer {access_token}',
-                'simkl-api-key': self.CLIENT_ID
+                'simkl-api-key': self.CLIENT_ID,
+                'User-Agent': oauth2.user_agent(oauth2.__version__),
             }
             
             xbmc.log(f"[SIMKL Scrobbler] Auth: Fetching user settings from {url}", xbmc.LOGDEBUG)
             
-            response = requests.get(url, headers=headers, timeout=10)
+            response = requests.get(url, headers=headers, params=oauth2.identity_params(oauth2.__version__), timeout=10)
             
             xbmc.log(f"[SIMKL Scrobbler] Auth: User settings status={response.status_code}", xbmc.LOGDEBUG)
             

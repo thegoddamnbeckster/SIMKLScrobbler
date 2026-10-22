@@ -101,6 +101,10 @@ class SimklAuth:
             
             # Also clear legacy simkl_token for clean state
             set_setting("simkl_token", "")
+
+            # AUTH V2: the refresh token and when the access token runs out
+            set_setting("refresh_token", "")
+            set_setting("token_expires_at", "")
             
             log(f"[auth v{__version__}] SimklAuth.clear_authentication() Clearing simkl_user...")
             set_setting("simkl_user", "")

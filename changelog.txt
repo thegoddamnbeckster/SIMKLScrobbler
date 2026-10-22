@@ -1,3 +1,19 @@
+[7.9.27] - 2026-10-22
+SIMKL AUTH V2 (announced 2026-09-18): SIMKL expects the old PIN login (AUTH V1) to stop working around April 2027, and a V1
+application cannot be upgraded. This release adds the new login and keeps existing connections working until then.
+- New connections use the AUTH V2 device login (a code you enter at simkl.com/pin). It asks for read AND write access;
+  without that a V2 token is read-only and nothing would be sent to SIMKL.
+- A V2 access token lasts 7 days (a V1 token lasts 5 years). The add-on renews it with the refresh token (180 days,
+  renewed on use) shortly BEFORE it runs out, and again if SIMKL rejects it. Renewing invalidates the previous token at
+  once, and Kodi runs the service, scripts and rating dialog as separate processes, so a renewal is taken under a lock and
+  a process that waited adopts the token the first one got instead of renewing a second time.
+- If SIMKL refuses the refresh token (revoked, or unused for 180 days) the saved tokens are cleared and the account must be
+  connected again from the add-on settings; a network or server failure keeps them and tries again later.
+- An existing V1 connection keeps working with its own (V1) client id until SIMKL turns V1 off; reconnecting once moves it to V2.
+- Every request now says which app and version it is (app-name, app-version and a User-Agent), which SIMKL has required
+  since 2026-04-22.
+- Sign out also clears the refresh token and expiry.
+
 
 [7.9.26] - 2026-10-18
 Fix: rewatches never reached SIMKL, because the add-on never asked for them. SIMKL records a rewatch (Pro/VIP

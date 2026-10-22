@@ -30,10 +30,11 @@ import json
 import re
 import xbmc
 import xbmcaddon
-from resources.lib.utils import log, log_error, log_debug, log_warning, log_module_init, get_setting
+from resources.lib.utils import log, log_error, log_debug, log_warning, log_module_init, get_setting, set_setting
+from resources.lib import oauth2
 
 # Module version
-__version__ = '7.9.26'
+__version__ = '7.9.27'
 
 # Log module initialization
 log_module_init('api.py', __version__)
@@ -72,8 +73,10 @@ class SimklAPI:
     
     BASE_URL = "https://api.simkl.com"
     
-    # Our registered client ID (not secret, device auth doesn't need secrets)
-    CLIENT_ID = "ab02f10030b0d629ffada90e2bf6236c57f42256a9e94d243255392af7b391e7"
+    # Our registered client IDs (not secret, device auth doesn't need secrets). AUTH V2 is the one new logins use; the V1 id
+    # only keeps an existing V1 token working until SIMKL retires V1 (expected around April 2027).
+    CLIENT_ID = oauth2.CLIENT_ID_V2
+    CLIENT_ID_V1 = oauth2.CLIENT_ID_V1
     
     def __init__(self):
         """
@@ -92,8 +95,11 @@ class SimklAPI:
         # Set default headers
         self.session.headers.update({
             "Content-Type": "application/json",
-            "simkl-api-key": self.CLIENT_ID
+            "User-Agent": oauth2.user_agent(__version__),
         })
+        # every request says which app and version it is (SIMKL requires it) and carries the client id that goes with the token
+        self.session.params = oauth2.identity_params(__version__)
+        self._use_client_id_for(self.access_token)
         
         # Add auth header if we have a token
         if self.access_token:
@@ -101,8 +107,68 @@ class SimklAPI:
                 "Authorization": f"Bearer {self.access_token}"
             })
         
+        # AUTH V2 tokens last 7 days and are renewed with a refresh token; the saved tokens are shared with every other
+        # Kodi process of this addon, so a renewal is taken under a lock (see oauth2.refresh_access_token)
+        self._tokens = oauth2.TokenStore(get_setting, set_setting, get_fresh=self._read_setting_fresh)
+
         log(f"[api v{__version__}] SimklAPI.__init__() SimklAPI initialized | token={token_preview} | thread={tid}")
     
+    def _use_client_id_for(self, token):
+        """Sends the client id that belongs to this token: V2 for a V2 token (or none yet), V1 for an existing V1 token."""
+        client_id = oauth2.client_id_for(token)
+        self.session.headers["simkl-api-key"] = client_id
+        self.session.params["client_id"] = client_id
+
+    @staticmethod
+    def _read_setting_fresh(setting_id):
+        """A setting as another process last saved it (a new Addon object, so Kodi's per-object cache is bypassed)."""
+        try:
+            return xbmcaddon.Addon('script.simkl.scrobbler').getSetting(setting_id)
+        except Exception:
+            return get_setting(setting_id)
+
+    def _oauth_post(self, path, body):
+        """POST to an /oauth2 endpoint: returns (status code, parsed JSON or None); 0 when the service cannot be reached."""
+        try:
+            response = requests.post(f"{self.BASE_URL}{path}", json=body, timeout=15, headers={
+                "Content-Type": "application/json", "User-Agent": oauth2.user_agent(__version__)})
+        except requests.exceptions.RequestException as e:
+            log_error(f"[api v{__version__}] SimklAPI._oauth_post() {path} failed: {e}")
+            return 0, None
+        try:
+            return response.status_code, response.json()
+        except ValueError:
+            return response.status_code, None
+
+    def _refresh_lock(self):
+        """A lock shared by this addon's processes, kept in its profile folder (none if there is nowhere to put one)."""
+        try:
+            import os
+            import xbmcvfs
+            profile = xbmcvfs.translatePath(xbmcaddon.Addon('script.simkl.scrobbler').getAddonInfo('profile'))
+            if profile and os.path.isdir(profile):
+                return oauth2.FileLock(os.path.join(profile, 'token_refresh.lock'))
+        except Exception as e:
+            log_warning(f"[api v{__version__}] SimklAPI._refresh_lock() no lock available: {e}")
+        return oauth2.NoLock()
+
+    def ensure_fresh_token(self, force=False):
+        """
+        Renews an AUTH V2 access token that is expired or about to be (or any V2 token when `force`), then points this
+        client at whatever token is saved. Returns the outcome of oauth2.refresh_access_token.
+        """
+        outcome = oauth2.refresh_access_token(self._tokens, self._oauth_post, self._refresh_lock(), force=force)
+        if outcome in ("fresh", "reauth"):
+            self.refresh_token()          # adopt the saved token (or its absence) into this client's headers
+            if outcome == "reauth":
+                log_error(f"[api v{__version__}] SimklAPI.ensure_fresh_token() SIMKL refused the refresh token - the "
+                          f"account must be connected again (Settings > Authorization)")
+            else:
+                log(f"[api v{__version__}] SimklAPI.ensure_fresh_token() access token renewed")
+        elif outcome == "failed":
+            log_warning(f"[api v{__version__}] SimklAPI.ensure_fresh_token() could not renew the token now - will try again")
+        return outcome
+
     def close(self):
         """Close the requests session to free socket connections."""
         if self.session:
@@ -151,6 +217,12 @@ class SimklAPI:
         has_auth = 'Authorization' in self.session.headers
         token_preview = self.access_token[:8] + '...' if self.access_token else 'NONE'
         
+        # a V2 access token that is about to run out is renewed BEFORE the request, not after it fails
+        if self.access_token and oauth2.is_v2_token(self.access_token):
+            self.ensure_fresh_token()
+            has_auth = 'Authorization' in self.session.headers
+            token_preview = self.access_token[:8] + '...' if self.access_token else 'NONE'
+
         log(f"[api v{__version__}] SimklAPI._request() {method} {endpoint} | thread={tid} | has_auth_header={has_auth} | token={token_preview}")
         
         if data:
@@ -331,6 +403,9 @@ class SimklAPI:
         
         # Try refreshing token once before giving up
         old_token = self.access_token
+        if oauth2.is_v2_token(self.access_token):
+            # A V2 token is rejected when it has expired or another process renewed it: renew (or adopt the renewed one)
+            self.ensure_fresh_token(force=True)
         log(f"[api v{__version__}] SimklAPI._handle_401() Calling refresh_token() to get latest from settings...")
         self.refresh_token()
         new_token_preview = self.access_token[:8] + '...' if self.access_token else 'NONE'
@@ -905,8 +980,7 @@ class SimklAPI:
         Returns:
             Dict with device_code, user_code, verification_url
         """
-        params = {"client_id": self.CLIENT_ID}
-        return self._request("GET", "/oauth/pin", params=params)
+        return oauth2.request_device_code(self._oauth_post)
     
     def check_device_auth(self, user_code):
         """
@@ -918,8 +992,7 @@ class SimklAPI:
         Returns:
             Dict with access_token if authorized, or status info
         """
-        params = {"client_id": self.CLIENT_ID}
-        return self._request("GET", f"/oauth/pin/{user_code}", params=params)
+        return oauth2.poll_device_token(self._oauth_post, user_code)
     
     # ========== Utility Methods ==========
     
@@ -974,6 +1047,7 @@ class SimklAPI:
             old_preview = self.access_token[:8] + '...' if self.access_token else 'NONE'
             new_preview = new_token[:8] + '...' if new_token else 'NONE'
             self.access_token = new_token
+            self._use_client_id_for(self.access_token)
             if self.access_token:
                 self.session.headers.update({
                     "Authorization": f"Bearer {self.access_token}"
