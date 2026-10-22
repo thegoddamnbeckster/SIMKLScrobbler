@@ -166,10 +166,6 @@ msgctxt "#32418"
 msgid "Dangerous Options"
 msgstr "Dangerous Options"
 
-msgctxt "#32420"
-msgid "Unmark items removed from SIMKL history"
-msgstr "Unmark items removed from SIMKL history"
-
 msgctxt "#32654"
 msgid "Sync movies to Kodi"
 msgstr "Sync movies to Kodi"

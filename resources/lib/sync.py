@@ -19,8 +19,10 @@ Professional code - suitable for public distribution
 Attribution: Claude.ai with assistance from Michael Beck
 """
 
+import calendar
 import json
 import os
+import re
 import time
 import xbmc
 import xbmcaddon
@@ -32,9 +34,10 @@ from resources.lib.utils import (
     find_imdb_id_in_uniqueid, has_suspicious_tvdb_tmdb_collision,
 )
 from resources.lib.api import SimklAPI
+from resources.lib.pending_history import PendingHistory
 
 # Module version
-__version__ = '7.9.18'
+__version__ = '7.9.26'
 
 # Log module initialization
 xbmc.log(f'[SIMKL Scrobbler] sync.py v{__version__} - Sync manager module loading', level=xbmc.LOGINFO)
@@ -55,6 +58,27 @@ def _local_utc_offset():
     local_dt = datetime(*time.localtime(now)[:6])
     utc_dt = datetime(*time.gmtime(now)[:6])
     return local_dt - utc_dt
+
+
+_TIMESTAMP_RE = re.compile(r"^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2}):(\d{2})")
+
+
+def _parse_timestamp(value):
+    """
+    Parse "YYYY-MM-DD HH:MM:SS" or "YYYY-MM-DDTHH:MM:SS[Z]" into a naive datetime.
+
+    Deliberately not datetime.strptime(): inside Kodi's embedded Python it fails
+    with "'NoneType' object is not callable" when first called off the main
+    thread (its lazy import of _strptime), which broke every timestamp
+    conversion in a background sync (2026-10-17: ~3,000 failures in one run,
+    after which imported items were stamped with the current time). Building
+    the datetime from the matched digits needs no import and cannot fail that
+    way. Raises ValueError for anything that does not match.
+    """
+    match = _TIMESTAMP_RE.match(value) if isinstance(value, str) else None
+    if not match:
+        raise ValueError(f"unrecognised timestamp: {value!r}")
+    return datetime(*(int(part) for part in match.groups()))
 
 
 def _kodi_time_to_utc_iso(kodi_timestamp):
@@ -78,12 +102,59 @@ def _kodi_time_to_utc_iso(kodi_timestamp):
     """
     try:
         # Parse as local time (naive datetime)
-        local_dt = datetime.strptime(kodi_timestamp, "%Y-%m-%d %H:%M:%S")
+        local_dt = _parse_timestamp(kodi_timestamp)
         utc_dt = (local_dt - _local_utc_offset()).replace(tzinfo=timezone.utc)
         return utc_dt.strftime("%Y-%m-%dT%H:%M:%SZ")
     except Exception as e:
         log_warning(f"[sync v{__version__}] _kodi_time_to_utc_iso() Failed to convert timestamp '{kodi_timestamp}': {e}")
         return None
+
+
+def _utc_iso_to_kodi_time(utc_iso):
+    """
+    Convert a SIMKL UTC ISO 8601 time to Kodi's local "YYYY-MM-DD HH:MM:SS".
+
+    The inverse of _kodi_time_to_utc_iso(), used so an item SIMKL says was
+    watched gets that REAL time as Kodi's lastplayed. Without it Kodi stamps
+    "now" on a bare playcount write, which reads everywhere downstream as a
+    brand-new play (2026-10-13: Onslaught, finished days earlier on another
+    device, got a fake last-played at Kodi startup and was pulled into
+    Chronicle as a rewatch).
+
+    The offset is taken for the timestamp's own date (via time.localtime on
+    its epoch), so a time from the other side of a DST change is not an hour
+    out. Like _local_utc_offset it avoids time.mktime(), which is broken on
+    some Kodi Android builds; calendar.timegm and time.localtime are not.
+
+    Returns None for a missing/unparseable value - the caller then writes the
+    playcount alone (see _watched_properties).
+    """
+    if not utc_iso or not isinstance(utc_iso, str):
+        return None
+    try:
+        utc_dt = _parse_timestamp(utc_iso)
+        epoch = calendar.timegm(utc_dt.timetuple())
+        return time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(epoch))
+    except Exception as e:
+        log_warning(f"[sync v{__version__}] _utc_iso_to_kodi_time() Failed to convert timestamp '{utc_iso}': {e}")
+        return None
+
+
+def _watched_properties(playcount, utc_iso=None):
+    """
+    The properties for a VideoLibrary.Set*Details call that marks an item
+    watched (or unwatched) from SIMKL.
+
+    lastplayed is included only when SIMKL supplied a real watch time and the
+    item is being marked watched. With no time, the playcount is written
+    alone: the item is still marked watched, but nothing is invented.
+    """
+    props = {"playcount": playcount}
+    if playcount > 0:
+        kodi_time = _utc_iso_to_kodi_time(utc_iso)
+        if kodi_time:
+            props["lastplayed"] = kodi_time
+    return props
 
 
 class SyncManager:
@@ -964,14 +1035,15 @@ class SyncManager:
         # Send to SIMKL in batches (API may have limits)
         batch_size = 100
         total_sent = 0
-        
+        failed_batches = 0
+
         for i in range(0, len(movies_to_send), batch_size):
             batch = movies_to_send[i:i + batch_size]
             
             log(f"[sync v{__version__}] SyncManager.export_movies_to_simkl() Sending batch {i // batch_size + 1}: {len(batch)} movies")
             
             result = self.api.add_to_history(movies=batch)
-            
+
             if result:
                 added = result.get("added", {}).get("movies", 0)
                 total_sent += added
@@ -979,13 +1051,20 @@ class SyncManager:
             else:
                 log_error(f"[sync v{__version__}] SyncManager.export_movies_to_simkl() Failed to send batch to SIMKL")
                 self.stats['errors'] += 1
-        
+                failed_batches += 1
+
         self.stats['movies_exported'] = total_sent
-        
-        # Save current sync state after successful export
-        current_state = self._build_movie_state(kodi_movies)
-        self._save_sync_state('movies', current_state)
-        
+
+        # Advance the sync state only when every batch got an answer. Saving it after a failed batch (as this used
+        # to) records those movies' play counts as "already synced", so a rewatch whose export failed was never
+        # retried - the delta saw no change on any later run. A retry re-sends the batches that did succeed too,
+        # which is harmless: SIMKL ignores a history entry it already has. (The episode export has always done this.)
+        if failed_batches:
+            log_error(f"[sync v{__version__}] SyncManager.export_movies_to_simkl() {failed_batches} batch(es) failed - sync state NOT updated so the movies retry next run")
+        else:
+            current_state = self._build_movie_state(kodi_movies)
+            self._save_sync_state('movies', current_state)
+
         log(f"[sync v{__version__}] SyncManager.export_movies_to_simkl() === Movie Export Complete: {total_sent} movies sent to SIMKL ===")
         
         return total_sent
@@ -1154,9 +1233,17 @@ class SyncManager:
             self._notify("SIMKL Sync", "Please authenticate first!")
             return self.stats
         
+        # Retry any watch that could not be recorded when it happened (see pending_history.py)
+        try:
+            recorded, waiting = PendingHistory().flush(self.api)
+            if recorded or waiting:
+                log(f"[sync v{__version__}] SyncManager.sync_to_simkl() Queued watches: {recorded} recorded, {waiting} still waiting")
+        except Exception as e:
+            log_warning(f"[sync v{__version__}] SyncManager.sync_to_simkl() Could not retry queued watches: {e}")
+
         # === TOAST: Sync Started ===
         self._notify("SIMKL Sync", "Sync started...")
-        
+
         # Initialize progress dialog if requested
         if self.show_progress:
             self.progress_dialog = xbmcgui.DialogProgress()
@@ -1232,38 +1319,36 @@ class SyncManager:
 
     # ========== Import: SIMKL → Kodi ==========
     
-    def _set_movie_playcount(self, movie_id, playcount=1):
+    def _set_movie_playcount(self, movie_id, playcount=1, watched_at=None):
         """
         Update a movie's playcount in Kodi.
         
         Args:
             movie_id (int): Kodi movie database ID
             playcount (int): New playcount value
-            
+            watched_at (str): SIMKL's real UTC watch time, written as lastplayed
+        
         Returns:
             bool: Success
         """
-        result = self._kodi_rpc("VideoLibrary.SetMovieDetails", {
-            "movieid": movie_id,
-            "playcount": playcount
-        })
+        result = self._kodi_rpc("VideoLibrary.SetMovieDetails", dict(
+            _watched_properties(playcount, watched_at), movieid=movie_id))
         return result is not None
     
-    def _set_episode_playcount(self, episode_id, playcount=1):
+    def _set_episode_playcount(self, episode_id, playcount=1, watched_at=None):
         """
         Update an episode's playcount in Kodi.
         
         Args:
             episode_id (int): Kodi episode database ID
             playcount (int): New playcount value
-            
+            watched_at (str): SIMKL's real UTC watch time, written as lastplayed
+        
         Returns:
             bool: Success
         """
-        result = self._kodi_rpc("VideoLibrary.SetEpisodeDetails", {
-            "episodeid": episode_id,
-            "playcount": playcount
-        })
+        result = self._kodi_rpc("VideoLibrary.SetEpisodeDetails", dict(
+            _watched_properties(playcount, watched_at), episodeid=episode_id))
         return result is not None
     
     def _match_movie_to_kodi(self, simkl_movie, kodi_movies_by_id):
@@ -1499,8 +1584,7 @@ class SyncManager:
         Fetches completed movies from SIMKL and marks matching
         items in Kodi library as watched.
         
-        If 'unmark_not_on_simkl' setting is enabled, also unmarks
-        items that are watched in Kodi but not on SIMKL.
+        Merge only: never unmarks anything. Kodi items SIMKL does not list are left alone.
         
         Args:
             date_from: Optional ISO 8601 timestamp for incremental fetch.
@@ -1520,7 +1604,7 @@ class SyncManager:
         
         if not simkl_movies:
             log(f"[sync v{__version__}] SyncManager.import_movies_from_simkl() No completed movies on SIMKL")
-            simkl_movies = []  # Empty list for unmark logic
+            simkl_movies = []
         else:
             log(f"[sync v{__version__}] SyncManager.import_movies_from_simkl() Found {len(simkl_movies)} completed movies on SIMKL")
         
@@ -1531,14 +1615,13 @@ class SyncManager:
             log(f"[sync v{__version__}] SyncManager.import_movies_from_simkl() No movies in Kodi library to match")
             return 0
         
-        # Build SIMKL movie lookup indexes and the unmark ID set in a single pass.
+        # Build SIMKL movie lookup indexes in a single pass.
         # Keying by SIMKL IDs lets the outer loop iterate Kodi's (smaller) movie
         # list and do an O(1) lookup per movie, rather than iterating SIMKL's
         # (potentially much larger) list and searching Kodi for each entry.
         simkl_by_imdb = {}          # imdb_id          → simkl_movie entry
         simkl_by_tmdb = {}          # tmdb_id           → simkl_movie entry
         simkl_by_title_year = {}    # (title_lower, yr) → simkl_movie entry
-        simkl_movie_ids = set()     # (type, value) pairs used by the unmark pass
 
         for simkl_movie in simkl_movies:
             movie_data = simkl_movie.get("movie", {})
@@ -1551,14 +1634,12 @@ class SyncManager:
                     log_warning(f"[sync v{__version__}] SyncManager.import_movies_from_simkl() "
                                 f"Duplicate IMDb ID {imdb_key} in SIMKL data ('{title}') — keeping later entry")
                 simkl_by_imdb[imdb_key] = simkl_movie
-                simkl_movie_ids.add(("imdb", ids["imdb"]))
             if ids.get("tmdb"):
                 tmdb_key = str(ids["tmdb"])
                 if tmdb_key in simkl_by_tmdb:
                     log_warning(f"[sync v{__version__}] SyncManager.import_movies_from_simkl() "
                                 f"Duplicate TMDb ID {tmdb_key} in SIMKL data ('{title}') — keeping later entry")
                 simkl_by_tmdb[tmdb_key] = simkl_movie
-                simkl_movie_ids.add(("tmdb", tmdb_key))
             if title and year:
                 try:
                     simkl_by_title_year[(normalize_title(title), int(year))] = simkl_movie
@@ -1613,7 +1694,7 @@ class SyncManager:
             # Mark as watched in Kodi
             movie_id = kodi_movie.get("movieid")
 
-            if self._set_movie_playcount(movie_id, 1):
+            if self._set_movie_playcount(movie_id, 1, watched_at=simkl_movie.get("last_watched_at")):
                 log(f"[sync v{__version__}] SyncManager.import_movies_from_simkl() Marked as watched: {title_display}")
                 imported += 1
             else:
@@ -1622,72 +1703,15 @@ class SyncManager:
 
         log(f"[sync v{__version__}] SyncManager.import_movies_from_simkl() Import results: {imported} marked, {already_watched} already watched, {not_found} not on SIMKL")
         
-        # Check if we should unmark items not on SIMKL
-        # IMPORTANT: Only unmark during FULL sync (no date_from filter).
-        # During incremental sync, we only fetched a subset of items from SIMKL,
-        # so the absence of an item does NOT mean it's not on SIMKL - it just
-        # means it wasn't changed since date_from. Unmarking during incremental
-        # sync would incorrectly remove valid watched status.
-        if get_setting_bool('unmark_not_on_simkl'):
-            if date_from:
-                log(f"[sync v{__version__}] SyncManager.import_movies_from_simkl() Skipping unmark check - incremental sync only has partial data")
-            else:
-                unmarked = self._unmark_movies_not_on_simkl(kodi_movies, simkl_movie_ids)
-                self.stats['movies_unmarked'] = unmarked
-                log(f"[sync v{__version__}] SyncManager.import_movies_from_simkl() Unmarked {unmarked} movies not found on SIMKL")
+        # Merge, not overwrite: this import only ever ADDS watched state. A movie Kodi has watched that
+        # SIMKL does not list is left exactly as it is - SIMKL not knowing about a watch is not evidence
+        # that it did not happen (2026-10-17: a full sync unmarked eight watched movies this way).
         
         self.stats['movies_imported'] = imported
         
         log(f"[sync v{__version__}] SyncManager.import_movies_from_simkl() === Movie Import Complete: {imported} movies marked as watched ===")
         return imported
     
-    def _unmark_movies_not_on_simkl(self, kodi_movies, simkl_movie_ids):
-        """
-        Unmark movies in Kodi that are watched but not on SIMKL.
-        
-        Args:
-            kodi_movies (list): All movies from Kodi
-            simkl_movie_ids (set): Set of (id_type, id_value) tuples from SIMKL
-            
-        Returns:
-            int: Number of movies unmarked
-        """
-        log(f"[sync v{__version__}] SyncManager._unmark_movies_not_on_simkl() Checking for movies to unmark (not on SIMKL)...")
-        unmarked = 0
-        
-        for movie in kodi_movies:
-            # Skip if not watched
-            if movie.get("playcount", 0) == 0:
-                continue
-            
-            # Check if this movie is on SIMKL
-            uniqueid = movie.get("uniqueid", {})
-            found_on_simkl = False
-            
-            # Check IMDb
-            if uniqueid.get("imdb"):
-                if ("imdb", uniqueid["imdb"]) in simkl_movie_ids:
-                    found_on_simkl = True
-            
-            # Check TMDb
-            if not found_on_simkl and uniqueid.get("tmdb"):
-                if ("tmdb", str(uniqueid["tmdb"])) in simkl_movie_ids:
-                    found_on_simkl = True
-            
-            # If not on SIMKL, unmark it
-            if not found_on_simkl:
-                movie_id = movie.get("movieid")
-                title = movie.get("title", "Unknown")
-                
-                if self._set_movie_playcount(movie_id, 0):
-                    log(f"[sync v{__version__}] SyncManager._unmark_movies_not_on_simkl() Unmarked (not on SIMKL): {title}")
-                    unmarked += 1
-                else:
-                    log_error(f"[sync v{__version__}] SyncManager._unmark_movies_not_on_simkl() Failed to unmark: {title}")
-                    self.stats['errors'] += 1
-        
-        return unmarked
-
     def _mark_all_episodes_watched(self, kodi_tvshowid, show_title_display, show_episode_index):
         """
         Mark every Kodi episode of one show as watched.
@@ -1753,7 +1777,8 @@ class SyncManager:
         # Without extended=full the API returns only show-level metadata (title, ids,
         # watched_episodes_count) — the seasons/episodes array needed to mark individual
         # Kodi episodes is absent, so nothing gets imported.
-        simkl_shows = self.api.get_all_items("shows", "completed", extended=True, date_from=date_from)
+        simkl_shows = self.api.get_all_items("shows", "completed", extended=True, date_from=date_from,
+                                             episode_watched_at=True)
         
         # Fetch ALL watching shows - intentionally no date_from here.
         #
@@ -1779,7 +1804,7 @@ class SyncManager:
         # extended=True maps to.  Without it every in-progress show hits the
         # "if not seasons: continue" path and 0 episodes are ever imported —
         # the root cause of cross-device episode sync failing for watching shows.
-        simkl_watching = self.api.get_all_items("shows", "watching", extended=True)
+        simkl_watching = self.api.get_all_items("shows", "watching", extended=True, episode_watched_at=True)
         
         # Deduplicate before combining — a show theoretically cannot appear in both
         # completed and watching simultaneously, but if it does the watching entry
@@ -1828,7 +1853,7 @@ class SyncManager:
             log(f"[sync v{__version__}] SyncManager.import_episodes_from_simkl() No episodes in Kodi library")
             return 0
         
-        # Build Kodi-side indexes (show_index still needed by the unmark pass below)
+        # Build Kodi-side indexes
         show_index = self._build_kodi_show_index(kodi_shows)
         episode_index = self._build_kodi_episode_index(kodi_episodes)
 
@@ -2031,7 +2056,7 @@ class SyncManager:
                         else:
                             ep_id = kodi_ep.get("episodeid")
 
-                            if self._set_episode_playcount(ep_id, 1):
+                            if self._set_episode_playcount(ep_id, 1, watched_at=ep_data.get("watched_at")):
                                 log_debug(f"[sync v{__version__}] SyncManager.import_episodes_from_simkl() Marked: {show_title_display} S{season_num:02d}E{ep_num:02d}")
                                 imported += 1
                             else:
@@ -2071,175 +2096,17 @@ class SyncManager:
             f"Not on SIMKL: {not_found_shows} Kodi shows | "
             f"SIMKL episodes absent from Kodi library: {simkl_eps_not_in_kodi}")
 
-        # If the user cancelled mid-import, skip the unmark check and return
-        # partial results — the unmark logic needs a complete SIMKL dataset.
+        # If the user cancelled mid-import, return the partial results.
         if self.cancelled:
-            log(f"[sync v{__version__}] SyncManager.import_episodes_from_simkl() Import cancelled; skipping unmark check")
+            log(f"[sync v{__version__}] SyncManager.import_episodes_from_simkl() Import cancelled")
             self.stats['episodes_imported'] = imported
             return imported
 
-        # Check if we should unmark episodes not on SIMKL
-        # IMPORTANT: Only unmark during FULL sync (no date_from filter).
-        # During incremental sync, we only fetched shows changed since date_from,
-        # so the absence of an episode does NOT mean it's not on SIMKL.
-        if get_setting_bool('unmark_not_on_simkl'):
-            if date_from:
-                log(f"[sync v{__version__}] SyncManager.import_episodes_from_simkl() Skipping unmark check - incremental sync only has partial data")
-            else:
-                # Update the progress dialog before the unmark pass so it doesn't
-                # appear frozen at "Show N of N" (79%) while hundreds of
-                # SetEpisodeDetails RPCs run. Bumps to 80% with descriptive text.
-                if self.progress_dialog:
-                    self.progress_dialog.update(80, "Checking for episodes to unmark...")
-                # Build set of watched episodes on SIMKL for checking
-                simkl_episodes, matched_tvshowids = self._build_simkl_episode_set(all_shows, show_index)
-                unmarked = self._unmark_episodes_not_on_simkl(kodi_episodes, simkl_episodes, matched_tvshowids)
-                self.stats['episodes_unmarked'] = unmarked
-                log(f"[sync v{__version__}] SyncManager.import_episodes_from_simkl() Unmarked {unmarked} episodes not found on SIMKL")
-
+        # Merge, not overwrite: only ever ADDS watched state (see import_movies_from_simkl).
         self.stats['episodes_imported'] = imported
 
         log(f"[sync v{__version__}] SyncManager.import_episodes_from_simkl() === Episode Import Complete: {imported} episodes marked as watched ===")
         return imported
-    
-    def _build_simkl_episode_set(self, simkl_shows, kodi_show_index):
-        """
-        Build a set of (tvshowid, season, episode) tuples for episodes on SIMKL.
-
-        Args:
-            simkl_shows (list): Shows from SIMKL
-            kodi_show_index (dict): Kodi show index for matching
-
-        Returns:
-            tuple: (episode_set, matched_tvshowids)
-                episode_set (set): (tvshowid, season, episode) tuples watched
-                    on SIMKL.
-                matched_tvshowids (set): Kodi tvshowids that were successfully
-                    identified as existing on SIMKL at all (independent of
-                    which specific episodes are watched). A show whose
-                    tvshowid is NOT in this set could not be matched to any
-                    SIMKL entry by ID or by title+year — that does not prove
-                    the show is absent from SIMKL, only that our local match
-                    failed (e.g. a title punctuation mismatch, or the Kodi
-                    scraper not recording an ID SIMKL also returns). A show
-                    is also excluded from this set if it matched but SIMKL
-                    returned no season/episode detail for it (observed for
-                    shows with SIMKL status "completed" — the seasons array
-                    can come back empty even with extended=full). Callers
-                    must treat "unmatched" as "unknown", not "confirmed
-                    absent" — see _unmark_episodes_not_on_simkl().
-        """
-        episode_set = set()
-        matched_tvshowids = set()
-
-        for simkl_show in simkl_shows:
-            show_data = simkl_show.get("show", {})
-            show_ids = show_data.get("ids", {})
-            show_title = show_data.get("title", "")
-
-            # Find show in Kodi — try IDs first, fall back to title+year
-            kodi_show = self._match_show_to_kodi(
-                show_ids, kodi_show_index,
-                show_title=show_title,
-                show_year=show_data.get("year")
-            )
-            if not kodi_show:
-                log_debug(f"[sync v{__version__}] SyncManager._build_simkl_episode_set() "
-                          f"Could not match SIMKL show to Kodi library: '{show_title}' "
-                          f"(ids={show_ids}) — its Kodi episodes will be left untouched "
-                          f"by the unmark pass rather than treated as confirmed-absent")
-                continue
-
-            seasons = simkl_show.get("seasons", [])
-            if not seasons:
-                # SIMKL returned no per-episode season/episode breakdown for
-                # this show even though the show itself matched — observed
-                # for shows whose SIMKL status is "completed", where the API
-                # omits the seasons array (even with extended=full) instead
-                # of listing every episode. We have no per-episode data to
-                # check against, so this must NOT be treated as "matched,
-                # zero episodes watched" — that would make every genuinely
-                # watched Kodi episode of this show look unwatched-on-SIMKL
-                # and get destructively unmarked. Treat it the same as an
-                # unmatched show: leave its Kodi episodes untouched.
-                log_debug(f"[sync v{__version__}] SyncManager._build_simkl_episode_set() "
-                          f"Matched SIMKL show '{show_title}' (status="
-                          f"{simkl_show.get('status')}) but it has no season/episode "
-                          f"detail from SIMKL — its Kodi episodes will be left untouched "
-                          f"by the unmark pass rather than treated as confirmed-absent")
-                continue
-
-            kodi_tvshowid = kodi_show.get("tvshowid")
-            matched_tvshowids.add(kodi_tvshowid)
-
-            for season_data in seasons:
-                season_num = season_data.get("number", 0)
-                episodes = season_data.get("episodes", [])
-
-                for ep_data in episodes:
-                    ep_num = ep_data.get("number", 0)
-                    episode_set.add((kodi_tvshowid, season_num, ep_num))
-
-        return episode_set, matched_tvshowids
-    
-    def _unmark_episodes_not_on_simkl(self, kodi_episodes, simkl_episodes, matched_tvshowids):
-        """
-        Unmark episodes in Kodi that are watched but not on SIMKL.
-
-        Only evaluates episodes belonging to shows in matched_tvshowids — shows
-        that _build_simkl_episode_set() successfully identified on SIMKL. A show
-        that could not be matched at all is left completely untouched here: a
-        matching failure means "unknown", not "confirmed absent from SIMKL", and
-        treating it as the latter would reset every watched episode of that show
-        back to unwatched even though it is genuinely watched on SIMKL.
-
-        Args:
-            kodi_episodes (list): All episodes from Kodi
-            simkl_episodes (set): Set of (tvshowid, season, episode) tuples from SIMKL
-            matched_tvshowids (set): Kodi tvshowids successfully matched to a SIMKL show
-
-        Returns:
-            int: Number of episodes unmarked
-        """
-        log(f"[sync v{__version__}] SyncManager._unmark_episodes_not_on_simkl() Checking for episodes to unmark (not on SIMKL)...")
-        unmarked = 0
-        skipped_shows = set()
-
-        for episode in kodi_episodes:
-            # Skip if not watched
-            if episode.get("playcount", 0) == 0:
-                continue
-
-            tvshowid = episode.get("tvshowid")
-
-            # Show could not be matched to any SIMKL entry — leave it alone
-            # rather than risk wiping a genuinely-watched show's history.
-            if tvshowid not in matched_tvshowids:
-                skipped_shows.add(tvshowid)
-                continue
-
-            # Check if this episode is on SIMKL
-            season = episode.get("season", 0)
-            episode_num = episode.get("episode", 0)
-
-            if (tvshowid, season, episode_num) not in simkl_episodes:
-                # Not on SIMKL, unmark it
-                episode_id = episode.get("episodeid")
-                title = episode.get("showtitle", "Unknown")
-
-                if self._set_episode_playcount(episode_id, 0):
-                    log(f"[sync v{__version__}] SyncManager._unmark_episodes_not_on_simkl() Unmarked (not on SIMKL): {title} S{season:02d}E{episode_num:02d}")
-                    unmarked += 1
-                else:
-                    log_error(f"[sync v{__version__}] SyncManager._unmark_episodes_not_on_simkl() Failed to unmark: {title} S{season:02d}E{episode_num:02d}")
-                    self.stats['errors'] += 1
-
-        if skipped_shows:
-            log_warning(f"[sync v{__version__}] SyncManager._unmark_episodes_not_on_simkl() "
-                        f"Skipped unmark check for {len(skipped_shows)} show(s) that couldn't be "
-                        f"matched to a SIMKL entry — left untouched (not treated as confirmed-absent)")
-
-        return unmarked
     
     # ========== Rating Sync ==========
     

@@ -33,10 +33,38 @@ import xbmcaddon
 from resources.lib.utils import log, log_error, log_debug, log_warning, log_module_init, get_setting
 
 # Module version
-__version__ = '7.9.5'
+__version__ = '7.9.26'
 
 # Log module initialization
 log_module_init('api.py', __version__)
+
+
+def summarize_history_result(result):
+    """
+    Read a /sync/history response honestly.
+
+    SIMKL answers a history add with HTTP 200 and {"added": {...counts}, "not_found": {...lists}} whether or not
+    anything was recorded, so the response being a non-empty dict says nothing about whether the watch landed.
+
+    Returns None when there is no usable response (the request failed), otherwise a tuple
+    (added, not_found): `added` is the number of movies + episodes SIMKL recorded; `not_found` is the number of
+    submitted movies/shows/episodes it could not match. added == 0 with not_found == 0 means SIMKL already had
+    exactly what was sent.
+    """
+    if not isinstance(result, dict):
+        return None
+    added_block = result.get("added") or {}
+    added = 0
+    for key in ("movies", "episodes"):
+        value = added_block.get(key, 0)
+        added += value if isinstance(value, int) else 0
+    not_found = 0
+    for value in (result.get("not_found") or {}).values():
+        if isinstance(value, list):
+            not_found += len(value)
+        elif isinstance(value, int):
+            not_found += value
+    return added, not_found
 
 
 class SimklAPI:
@@ -268,7 +296,9 @@ class SimklAPI:
         if method == "GET":
             return self.session.get(url, params=params, timeout=timeout)
         elif method == "POST":
-            return self.session.post(url, json=data, timeout=timeout)
+            # params must be passed: SIMKL reads allow_rewatch from the query string, and without this the
+            # parameter was silently dropped (so no rewatch could ever be recorded - 2026-10-18).
+            return self.session.post(url, json=data, params=params, timeout=timeout)
         elif method == "DELETE":
             return self.session.delete(url, timeout=timeout)
         else:
@@ -399,7 +429,7 @@ class SimklAPI:
     
     # ========== Scrobbling Endpoints ==========
     
-    def scrobble(self, action, movie=None, show=None, episode=None, anime=None, progress=0):
+    def scrobble(self, action, movie=None, show=None, episode=None, anime=None, progress=0, allow_rewatch=False):
         """
         Send a scrobble action to SIMKL.
         
@@ -410,11 +440,14 @@ class SimklAPI:
             episode: Episode object (for TV scrobbles)
             anime: Anime object (for anime scrobbles)
             progress: Current watch progress (0-100)
-            
+            allow_rewatch: Send ?allow_rewatch=yes on a "stop" so SIMKL can record a rewatch (Pro/VIP; SIMKL
+                           decides whether this stop is a first watch, a rewatch, or too soon after the last one
+                           and says which in the response's rewatch_status). Never sent on start or pause.
+
         Returns:
             Response dict or None
         """
-        valid_actions = ["start", "pause", "stop"]
+        valid_actions= ["start", "pause", "stop"]
         if action not in valid_actions:
             log_error(f"[api v{__version__}] SimklAPI.scrobble() Invalid scrobble action: {action}")
             return None
@@ -445,8 +478,9 @@ class SimklAPI:
             log_error(f"[api v{__version__}] SimklAPI.scrobble() Scrobble requires movie, show+episode, or anime+episode")
             return None
         
-        return self._request("POST", endpoint, data=data)
-    
+        params = {"allow_rewatch": "yes"} if (allow_rewatch and action == "stop") else None
+        return self._request("POST", endpoint, data=data, params=params)
+
     # ========== Search Endpoints ==========
     
     def search_movie(self, query, year=None):
@@ -526,7 +560,7 @@ class SimklAPI:
     
     # ========== Sync Endpoints ==========
     
-    def add_to_history(self, movies=None, shows=None):
+    def add_to_history(self, movies=None, shows=None, allow_rewatch=False):
         """
         Add items directly to watch history.
         
@@ -538,7 +572,12 @@ class SimklAPI:
                     {"title": "...", "year": 2020, "ids": {"imdb": "tt..."}}
             shows: List of show objects with episodes:
                    {"title": "...", "ids": {...}, "seasons": [{"number": 1, "episodes": [{"number": 1}]}]}
-            
+            allow_rewatch: Send ?allow_rewatch=yes so an item SIMKL already has as watched is recorded as a
+                           rewatch session when it carries a watched_at at least two days from the last watch
+                           (Pro/VIP; on a free account SIMKL answers 200 and adds nothing). Without it a watch of an
+                           already-watched item is a silent no-op. Only pass it for a watch that really is a new one:
+                           with it, re-sending an old entry whose time differs from SIMKL's can create a rewatch.
+
         Returns:
             Response dict with 'added' counts or None on error
         """
@@ -558,9 +597,22 @@ class SimklAPI:
         log(f"[api v{__version__}] SimklAPI.add_to_history() Adding to history: {movie_count} movies, {show_count} shows")
         log_debug(f"[api v{__version__}] SimklAPI.add_to_history() History payload: {json.dumps(data)[:500]}...")  # First 500 chars
         
-        return self._request("POST", "/sync/history", data=data)
-    
-    def get_all_items(self, media_type="movies", status="completed", extended=False, date_from=None):
+        params = {"allow_rewatch": "yes"} if allow_rewatch else None
+        result = self._request("POST", "/sync/history", data=data, params=params)
+
+        summary = summarize_history_result(result)
+        if summary is not None:
+            added, not_found = summary
+            if not_found:
+                log_warning(f"[api v{__version__}] SimklAPI.add_to_history() SIMKL could not match {not_found} "
+                            f"submitted item(s) - nothing recorded for them: {json.dumps(result.get('not_found'))[:300]}")
+            else:
+                log(f"[api v{__version__}] SimklAPI.add_to_history() SIMKL recorded {added} watch(es)"
+                    f"{'' if added else ' (it already had exactly what was sent)'}")
+        return result
+
+    def get_all_items(self, media_type="movies", status="completed", extended=False, date_from=None,
+                      episode_watched_at=False):
         """
         Get items from user's SIMKL watchlist, optionally filtered by date.
         
@@ -579,6 +631,10 @@ class SimklAPI:
             media_type: "movies", "shows", or "anime"
             status: "completed", "watching", "plantowatch", "hold", "dropped"
             extended: Include extended info (runtime, genres, etc.)
+            episode_watched_at: Ask SIMKL to include each episode's own real
+                       "watched_at" time in the seasons[] array (shows only;
+                       it has no effect without extended). Without it episodes
+                       carry just their number.
             date_from: ISO 8601 timestamp string (e.g. "2026-01-15T00:00:00Z").
                        If provided, only returns items added/changed after this date.
                        If None, returns ALL items (full sync).
@@ -591,7 +647,9 @@ class SimklAPI:
         params = {}
         if extended:
             params["extended"] = "full"
-        
+            if episode_watched_at:
+                params["episode_watched_at"] = "yes"
+
         # date_from parameter enables incremental sync - only fetch items
         # that changed since the given timestamp, dramatically reducing
         # API payload size and server load for subsequent syncs

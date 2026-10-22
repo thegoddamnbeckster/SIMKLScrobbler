@@ -23,19 +23,22 @@ import xbmc
 import xbmcgui
 import time
 import math
+from datetime import datetime, timezone
 from resources.lib.utils import (
     log, log_error, log_debug, log_warning,
     get_setting, get_setting_bool, get_setting_int, get_setting_float, notify
 )
 from resources.lib.exclusions import check_exclusion, get_exclusion_summary
 from resources.lib.resume_store import ResumeStore
+from resources.lib.pending_history import PendingHistory
+from resources.lib.api import summarize_history_result
 from resources.lib.strings import (
     getString, NOW_SCROBBLING, MARKED_AS_WATCHED,
     RESUME_DIALOG_TITLE, RESUME_DIALOG_MESSAGE, RESUME_DIALOG_START_OVER, RESUME_DIALOG_RESUME
 )
 
 # Module version
-__version__ = '7.9.5'
+__version__ = '7.9.26'
 
 # Log module initialization
 xbmc.log(f'[SIMKL Scrobbler] scrobbler.py v{__version__} - Core scrobbler engine loading', level=xbmc.LOGINFO)
@@ -272,31 +275,38 @@ class SimklScrobbler:
         # User's threshold from settings (default 70%)
         threshold = get_setting_int("scrobble_threshold", 70)
         meets_user_threshold = watched_percent >= threshold
-        
+
+        # The moment it finished, in UTC. Used for every history entry below so a rewatch is recorded at the time it
+        # happened (and a queued retry hours later still carries it), not at whatever time a later call runs.
+        finished_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
         # SIMKL marks watched at 80%+ via /scrobble/stop, but ONLY if the API call succeeded
         SIMKL_WATCHED_THRESHOLD = 80
         simkl_marked_watched = (response is not None) and (watched_percent >= SIMKL_WATCHED_THRESHOLD)
-        
+
         was_marked_watched = False
-        
+
+        if isinstance(response, dict) and response.get("rewatch_status"):
+            # SIMKL's own verdict on whether this stop was saved as a rewatch. rewatch_id alone is not a success
+            # signal (a running session returns its id even when it rejected the watch); this is.
+            log(f"[scrobbler v{__version__}] SimklScrobbler.playback_ended() SIMKL rewatch_status={response.get('rewatch_status')} "
+                f"rewatch_id={response.get('rewatch_id')}")
+
         if meets_user_threshold:
             if simkl_marked_watched:
                 # SIMKL handled it via /scrobble/stop - we're good
                 was_marked_watched = True
                 log(f"[scrobbler v{__version__}] SimklScrobbler.playback_ended() SIMKL marked as watched via scrobble/stop ({watched_percent:.1f}% >= 80%)")
-                # Rewatch tracking: /scrobble/stop on an already-watched item updates
-                # SIMKL's last_watched timestamp but does NOT add a new entry to the
-                # watch history list. To create a visible rewatch entry, we must also
-                # call /sync/history with an explicit watched_at timestamp.
+                # Rewatch tracking: SIMKL records a rewatch (Pro/VIP) only when the call carries
+                # ?allow_rewatch=yes - the stop above now does, and says in rewatch_status what it did with it.
+                # Without the flag a stop on an already-watched item records only a playback, and a /sync/history
+                # call adds nothing (verified live 2026-10-18; until 7.9.26 the add-on never sent the flag, so no
+                # rewatch ever reached SIMKL). The history call below is the belt-and-braces: with an explicit time
+                # and the flag it is a no-op if the stop already recorded the rewatch (a second write within 48
+                # hours joins the same session).
                 if self._was_previously_watched:
                     log(f"[scrobbler v{__version__}] SimklScrobbler.playback_ended() Rewatch - calling /sync/history to add new history entry")
-                    from datetime import datetime, timezone
-                    watched_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-                    rewatch_result = self._mark_watched_via_history(watched_at=watched_at)
-                    if rewatch_result:
-                        log(f"[scrobbler v{__version__}] SimklScrobbler.playback_ended() Rewatch history entry added successfully")
-                    else:
-                        log_warning(f"[scrobbler v{__version__}] SimklScrobbler.playback_ended() Failed to add rewatch history entry")
+                    self._record_history(finished_at, reason="rewatch")
             else:
                 # Either scrobble/stop failed, or progress < 80% but user threshold met
                 # Use history API as fallback to explicitly mark watched
@@ -304,13 +314,16 @@ class SimklScrobbler:
                     log(f"[scrobbler v{__version__}] SimklScrobbler.playback_ended() Scrobble/stop failed - using history API fallback to mark watched")
                 else:
                     log(f"[scrobbler v{__version__}] SimklScrobbler.playback_ended() Progress {watched_percent:.1f}% meets user threshold ({threshold}%) but below SIMKL's 80% - using history API fallback")
-                history_result = self._mark_watched_via_history()
-                if history_result:
+                # The explicit time matters twice over: for a rewatch, SIMKL treats an already-watched item sent
+                # without one as already recorded and adds nothing; and for any watch it makes a retry idempotent
+                # (the API layer retries a timed-out POST, and a retry that carried "now" again could record the
+                # watch a second time if the first request had in fact landed).
+                if self._record_history(finished_at, reason="fallback"):
                     was_marked_watched = True
                     log(f"[scrobbler v{__version__}] SimklScrobbler.playback_ended() Successfully marked as watched via history API")
                 else:
-                    log_warning(f"[scrobbler v{__version__}] SimklScrobbler.playback_ended() Failed to mark as watched via history API fallback")
-        
+                    log_warning(f"[scrobbler v{__version__}] SimklScrobbler.playback_ended() Could not mark as watched via history API (see above; queued for retry if SIMKL was unreachable)")
+
         # Show "Marked as watched" notification
         # Delays ensure visibility during Kodi's UI transition after stop:
         # - 5s before toast: let Kodi finish returning to main screen
@@ -753,18 +766,24 @@ class SimklScrobbler:
         log(f"[scrobbler v{__version__}] SimklScrobbler._scrobble() _scrobble('{action}') at {progress:.1f}% | media_type={media_type}")
         
         try:
+            # allow_rewatch only matters on a stop (the API layer drops it for start/pause). Always sending it
+            # lets SIMKL itself decide whether this stop is a first watch, a rewatch or too soon after the last
+            # one (it says which in rewatch_status) - no guessing from Kodi's play count.
+            allow_rewatch = (action == "stop")
             if media_type == "movie":
                 return self.api.scrobble(
                     action=action,
                     movie=self.current_video_info,
-                    progress=progress
+                    progress=progress,
+                    allow_rewatch=allow_rewatch
                 )
             elif media_type == "episode":
                 return self.api.scrobble(
                     action=action,
                     show=self.current_video_info.get("show"),
                     episode=self.current_video_info.get("episode"),
-                    progress=progress
+                    progress=progress,
+                    allow_rewatch=allow_rewatch
                 )
             else:
                 log_error(f"[scrobbler v{__version__}] SimklScrobbler._scrobble() Unknown media type for scrobble: {media_type}")
@@ -774,7 +793,51 @@ class SimklScrobbler:
             log_error(f"[scrobbler v{__version__}] SimklScrobbler._scrobble() Error sending scrobble: {e}")
             return None
     
-    def _mark_watched_via_history(self, watched_at=None):
+    def _build_history_payload(self, watched_at=None):
+        """
+        Build the /sync/history object for the current item.
+
+        Returns (kind, payload, label) - kind is "movie" or "show" - or None when nothing can be built.
+        watched_at, when given, is an ISO 8601 UTC string recorded as the watch time; omit it to let SIMKL use
+        its own clock.
+        """
+        if not self.current_video_info:
+            return None
+
+        media_type = self.current_video.get("type", "movie")
+
+        if media_type == "movie":
+            movie_obj = dict(self.current_video_info)
+            if watched_at:
+                movie_obj["watched_at"] = watched_at
+            return "movie", movie_obj, movie_obj.get("title") or "movie"
+
+        if media_type == "episode":
+            show_info = self.current_video_info.get("show", {})
+            episode_info = self.current_video_info.get("episode", {})
+
+            episode_obj = {"number": episode_info.get("number", 0)}
+            if watched_at:
+                episode_obj["watched_at"] = watched_at
+
+            show_obj = {
+                "title": show_info.get("title"),
+                "ids": show_info.get("ids", {}),
+                "seasons": [{
+                    "number": episode_info.get("season", 1),
+                    "episodes": [episode_obj]
+                }]
+            }
+            if show_info.get("year"):
+                show_obj["year"] = show_info["year"]
+            label = (f"{show_info.get('title')} S{episode_info.get('season', 1):02d}"
+                     f"E{episode_info.get('number', 0):02d}")
+            return "show", show_obj, label
+
+        log_error(f"[scrobbler v{__version__}] SimklScrobbler._build_history_payload() Unknown media type for history: {media_type}")
+        return None
+
+    def _mark_watched_via_history(self, watched_at=None, allow_rewatch=False):
         """
         Mark current item as watched using the /sync/history endpoint.
 
@@ -783,8 +846,8 @@ class SimklScrobbler:
            the user's configured threshold has been met.
         2. Rewatch: /scrobble/stop already ran at >= 80% but the item was
            previously watched, so we pass watched_at to create a new history
-           entry (SIMKL's scrobble/stop only updates last_watched, it does not
-           add a new entry for already-watched items).
+           entry (SIMKL's scrobble/stop does not add a new entry for
+           already-watched items).
 
         Args:
             watched_at: Optional ISO 8601 UTC timestamp string (e.g.
@@ -793,49 +856,69 @@ class SimklScrobbler:
                         (SIMKL uses server time).
 
         Returns:
-            API response dict or None on failure
+            API response dict or None on failure. Note the dict is returned
+            even when SIMKL recorded nothing - read it with
+            summarize_history_result().
         """
-        if not self.current_video_info:
+        built = self._build_history_payload(watched_at)
+        if built is None:
             return None
-
-        media_type = self.current_video.get("type", "movie")
-
+        kind, payload, _label = built
         try:
-            if media_type == "movie":
-                movie_obj = dict(self.current_video_info)
-                if watched_at:
-                    movie_obj["watched_at"] = watched_at
-                return self.api.add_to_history(movies=[movie_obj])
-
-            elif media_type == "episode":
-                show_info = self.current_video_info.get("show", {})
-                episode_info = self.current_video_info.get("episode", {})
-
-                episode_obj = {"number": episode_info.get("number", 0)}
-                if watched_at:
-                    episode_obj["watched_at"] = watched_at
-
-                show_obj = {
-                    "title": show_info.get("title"),
-                    "ids": show_info.get("ids", {}),
-                    "seasons": [{
-                        "number": episode_info.get("season", 1),
-                        "episodes": [episode_obj]
-                    }]
-                }
-                if show_info.get("year"):
-                    show_obj["year"] = show_info["year"]
-
-                return self.api.add_to_history(shows=[show_obj])
-            
-            else:
-                log_error(f"[scrobbler v{__version__}] SimklScrobbler._mark_watched_via_history() Unknown media type for history fallback: {media_type}")
-                return None
-                
+            if kind == "movie":
+                return self.api.add_to_history(movies=[payload], allow_rewatch=allow_rewatch)
+            return self.api.add_to_history(shows=[payload], allow_rewatch=allow_rewatch)
         except Exception as e:
             log_error(f"[scrobbler v{__version__}] SimklScrobbler._mark_watched_via_history() Error marking watched via history: {e}")
             return None
-    
+
+    def _record_history(self, finished_at, reason):
+        """
+        Record the current watch via /sync/history and check that SIMKL really took it.
+
+        Args:
+            finished_at: The moment the watch ended (ISO 8601 UTC). Sent as the watch time, and kept on a queued
+                         retry so a retry hours later still records the watch when it happened.
+            reason: "rewatch" or "fallback", for the log.
+
+        Returns True when SIMKL recorded the watch or already had it. Returns False when SIMKL could not match the
+        item, or could not be reached - in which case a request that got no answer is queued and retried later.
+        """
+        sent = self._build_history_payload(finished_at)
+        if sent is None:
+            return False
+        label = sent[2]
+
+        rewatch = bool(self._was_previously_watched)
+        result = self._mark_watched_via_history(finished_at, allow_rewatch=rewatch)
+        summary = summarize_history_result(result)
+
+        if summary is None:
+            log_warning(f"[scrobbler v{__version__}] SimklScrobbler._record_history() {reason}: no response from SIMKL for "
+                        f"{label} - queuing it for retry")
+            try:
+                PendingHistory().add(sent[0], sent[1], label=label, rewatch=rewatch)
+            except Exception as e:
+                log_error(f"[scrobbler v{__version__}] SimklScrobbler._record_history() Could not queue {label}: {e}")
+            return False
+
+        added, not_found = summary
+        if not_found:
+            log_error(f"[scrobbler v{__version__}] SimklScrobbler._record_history() {reason}: SIMKL could not match {label} "
+                      f"- NOT recorded. Sent: {sent[1]}")
+            return False
+
+        if added:
+            log(f"[scrobbler v{__version__}] SimklScrobbler._record_history() {reason}: SIMKL recorded {label}")
+        elif reason == "rewatch":
+            log(f"[scrobbler v{__version__}] SimklScrobbler._record_history() rewatch: SIMKL added no new rewatch of {label} - "
+                f"either the stop already recorded it, it is within 2 days of the last watch (SIMKL folds those together), "
+                f"or the account is not Pro/VIP")
+        else:
+            log_warning(f"[scrobbler v{__version__}] SimklScrobbler._record_history() {reason}: SIMKL accepted the request for "
+                        f"{label} but added nothing - it already had exactly this entry")
+        return True
+
     def _calculate_watched_percent(self):
         """
         Calculate percentage watched.

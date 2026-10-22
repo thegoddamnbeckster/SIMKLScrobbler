@@ -1,4 +1,79 @@
 
+[7.9.26] - 2026-10-18
+Fix: rewatches never reached SIMKL, because the add-on never asked for them. SIMKL records a rewatch (Pro/VIP
+accounts) only when the call carries ?allow_rewatch=yes; without it a /scrobble/stop on an already-watched title
+records only a playback and a /sync/history call adds nothing - exactly what 7.9.25 saw and wrongly took to mean
+SIMKL keeps one watch per title. (That 7.9.25 conclusion was wrong; this release replaces it.) Three faults:
+- Every POST dropped its URL parameters (the request layer never passed them on), so the flag could not have
+  reached SIMKL even where it was meant to. Parameters are now sent.
+- /scrobble/stop is now sent with allow_rewatch=yes, so SIMKL itself judges whether the stop is a first watch,
+  a rewatch, or too soon after the last one (SIMKL folds watches less than 2 days apart into one session), and the
+  add-on logs its rewatch_status instead of guessing from Kodi's play count.
+- The /sync/history call for a rewatch (and a queued retry of one) carries the flag too. A first watch never
+  does: with the flag, re-sending an old entry whose time differs from SIMKL's could create a rewatch.
+Not changed: the Kodi-to-SIMKL library export still sends no rewatches; a rewatch reaches SIMKL through the stop
+above, or through Chronicle.
+
+[7.9.25] - 2026-10-17
+Correction to 7.9.24: that release said a rewatch needs an explicit watched_at to be recorded through
+/sync/history. Checked live against SIMKL (a movie it already had as completed): the call answers added=0 even
+with an explicit time, and the entry's last_watched_at does not change. SIMKL does not appear to keep a second
+watch of a movie, so a rewatch cannot be recorded there through this API (episodes are unverified). The rewatch
+call is kept (it is harmless and may be honoured for other cases) but the log no longer says SIMKL "already had
+exactly this entry": it now says plainly that the rewatch is not on SIMKL. The other 7.9.24 fixes stand - the
+answer is read honestly, a request with no answer is queued and retried with its real finish time, and a failed
+movie export no longer advances the sync state.
+
+[7.9.24] - 2026-10-17
+Fix: a rewatch could fail to reach SIMKL without a trace (Spider-Man: Brand New Day, rewatched on a Shield,
+never appeared; SIMKL still showed only the first watch). A code review of the history-recording path found
+four faults, all fixed:
+- SIMKL answers a /sync/history call with HTTP 200 and {"added": ..., "not_found": ...} whether or not anything
+  was recorded. The add-on treated any non-empty answer as success, so "SIMKL could not match the item" and
+  "SIMKL added nothing" were both logged as "added successfully". The answer is now read properly: a watch
+  counts as recorded only when SIMKL added it or already had exactly that entry, and an item SIMKL cannot
+  match is logged as an error with what was sent.
+- When /scrobble/stop failed, the fallback marked the watch through /sync/history without a watched_at -
+  and for a rewatch SIMKL adds nothing to an already-watched item sent without a time. Every history entry
+  now carries the moment the watch ended. That also makes a retry safe: the API layer retries a timed-out
+  POST, and a retry carrying "now" again could have recorded the watch twice.
+- A history call that got no answer at all (connection dropped, SIMKL down, rate limit) was logged and
+  forgotten, and for a rewatch nothing later could rebuild it. Such watches are now queued
+  (pending_history.json, with their real finish time) and retried at the start of every sync. An item SIMKL
+  cannot match is dropped after three tries; the queue is capped at 200.
+- The movie export saved its "already synced" state even after a failed batch, so those movies were never
+  retried (the episode export always waited for success). It now advances the state only when every batch
+  got an answer.
+
+[7.9.23] - 2026-10-17
+Change: the import from SIMKL is now a merge: it only ever adds watched state.
+The "Unmark items removed from SIMKL history" pass (and its setting) is gone.
+It ran on every full sync and set any Kodi item SIMKL did not list back to
+unwatched - SIMKL not knowing about a watch is not evidence that it never
+happened, and one full sync unmarked eight watched movies that way. An item
+Kodi already has watched is likewise never rewritten (its own play count and
+last-played are kept).
+
+[7.9.22] - 2026-10-17
+Fix: importing watched state from SIMKL stamped "now" as the item's last-played
+time. A playcount write on an item that has never been played makes Kodi record
+the moment of the write, so every item SIMKL said was watched but Kodi did not
+yet know got a fake last-played at the time of the sync (a Kodi startup,
+usually). Anything reading Kodi's last-played - Chronicle's scraper, for one -
+then saw a brand-new play of something that had actually been finished days
+earlier, and recorded it as a rewatch. The import now writes SIMKL's own real
+time as last-played: a movie's last_watched_at, and each episode's watched_at
+(the episode lists are now requested with episode_watched_at=yes, which SIMKL
+needs before it includes them). Where SIMKL has no real time for an item -
+including a whole show SIMKL only reports as "completed" - only the playcount
+can be written, and Kodi then stamps the current time if the item has no
+last-played yet (Kodi's JSON-RPC cannot leave it blank).
+Fix: every timestamp conversion failed inside Kodi with "'NoneType' object is
+not callable" (datetime.strptime, whose lazy import breaks when first called
+off the main thread). Times are now parsed without strptime. This also repairs
+the same failure on the export side, where each exported item lost its
+watched_at.
+
 [7.9.20] - 2026-10-05
 Fix: an episode could be scrobbled to the wrong show on SIMKL (the real
 "Supernatural" recorded as the 2011 anime also titled "Supernatural"). The
