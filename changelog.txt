@@ -1,3 +1,8 @@
+[7.9.28] - 2026-10-31
+LOGGING: a sync that reported "Imported: 19" never said which episodes. Each episode (and movie) the import marks as watched in
+Kodi is now written to kodi.log at normal verbosity: show, season and episode, SIMKL's own watched_at time, and the playcount Kodi had.
+The on-screen message after a sync still shows only the counts; the list of episodes is in kodi.log.
+
 [7.9.27] - 2026-10-22
 SIMKL AUTH V2 (announced 2026-09-18): SIMKL expects the old PIN login (AUTH V1) to stop working around April 2027, and a V1
 application cannot be upgraded. This release adds the new login and keeps existing connections working until then.

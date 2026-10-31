@@ -485,7 +485,7 @@ class SimklService:
             else:
                 message = getString(SYNC_COMPLETE_NO_CHANGES)
 
-            # Show completion notification (if enabled)
+            # Show completion notification (if enabled). Counts only: which episodes were marked is in kodi.log.
             if show_notifications:
                 xbmcgui.Dialog().notification(
                     getString(ADDON_NAME),

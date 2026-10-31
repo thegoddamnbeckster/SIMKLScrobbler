@@ -37,7 +37,7 @@ from resources.lib.api import SimklAPI
 from resources.lib.pending_history import PendingHistory
 
 # Module version
-__version__ = '7.9.26'
+__version__ = '7.9.28'
 
 # Log module initialization
 xbmc.log(f'[SIMKL Scrobbler] sync.py v{__version__} - Sync manager module loading', level=xbmc.LOGINFO)
@@ -1743,8 +1743,8 @@ class SyncManager:
                     continue
                 ep_id = kodi_ep.get("episodeid")
                 if self._set_episode_playcount(ep_id, 1):
-                    log_debug(f"[sync v{__version__}] SyncManager._mark_all_episodes_watched() "
-                              f"Marked (status=completed, no season data from SIMKL): "
+                    log(f"[sync v{__version__}] SyncManager._mark_all_episodes_watched() "
+                        f"Marked watched in Kodi (status=completed, no season data from SIMKL): "
                               f"{show_title_display} S{season_num:02d}E{ep_num:02d}")
                     imported += 1
                 else:
@@ -2058,7 +2058,7 @@ class SyncManager:
                             ep_id = kodi_ep.get("episodeid")
 
                             if self._set_episode_playcount(ep_id, 1, watched_at=ep_data.get("watched_at")):
-                                log_debug(f"[sync v{__version__}] SyncManager.import_episodes_from_simkl() Marked: {show_title_display} S{season_num:02d}E{ep_num:02d}")
+                                log(f"[sync v{__version__}] SyncManager.import_episodes_from_simkl() Marked watched in Kodi: {show_title_display} S{season_num:02d}E{ep_num:02d} (SIMKL watched_at={ep_data.get('watched_at') or 'unknown'}, Kodi playcount was {current_playcount})")
                                 imported += 1
                             else:
                                 log_error(f"[sync v{__version__}] SyncManager.import_episodes_from_simkl() Failed: {show_title_display} S{season_num:02d}E{ep_num:02d}")
